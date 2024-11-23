@@ -1,6 +1,6 @@
-use log::error;
+use baker::{args::run, args::Args};
 use clap::Parser;
-use baker::{args::Args, args::run};
+use log::error;
 
 pub fn init_logger(verbose: bool) {
     env_logger::Builder::new()
