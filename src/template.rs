@@ -20,7 +20,8 @@ impl TemplateSource {
 }
 
 pub trait TemplateSourceProcessor {
-    fn process(&self, template_source: TemplateSource) -> BakerResult<()>;
+    // Processes template source and returns a local path to it.
+    fn process(&self, template_source: TemplateSource) -> BakerResult<PathBuf>;
 }
 
 pub struct LocalTemplateProcessor {}
@@ -32,7 +33,7 @@ impl LocalTemplateProcessor {
 }
 
 impl TemplateSourceProcessor for LocalTemplateProcessor {
-    fn process(&self, template_source: TemplateSource) -> BakerResult<()> {
+    fn process(&self, template_source: TemplateSource) -> BakerResult<PathBuf> {
         let path = match template_source {
             TemplateSource::LocalPath(path) => path,
             // This panic is safe because the `run` function ensures all possible TemplateSource
@@ -45,7 +46,7 @@ impl TemplateSourceProcessor for LocalTemplateProcessor {
             ));
         }
 
-        Ok(())
+        todo!()
     }
 }
 
@@ -57,7 +58,7 @@ impl GithubTemplateProcessor {
 }
 
 impl TemplateSourceProcessor for GithubTemplateProcessor {
-    fn process(&self, template_source: TemplateSource) -> BakerResult<()> {
+    fn process(&self, template_source: TemplateSource) -> BakerResult<PathBuf> {
         todo!("this method is not implemented yet")
     }
 }

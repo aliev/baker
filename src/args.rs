@@ -35,11 +35,11 @@ pub struct Args {
 
 pub fn run(args: Args) -> BakerResult<()> {
     if let Some(template_source) = TemplateSource::from_string(&args.template) {
-        let processor: Box<dyn TemplateSourceProcessor> = match template_source {
+        let template_source_processor: Box<dyn TemplateSourceProcessor> = match template_source {
             TemplateSource::GitHub(_) => Box::new(GithubTemplateProcessor::new()),
             TemplateSource::LocalPath(_) => Box::new(LocalTemplateProcessor::new()),
         };
-        processor.process(template_source)?;
+        template_source_processor.process(template_source)?;
     } else {
         return Err(BakerError::TemplateError(format!(
             "invalid template source: {}",
