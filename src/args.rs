@@ -2,28 +2,12 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use crate::error::{BakerError, BakerResult};
-
-#[derive(Debug)]
-enum TemplateSource {
-    LocalPath(PathBuf),
-    GitHub(String),
-}
-
-impl TemplateSource {
-    fn from_string(s: &str) -> Option<Self> {
-        if s.starts_with("gh@") {
-            Some(Self::GitHub(s[3..].to_string()))
-        } else {
-            let path = PathBuf::from(s);
-            if path.exists() {
-                Some(Self::LocalPath(path))
-            } else {
-                None
-            }
-        }
-    }
-}
+use crate::{
+    error::{BakerError, BakerResult},
+    template::{
+        GithubTemplateProcessor, LocalTemplateProcessor, TemplateSource, TemplateSourceProcessor,
+    },
+};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -50,23 +34,17 @@ pub struct Args {
 }
 
 pub fn run(args: Args) -> BakerResult<()> {
-    let template_source = TemplateSource::from_string(&args.template).ok_or_else(|| {
-        BakerError::TemplateError(format!(
-            "Invalid template format or path does not exist: {}",
+    if let Some(template_source) = TemplateSource::from_string(&args.template) {
+        let processor: Box<dyn TemplateSourceProcessor> = match template_source {
+            TemplateSource::GitHub(_) => Box::new(GithubTemplateProcessor::new()),
+            TemplateSource::LocalPath(_) => Box::new(LocalTemplateProcessor::new()),
+        };
+        processor.process(template_source)?;
+    } else {
+        return Err(BakerError::TemplateError(format!(
+            "invalid template source: {}",
             args.template
-        ))
-    })?;
-    match template_source {
-        TemplateSource::LocalPath(path) => handle_local_template(path, &args)?,
-        TemplateSource::GitHub(repo) => handle_github_template(repo, &args)?,
+        )));
     }
     Ok(())
-}
-
-fn handle_local_template(path: PathBuf, args: &Args) -> BakerResult<()> {
-    todo!("This feature is not implemented yet.")
-}
-
-fn handle_github_template(repo: String, args: &Args) -> BakerResult<()> {
-    todo!("This feature is not implemented yet.")
 }
