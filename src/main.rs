@@ -1,6 +1,16 @@
 use log::error;
 use clap::Parser;
-use baker::{args::Args, logger::init_logger, run::run};
+use baker::{args::Args, args::run};
+
+pub fn init_logger(verbose: bool) {
+    env_logger::Builder::new()
+        .filter_level(if verbose {
+            log::LevelFilter::Debug
+        } else {
+            log::LevelFilter::Info
+        })
+        .init();
+}
 
 fn main() {
     let args = Args::parse();

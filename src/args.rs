@@ -2,12 +2,14 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
+use crate::error::BakerResult;
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
-    /// Template directory path
-    #[arg(value_name = "TEMPLATE_DIR")]
-    template_dir: PathBuf,
+    /// Template argument
+    #[arg(value_name = "TEMPLATE")]
+    template: String,
 
     /// Output directory path
     #[arg(value_name = "OUTPUT_DIR")]
@@ -24,4 +26,9 @@ pub struct Args {
     /// Skip hooks safety check
     #[arg(long)]
     skip_hooks_check: bool,
+}
+
+pub fn run(args: Args) -> BakerResult<()> {
+    println!("{}", args.template);
+    Ok(())
 }
