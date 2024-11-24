@@ -42,8 +42,11 @@ Options:
 ```
 template/
 ├── baker.json           # Template configuration
-├── .bakerignore        # Files to ignore (optional)
-├── hooks/              # Template hooks (optional)
+├── .bakerignore         # Files to ignore (optional)
+├── .dockerfile.j2       # The template file will be processed
+├── main.py.j2           # The template file will be processed
+├── template.j2          # This file will not be processed but just copied
+├── hooks/               # Template hooks (optional)
 │   ├── pre_gen_project
 │   └── post_gen_project
 └── ... template files ...
