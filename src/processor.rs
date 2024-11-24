@@ -90,13 +90,14 @@ fn get_target_path(processed_path: &str, target_dir: &Path) -> (PathBuf, bool) {
     (target_path, template_path)
 }
 
-pub fn process(
+pub fn process_template(
     template_dir: &PathBuf,
     output_dir: &Path,
     context: &serde_json::Value,
     template_processor: &Box<dyn TemplateRenderer>,
     bakerignore: GlobSet,
 ) -> BakerResult<()> {
+    debug!("Processing template...");
     let template_context = serde_json::json!({
         "baker": context
     });

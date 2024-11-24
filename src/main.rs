@@ -4,7 +4,7 @@ use baker::{
     config::parse_config,
     error::{BakerError, BakerResult},
     hooks::{confirm_hooks_execution, run_hook},
-    processor::process,
+    processor::process_template,
     prompt::prompt_for_values,
     render::{MiniJinjaTemplateRenderer, TemplateRenderer},
     template::{
@@ -13,7 +13,7 @@ use baker::{
     },
 };
 use clap::Parser;
-use log::{debug, error, info};
+use log::{error, info};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -73,10 +73,7 @@ fn run(args: Args) -> BakerResult<()> {
 
         info!("Loading configuration from: {}", &bakerfile.display());
         let config = parse_config(bakerfile_content, &template_processor)?;
-
-        debug!("Starting interactive configuration...");
         let context = prompt_for_values(config)?;
-        debug!("Final configuration: {:#?}", context);
 
         if execute_hooks {
             let pre_hook = template_dir.join("hooks").join("pre_gen_project");
@@ -85,8 +82,7 @@ fn run(args: Args) -> BakerResult<()> {
             }
         }
 
-        debug!("Processing templates...");
-        process(
+        process_template(
             &template_dir,
             &output_dir,
             &context,

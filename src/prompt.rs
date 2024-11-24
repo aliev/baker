@@ -1,4 +1,5 @@
 use indexmap::IndexMap;
+use log::debug;
 use std::io::{self, Write};
 
 use crate::error::{BakerError, BakerResult};
@@ -26,6 +27,7 @@ pub fn read_input() -> BakerResult<String> {
 pub fn prompt_for_values(
     config: IndexMap<String, serde_json::Value>,
 ) -> BakerResult<serde_json::Value> {
+    debug!("Starting interactive configuration...");
     let mut final_context = config.clone();
     // Use iter_mut() to maintain the original order from the IndexMap
     for (key, value) in final_context.iter_mut() {
@@ -67,5 +69,8 @@ pub fn prompt_for_values(
         }
     }
 
-    Ok(serde_json::to_value(final_context).map_err(|e| BakerError::ConfigError(e.to_string()))?)
+    let context =
+        serde_json::to_value(final_context).map_err(|e| BakerError::ConfigError(e.to_string()))?;
+    debug!("Final configuration: {:#?}", context);
+    Ok(context)
 }
