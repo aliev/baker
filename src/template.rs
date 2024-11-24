@@ -23,15 +23,15 @@ pub trait TemplateSourceProcessor {
     fn process(&self, template_source: TemplateSource) -> BakerResult<PathBuf>;
 }
 
-pub struct LocalTemplateSourceProcessor {}
+pub struct FileSystemTemplateSourceProcessor {}
 
-impl LocalTemplateSourceProcessor {
+impl FileSystemTemplateSourceProcessor {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl TemplateSourceProcessor for LocalTemplateSourceProcessor {
+impl TemplateSourceProcessor for FileSystemTemplateSourceProcessor {
     fn process(&self, template_source: TemplateSource) -> BakerResult<PathBuf> {
         let path = match template_source {
             TemplateSource::LocalPath(path) => path,
