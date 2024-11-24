@@ -1,10 +1,17 @@
-# Baker - Project Template Generator
+# Baker - Project Scaffolding Tool
 
-Baker is a fast and flexible project scaffolding tool written in Rust that helps you generate projects from templates.
+<div align="center">
+  <img src="artwork/logo.ai.png" alt="" width=320>
+  <p><strong>Baker: is a fast and flexible project scaffolding tool written in Rust that helps you generate projects from templates.</strong></p>
+
+</div>
 
 ## Features
 
-- Template processing using fast and powerful [Minijinja](https://github.com/mitsuhiko/minijinja) library.
+Baker was inspired by the [cookiecutter](https://github.com/cookiecutter/cookiecutter) project. The key difference is that Baker does not rely on Python dependencies, operates much faster, and provides a unified binary. At the same time, it retains excellent integration capabilities with Jinja 2 (via [Minijinja](https://github.com/mitsuhiko/minijinja)).
+
+Basic features
+
 - Interactive prompt for template variables
 - Pre and post-generation hooks
 - `.bakerignore` support for excluding files
