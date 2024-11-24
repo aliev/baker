@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: baker
+            release_name: baker-linux-amd64
+          - os: windows-latest
+            artifact_name: baker.exe
+            release_name: baker-windows-amd64.exe
+          - os: macos-latest
+            artifact_name: baker
+            release_name: baker-macos-amd64
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            artifact_name: baker
+            release_name: baker-macos-arm64
+            target: aarch64-apple-darwin
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+
+    - name: Build Release
+      run: |
+        if [ "${{ matrix.target }}" != "" ]; then
+          cargo build --verbose --release --target ${{ matrix.target }}
+        else
+          cargo build --verbose --release
+        fi
+      shell: bash
+
+    - name: Test
+      run: cargo test --verbose
+
+    - name: Prepare release asset
+      shell: bash
+      run: |
+        if [ "${{ matrix.target }}" != "" ]; then
+          cp "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}" "${{ matrix.release_name }}"
+        else
+          cp "target/release/${{ matrix.artifact_name }}" "${{ matrix.release_name }}"
+        fi
+        if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          shasum -a 256 "${{ matrix.release_name }}" > "${{ matrix.release_name }}.sha256"
+        else
+          sha256sum "${{ matrix.release_name }}" > "${{ matrix.release_name }}.sha256"
+        fi
+        gzip -c "${{ matrix.release_name }}" > "${{ matrix.release_name }}.gz"
+
+    - name: Upload Binary
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ matrix.release_name }}.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Checksum
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ matrix.release_name }}.sha256
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

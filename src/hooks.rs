@@ -5,26 +5,20 @@ use std::process::{Command, Stdio};
 use crate::error::{BakerError, BakerResult};
 use crate::prompt::read_input;
 
-fn has_hooks(template_dir: &Path) -> bool {
+pub fn has_hooks(template_dir: &Path) -> (PathBuf, PathBuf) {
     let pre_hook = template_dir.join("hooks").join("pre_gen_project");
     let post_hook = template_dir.join("hooks").join("post_gen_project");
 
-    pre_hook.exists() || post_hook.exists()
+    (pre_hook, post_hook)
 }
 
-pub fn confirm_hooks_execution(
-    template_dir: &PathBuf,
-    skip_hooks_check: bool,
-) -> BakerResult<bool> {
+pub fn confirm_hooks_execution(skip_hooks_check: bool) -> BakerResult<bool> {
     if skip_hooks_check {
         return Ok(true);
     }
-    if has_hooks(template_dir) {
-        print!("WARNING: This template contains hooks that will execute commands on your system. Do you want to run these hooks? [y/N] ");
-        let input = read_input()?;
-        return Ok(input.to_lowercase() == "y");
-    }
-    Ok(false)
+    print!("WARNING: This template contains hooks that will execute commands on your system. Do you want to run these hooks? [y/N] ");
+    let input = read_input()?;
+    Ok(input.to_lowercase() == "y")
 }
 
 pub fn run_hook(script_path: &Path, context: &serde_json::Value) -> BakerResult<()> {
