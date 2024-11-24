@@ -36,14 +36,14 @@ struct Args {
     skip_hooks_check: bool,
 }
 
-fn output_dir_exists(output_dir: &PathBuf, force: bool) -> BakerResult<()> {
+fn get_output_dir(output_dir: &PathBuf, force: bool) -> BakerResult<&PathBuf> {
     if output_dir.exists() && !force {
         return Err(BakerError::ConfigError(format!(
             "Output directory already exists: {}. Use --force to overwrite",
             output_dir.display()
         )));
     }
-    Ok(())
+    Ok(output_dir)
 }
 
 // Fetches the .bakerignore file from template directory and returns GlobSet object.
@@ -87,8 +87,7 @@ fn run(args: Args) -> BakerResult<()> {
             TemplateSource::LocalPath(_) => Box::new(LocalTemplateSourceProcessor::new()),
         };
         let template_dir = template_source_processor.process(template_source)?;
-        let output_dir = &args.output_dir;
-        output_dir_exists(output_dir, args.force)?;
+        let output_dir = get_output_dir(&args.output_dir, args.force)?;
 
         // Template processor
         let template_processor = MiniJinjaTemplateProcessor::new();
