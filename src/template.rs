@@ -46,7 +46,7 @@ impl TemplateSourceProcessor for LocalTemplateProcessor {
             ));
         }
 
-        todo!()
+        Ok(path)
     }
 }
 
