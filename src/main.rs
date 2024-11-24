@@ -65,8 +65,8 @@ fn get_bakerignore(bakerignore_path: &PathBuf) -> BakerResult<GlobSet> {
     Ok(glob_set)
 }
 
-// Fethes the baker.json from template directory and returns the ordered map.
-fn get_bakerfile(bakerfile_path: &PathBuf) -> BakerResult<IndexMap<String, serde_json::Value>> {
+// Reads bakerfile and returns the content in JSON
+fn parse_bakerfile(bakerfile_path: &PathBuf) -> BakerResult<IndexMap<String, serde_json::Value>> {
     if !bakerfile_path.exists() || !bakerfile_path.is_file() {
         return Err(BakerError::ConfigError(format!(
             "Invalid configuration path: {}",
@@ -78,6 +78,13 @@ fn get_bakerfile(bakerfile_path: &PathBuf) -> BakerResult<IndexMap<String, serde
     let map: IndexMap<String, serde_json::Value> =
         serde_json::from_str(&content).map_err(|e| BakerError::ConfigError(e.to_string()))?;
     Ok(map)
+}
+
+// Reads the JSON from bakerfile and applies the template
+fn parse_config(
+    bakerfile_map: &IndexMap<String, serde_json::Value>,
+) -> BakerResult<serde_json::Value> {
+    todo!()
 }
 
 fn run(args: Args) -> BakerResult<()> {
@@ -95,8 +102,9 @@ fn run(args: Args) -> BakerResult<()> {
         // Processing the .bakerignore
         let bakerignore = get_bakerignore(&template_dir.join(".bakerignore"))?;
 
-        // Processing the baker.json
-        let bakerfile_content = get_bakerfile(&template_dir.join("baker.json"))?;
+        // Processing the bakerfile.
+        let bakerfile_map = parse_bakerfile(&template_dir.join("baker.json"))?;
+        let config = parse_config(&bakerfile_map)?;
     } else {
         return Err(BakerError::TemplateError(format!(
             "invalid template source: {}",
