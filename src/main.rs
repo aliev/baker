@@ -6,8 +6,9 @@ use baker::{
     },
 };
 use clap::Parser;
-use log::error;
-use std::path::PathBuf;
+use globset::{Glob, GlobSet, GlobSetBuilder};
+use log::{error, debug};
+use std::{path::PathBuf, fs::read_to_string};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -33,6 +34,35 @@ struct Args {
     skip_hooks_check: bool,
 }
 
+fn check_target_dir(target_dir: &PathBuf, force: bool) -> BakerResult<()> {
+    if target_dir.exists() && !force {
+        return Err(BakerError::ConfigError(format!(
+            "Output directory already exists: {}. Use --force to overwrite",
+            target_dir.display()
+        )));
+    }
+    Ok(())
+}
+
+fn get_bakerignore(source_dir: &PathBuf) -> BakerResult<GlobSet> {
+    let bakerignore_path = source_dir.join(".bakerignore");
+    let mut builder = GlobSetBuilder::new();
+    if let Ok(contents) = read_to_string(bakerignore_path) {
+        for line in contents.lines() {
+            builder.add(Glob::new(line).map_err(|e| {
+                BakerError::BakerIgnoreError(format!(".bakerignore loading failed: {}", e))
+            })?);
+        }
+    } else {
+        debug!(".bakerignore does not exist")
+    }
+    let glob_set = builder.build().map_err(|e| {
+        BakerError::BakerIgnoreError(format!(".bakerignore loading failed: {}", e))
+    })?;
+
+    Ok(glob_set)
+}
+
 fn run(args: Args) -> BakerResult<()> {
     if let Some(template_source) = TemplateSource::from_string(&args.template) {
         let template_source_processor: Box<dyn TemplateSourceProcessor> = match template_source {
@@ -41,7 +71,12 @@ fn run(args: Args) -> BakerResult<()> {
         };
         let template_processor = MiniJinjaTemplateProcessor::new();
         let source_dir = template_source_processor.process(template_source)?;
-        let target_dir = args.output_dir;
+        let target_dir = &args.output_dir;
+        check_target_dir(target_dir, args.force)?;
+
+        // The part that responsible for .bakerignore
+        let bakerignore = get_bakerignore(&source_dir)?;
+        // End
     } else {
         return Err(BakerError::TemplateError(format!(
             "invalid template source: {}",
