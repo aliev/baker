@@ -1,7 +1,7 @@
 use indexmap::IndexMap;
 use std::io::{self, Write};
 
-use crate::error::BakerResult;
+use crate::error::{BakerError, BakerResult};
 
 fn yes_no_prompt(value: &str) -> (bool, bool) {
     let yes_choices = ["1", "true", "t", "yes", "y", "on"];
@@ -16,7 +16,7 @@ fn yes_no_prompt(value: &str) -> (bool, bool) {
     )
 }
 
-fn read_input() -> BakerResult<String> {
+pub fn read_input() -> BakerResult<String> {
     io::stdout().flush()?;
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
@@ -25,7 +25,7 @@ fn read_input() -> BakerResult<String> {
 
 pub fn prompt_for_values(
     config: IndexMap<String, serde_json::Value>,
-) -> BakerResult<IndexMap<String, serde_json::Value>> {
+) -> BakerResult<serde_json::Value> {
     let mut final_context = config.clone();
     // Use iter_mut() to maintain the original order from the IndexMap
     for (key, value) in final_context.iter_mut() {
@@ -66,5 +66,6 @@ pub fn prompt_for_values(
             _ => {}
         }
     }
-    Ok(final_context)
+
+    Ok(serde_json::to_value(final_context).map_err(|e| BakerError::ConfigError(e.to_string()))?)
 }

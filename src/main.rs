@@ -3,6 +3,7 @@ use baker::{
     bakerignore::read_bakerignore,
     config::parse_config,
     error::{BakerError, BakerResult},
+    hooks::{confirm_hooks_execution, run_hook},
     processor::process,
     prompt::prompt_for_values,
     render::{MiniJinjaTemplateRenderer, TemplateRenderer},
@@ -39,7 +40,7 @@ struct Args {
     skip_hooks_check: bool,
 }
 
-fn get_output_dir(output_dir: &PathBuf, force: bool) -> BakerResult<&PathBuf> {
+fn get_output_dir(output_dir: PathBuf, force: bool) -> BakerResult<PathBuf> {
     if output_dir.exists() && !force {
         return Err(BakerError::ConfigError(format!(
             "Output directory already exists: {}. Use --force to overwrite",
@@ -56,7 +57,8 @@ fn run(args: Args) -> BakerResult<()> {
             TemplateSource::LocalPath(_) => Box::new(FileSystemTemplateSourceProcessor::new()),
         };
         let template_dir = template_source_processor.process(template_source)?;
-        let output_dir = get_output_dir(&args.output_dir, args.force)?;
+        let output_dir = get_output_dir(args.output_dir, args.force)?;
+        let execute_hooks = confirm_hooks_execution(&template_dir, args.skip_hooks_check)?;
 
         // Template processor
         let template_processor: Box<dyn TemplateRenderer> =
@@ -73,20 +75,35 @@ fn run(args: Args) -> BakerResult<()> {
         let config = parse_config(bakerfile_content, &template_processor)?;
 
         debug!("Starting interactive configuration...");
-        let final_context = prompt_for_values(config)?;
-        debug!("Final configuration: {:#?}", final_context);
+        let context = prompt_for_values(config)?;
+        debug!("Final configuration: {:#?}", context);
+
+        if execute_hooks {
+            let pre_hook = template_dir.join("hooks").join("pre_gen_project");
+            if pre_hook.exists() {
+                run_hook(&pre_hook, &context)?;
+            }
+        }
 
         debug!("Processing templates...");
         process(
             &template_dir,
-            output_dir,
-            &final_context,
+            &output_dir,
+            &context,
             &template_processor,
             bakerignore,
         )?;
+
+        if execute_hooks {
+            let post_hook = template_dir.join("hooks").join("post_gen_project");
+            if post_hook.exists() {
+                run_hook(&post_hook, &context)?;
+            }
+        }
+
         info!(
             "Template generation completed successfully in directory {}!",
-            args.output_dir.display()
+            output_dir.display()
         );
     } else {
         return Err(BakerError::TemplateError(format!(

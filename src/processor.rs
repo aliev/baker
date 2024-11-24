@@ -1,5 +1,4 @@
 use globset::GlobSet;
-use indexmap::IndexMap;
 use log::debug;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -94,14 +93,12 @@ fn get_target_path(processed_path: &str, target_dir: &Path) -> (PathBuf, bool) {
 pub fn process(
     template_dir: &PathBuf,
     output_dir: &Path,
-    context: &IndexMap<String, serde_json::Value>,
+    context: &serde_json::Value,
     template_processor: &Box<dyn TemplateRenderer>,
     bakerignore: GlobSet,
 ) -> BakerResult<()> {
-    let context_value =
-        serde_json::to_value(context).map_err(|e| BakerError::ConfigError(e.to_string()))?;
     let template_context = serde_json::json!({
-        "baker": context_value
+        "baker": context
     });
 
     for entry in WalkDir::new(template_dir) {
