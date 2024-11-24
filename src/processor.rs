@@ -9,11 +9,12 @@ use crate::{
     render::TemplateRenderer,
 };
 
-fn read_file(path: &Path) -> BakerResult<String> {
+fn read_file<P: AsRef<Path>>(path: P) -> BakerResult<String> {
     fs::read_to_string(path).map_err(BakerError::IoError)
 }
 
-fn write_file(path: &Path, content: &str) -> BakerResult<()> {
+fn write_file<P: AsRef<Path>>(path: P, content: &str) -> BakerResult<()> {
+    let path = path.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
     let abs_path = if path.is_absolute() {
         path.to_path_buf()
@@ -27,7 +28,8 @@ fn write_file(path: &Path, content: &str) -> BakerResult<()> {
     fs::write(abs_path, content).map_err(BakerError::IoError)
 }
 
-fn create_dir_all(path: &Path) -> BakerResult<()> {
+fn create_dir_all<P: AsRef<Path>>(path: P) -> BakerResult<()> {
+    let path = path.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
     let abs_path = if path.is_absolute() {
         path.to_path_buf()
@@ -37,7 +39,8 @@ fn create_dir_all(path: &Path) -> BakerResult<()> {
     fs::create_dir_all(abs_path).map_err(BakerError::IoError)
 }
 
-fn copy_file(source: &Path, dest: &Path) -> BakerResult<()> {
+fn copy_file<P: AsRef<Path>>(source: P, dest: P) -> BakerResult<()> {
+    let dest = dest.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
     let abs_dest = if dest.is_absolute() {
         dest.to_path_buf()
@@ -62,8 +65,10 @@ fn is_template_path(filename: &str) -> bool {
     }
 }
 
-fn get_target_path(processed_path: &str, target_dir: &Path) -> (PathBuf, bool) {
-    let mut template_path = false;
+fn get_target_path<P: AsRef<Path>>(processed_path: &str, target_dir: P) -> (PathBuf, bool) {
+    // Whether the file should be processed by the template renderer.
+    let mut should_be_processed = false;
+    let target_dir = target_dir.as_ref();
 
     let target_path = if let Some(filename) = Path::new(processed_path)
         .file_name()
@@ -72,7 +77,7 @@ fn get_target_path(processed_path: &str, target_dir: &Path) -> (PathBuf, bool) {
         if is_template_path(filename) {
             // Has double extension, remove .j2
             let new_name = filename.strip_suffix(".j2").unwrap();
-            template_path = true;
+            should_be_processed = true;
             target_dir.join(Path::new(processed_path).with_file_name(new_name))
         } else {
             target_dir.join(processed_path)
@@ -81,23 +86,25 @@ fn get_target_path(processed_path: &str, target_dir: &Path) -> (PathBuf, bool) {
         target_dir.join(processed_path)
     };
 
-    if template_path {
+    if should_be_processed {
         debug!("Writing file: {}", target_path.display());
     } else {
         debug!("Copying file: {}", target_path.display());
     }
 
-    (target_path, template_path)
+    (target_path, should_be_processed)
 }
 
-pub fn process_template(
-    template_dir: &PathBuf,
-    output_dir: &Path,
+pub fn process_template<P: AsRef<Path>>(
+    template_dir: P,
+    output_dir: P,
     context: &serde_json::Value,
     template_processor: &Box<dyn TemplateRenderer>,
     bakerignore: GlobSet,
 ) -> BakerResult<()> {
     debug!("Processing template...");
+    let template_dir = template_dir.as_ref();
+    let output_dir = output_dir.as_ref();
 
     for entry in WalkDir::new(template_dir) {
         let entry = entry.map_err(|e| BakerError::IoError(e.into()))?;

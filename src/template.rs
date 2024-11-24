@@ -20,7 +20,7 @@ impl TemplateSource {
 
 pub trait TemplateSourceProcessor {
     // Processes template source and returns a local path to it.
-    fn process(&self, template_source: TemplateSource) -> BakerResult<PathBuf>;
+    fn process(&self, template_source: &TemplateSource) -> BakerResult<PathBuf>;
 }
 
 pub struct FileSystemTemplateSourceProcessor {}
@@ -32,11 +32,9 @@ impl FileSystemTemplateSourceProcessor {
 }
 
 impl TemplateSourceProcessor for FileSystemTemplateSourceProcessor {
-    fn process(&self, template_source: TemplateSource) -> BakerResult<PathBuf> {
+    fn process(&self, template_source: &TemplateSource) -> BakerResult<PathBuf> {
         let path = match template_source {
             TemplateSource::LocalPath(path) => path,
-            // This panic is safe because the `run` function ensures all possible TemplateSource
-            // variants, otherwise it returns an error.
             _ => panic!("Expected LocalPath variant"),
         };
         if !path.exists() {
@@ -45,7 +43,7 @@ impl TemplateSourceProcessor for FileSystemTemplateSourceProcessor {
             ));
         }
 
-        Ok(path)
+        Ok(path.to_path_buf())
     }
 }
 
@@ -57,7 +55,7 @@ impl GithubTemplateSourceProcessor {
 }
 
 impl TemplateSourceProcessor for GithubTemplateSourceProcessor {
-    fn process(&self, template_source: TemplateSource) -> BakerResult<PathBuf> {
+    fn process(&self, template_source: &TemplateSource) -> BakerResult<PathBuf> {
         todo!("{:?}", template_source)
     }
 }

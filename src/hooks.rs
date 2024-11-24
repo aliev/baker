@@ -5,7 +5,8 @@ use std::process::{Command, Stdio};
 use crate::error::{BakerError, BakerResult};
 use crate::prompt::read_input;
 
-pub fn get_hooks(template_dir: &Path) -> (PathBuf, PathBuf) {
+pub fn get_hooks<P: AsRef<Path>>(template_dir: P) -> (PathBuf, PathBuf) {
+    let template_dir = template_dir.as_ref();
     let pre_hook = template_dir.join("hooks").join("pre_gen_project");
     let post_hook = template_dir.join("hooks").join("post_gen_project");
 
@@ -21,7 +22,8 @@ pub fn confirm_hooks_execution(skip_hooks_check: bool) -> BakerResult<bool> {
     Ok(input.to_lowercase() == "y")
 }
 
-pub fn run_hook(script_path: &Path, context: &serde_json::Value) -> BakerResult<()> {
+pub fn run_hook<P: AsRef<Path>>(script_path: P, context: &serde_json::Value) -> BakerResult<()> {
+    let script_path = script_path.as_ref();
     if !script_path.exists() {
         return Ok(());
     }

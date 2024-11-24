@@ -14,7 +14,7 @@ use baker::{
 };
 use clap::Parser;
 use log::{error, info};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -25,7 +25,7 @@ struct Args {
 
     /// Output directory path
     #[arg(value_name = "OUTPUT_DIR")]
-    output_dir: PathBuf,
+    output_dir: PathBuf, // Keep as PathBuf since we need to own it
 
     /// Force overwrite existing output directory
     #[arg(short, long)]
@@ -40,14 +40,15 @@ struct Args {
     skip_hooks_check: bool,
 }
 
-fn get_output_dir(output_dir: PathBuf, force: bool) -> BakerResult<PathBuf> {
+fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> BakerResult<PathBuf> {
+    let output_dir = output_dir.as_ref();
     if output_dir.exists() && !force {
         return Err(BakerError::ConfigError(format!(
             "Output directory already exists: {}. Use --force to overwrite",
             output_dir.display()
         )));
     }
-    Ok(output_dir)
+    Ok(output_dir.to_path_buf())
 }
 
 fn run(args: Args) -> BakerResult<()> {
@@ -56,7 +57,7 @@ fn run(args: Args) -> BakerResult<()> {
             TemplateSource::GitHub(_) => Box::new(GithubTemplateSourceProcessor::new()),
             TemplateSource::LocalPath(_) => Box::new(FileSystemTemplateSourceProcessor::new()),
         };
-        let template_dir = template_source_processor.process(template_source)?;
+        let template_dir = template_source_processor.process(&template_source)?;
         let output_dir = get_output_dir(args.output_dir, args.force)?;
 
         let mut execute_hooks = false;
