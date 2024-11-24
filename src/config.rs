@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 fn process_value(
     value: &serde_json::Value,
     context: &serde_json::Value,
-    template_processor: &dyn TemplateProcessor,
+    template_processor: &Box<dyn TemplateProcessor>,
 ) -> BakerResult<serde_json::Value> {
     match value {
         serde_json::Value::String(s) => {
@@ -38,7 +38,7 @@ fn process_value(
 // Reads the JSON from bakerfile and applies the template
 pub fn parse_config(
     content: String,
-    template_processor: &dyn TemplateProcessor,
+    template_processor: &Box<dyn TemplateProcessor>,
 ) -> BakerResult<IndexMap<String, serde_json::Value>> {
     let bakerfile_map: IndexMap<String, serde_json::Value> =
         serde_json::from_str(&content).map_err(|e| BakerError::ConfigError(e.to_string()))?;

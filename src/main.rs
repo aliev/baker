@@ -3,13 +3,14 @@ use baker::{
     bakerignore::read_bakerignore,
     config::parse_config,
     error::{BakerError, BakerResult},
+    prompt::prompt_for_values,
     template::{
         GithubTemplateSourceProcessor, LocalTemplateSourceProcessor, MiniJinjaTemplateProcessor,
-        TemplateSource, TemplateSourceProcessor,
+        TemplateProcessor, TemplateSource, TemplateSourceProcessor,
     },
 };
 use clap::Parser;
-use log::error;
+use log::{debug, error, info};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -56,14 +57,22 @@ fn run(args: Args) -> BakerResult<()> {
         let output_dir = get_output_dir(&args.output_dir, args.force)?;
 
         // Template processor
-        let template_processor = MiniJinjaTemplateProcessor::new();
+        let template_processor: Box<dyn TemplateProcessor> =
+            Box::new(MiniJinjaTemplateProcessor::new());
 
         // Processing the .bakerignore
         let bakerignore = read_bakerignore(&template_dir.join(".bakerignore"))?;
 
         // Processing the bakerfile.
-        let bakerfile_content = read_bakerfile(&template_dir.join("baker.json"))?;
+        let bakerfile = template_dir.join("baker.json");
+        let bakerfile_content = read_bakerfile(&bakerfile)?;
+
+        info!("Loading configuration from: {}", &bakerfile.display());
         let config = parse_config(bakerfile_content, &template_processor)?;
+
+        debug!("Starting interactive configuration...");
+        let final_context = prompt_for_values(config)?;
+        debug!("Final configuration: {:#?}", final_context);
     } else {
         return Err(BakerError::TemplateError(format!(
             "invalid template source: {}",
