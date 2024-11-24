@@ -11,3 +11,5 @@ log = "0.4"
 env_logger = "0.10"
 thiserror = "1.0"
 serde_json = { version = "1.0" }
+indexmap = {version = "2.6.0", features = ["serde"]}
+minijinja = "1.0"

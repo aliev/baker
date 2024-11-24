@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-
 use crate::error::{BakerError, BakerResult};
+use minijinja::Environment;
+use std::path::PathBuf;
 
 #[derive(Debug)]
 pub enum TemplateSource {
@@ -24,15 +24,20 @@ pub trait TemplateSourceProcessor {
     fn process(&self, template_source: TemplateSource) -> BakerResult<PathBuf>;
 }
 
-pub struct LocalTemplateProcessor {}
+pub trait TemplateProcessor {
+    // Processes template content.
+    fn process(&self, template: &str, context: &serde_json::Value) -> BakerResult<String>;
+}
 
-impl LocalTemplateProcessor {
+pub struct LocalTemplateSourceProcessor {}
+
+impl LocalTemplateSourceProcessor {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl TemplateSourceProcessor for LocalTemplateProcessor {
+impl TemplateSourceProcessor for LocalTemplateSourceProcessor {
     fn process(&self, template_source: TemplateSource) -> BakerResult<PathBuf> {
         let path = match template_source {
             TemplateSource::LocalPath(path) => path,
@@ -50,15 +55,39 @@ impl TemplateSourceProcessor for LocalTemplateProcessor {
     }
 }
 
-pub struct GithubTemplateProcessor {}
-impl GithubTemplateProcessor {
+pub struct GithubTemplateSourceProcessor {}
+impl GithubTemplateSourceProcessor {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl TemplateSourceProcessor for GithubTemplateProcessor {
+impl TemplateSourceProcessor for GithubTemplateSourceProcessor {
     fn process(&self, template_source: TemplateSource) -> BakerResult<PathBuf> {
         todo!("this method is not implemented yet")
+    }
+}
+
+pub struct MiniJinjaTemplateProcessor {
+    env: Environment<'static>,
+}
+impl MiniJinjaTemplateProcessor {
+    pub fn new() -> Self {
+        let env = Environment::new();
+        Self { env }
+    }
+}
+impl TemplateProcessor for MiniJinjaTemplateProcessor {
+    fn process(&self, template: &str, context: &serde_json::Value) -> BakerResult<String> {
+        let mut env = self.env.clone();
+        env.add_template("temp", template)
+            .map_err(|e| BakerError::TemplateError(e.to_string()))?;
+
+        let tmpl = env
+            .get_template("temp")
+            .map_err(|e| BakerError::TemplateError(e.to_string()))?;
+
+        tmpl.render(context)
+            .map_err(|e| BakerError::TemplateError(e.to_string()))
     }
 }
