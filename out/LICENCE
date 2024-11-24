@@ -1,0 +1,9 @@
+{% if baker.license == "MIT" %}
+
+MIT
+
+{% else %}
+
+OTHER
+
+{% endif %}

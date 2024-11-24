@@ -3,6 +3,7 @@ use baker::{
     bakerignore::read_bakerignore,
     config::parse_config,
     error::{BakerError, BakerResult},
+    processor::process,
     prompt::prompt_for_values,
     render::{MiniJinjaTemplateProcessor, TemplateRenderer},
     template::{
@@ -74,6 +75,19 @@ fn run(args: Args) -> BakerResult<()> {
         debug!("Starting interactive configuration...");
         let final_context = prompt_for_values(config)?;
         debug!("Final configuration: {:#?}", final_context);
+
+        debug!("Processing templates...");
+        process(
+            &template_dir,
+            output_dir,
+            &final_context,
+            &template_processor,
+            bakerignore,
+        )?;
+        info!(
+            "Template generation completed successfully in directory {}!",
+            args.output_dir.display()
+        );
     } else {
         return Err(BakerError::TemplateError(format!(
             "invalid template source: {}",
