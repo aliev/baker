@@ -34,11 +34,11 @@ struct Args {
     skip_hooks_check: bool,
 }
 
-fn check_target_dir(target_dir: &PathBuf, force: bool) -> BakerResult<()> {
-    if target_dir.exists() && !force {
+fn check_output_dir(output_dir: &PathBuf, force: bool) -> BakerResult<()> {
+    if output_dir.exists() && !force {
         return Err(BakerError::ConfigError(format!(
             "Output directory already exists: {}. Use --force to overwrite",
-            target_dir.display()
+            output_dir.display()
         )));
     }
     Ok(())
@@ -70,13 +70,12 @@ fn run(args: Args) -> BakerResult<()> {
             TemplateSource::LocalPath(_) => Box::new(LocalTemplateSourceProcessor::new()),
         };
         let template_processor = MiniJinjaTemplateProcessor::new();
-        let source_dir = template_source_processor.process(template_source)?;
-        let target_dir = &args.output_dir;
-        check_target_dir(target_dir, args.force)?;
+        let template_dir = template_source_processor.process(template_source)?;
+        let output_dir = &args.output_dir;
+        check_output_dir(output_dir, args.force)?;
 
-        // The part that responsible for .bakerignore
-        let bakerignore = get_bakerignore(&source_dir)?;
-        // End
+        // Processing the .bakerignore
+        let bakerignore = get_bakerignore(&template_dir)?;
     } else {
         return Err(BakerError::TemplateError(format!(
             "invalid template source: {}",
