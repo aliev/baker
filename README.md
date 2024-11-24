@@ -92,7 +92,4 @@ Access variables in templates using:
 ```bash
 # Using a local template
 baker ./my-template ./output
-
-# Using a GitHub template
-baker username/repository ./output
 ```
