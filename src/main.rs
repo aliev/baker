@@ -7,6 +7,7 @@ use baker::{
 };
 use clap::Parser;
 use globset::{Glob, GlobSet, GlobSetBuilder};
+use indexmap::IndexMap;
 use log::{error, debug};
 use std::{path::PathBuf, fs::read_to_string};
 
@@ -34,7 +35,7 @@ struct Args {
     skip_hooks_check: bool,
 }
 
-fn check_output_dir(output_dir: &PathBuf, force: bool) -> BakerResult<()> {
+fn output_dir_exists(output_dir: &PathBuf, force: bool) -> BakerResult<()> {
     if output_dir.exists() && !force {
         return Err(BakerError::ConfigError(format!(
             "Output directory already exists: {}. Use --force to overwrite",
@@ -44,8 +45,9 @@ fn check_output_dir(output_dir: &PathBuf, force: bool) -> BakerResult<()> {
     Ok(())
 }
 
-fn get_bakerignore(source_dir: &PathBuf) -> BakerResult<GlobSet> {
-    let bakerignore_path = source_dir.join(".bakerignore");
+// Fetches the .bakerignore file from template directory and returns GlobSet object.
+fn get_bakerignore(template_dir: &PathBuf) -> BakerResult<GlobSet> {
+    let bakerignore_path = template_dir.join(".bakerignore");
     let mut builder = GlobSetBuilder::new();
     if let Ok(contents) = read_to_string(bakerignore_path) {
         for line in contents.lines() {
@@ -63,6 +65,11 @@ fn get_bakerignore(source_dir: &PathBuf) -> BakerResult<GlobSet> {
     Ok(glob_set)
 }
 
+// Fethes the baker.json from template directory and returns the ordered map.
+fn get_bakerfile(template_dir: &PathBuf) -> BakerResult<IndexMap<String, serde_json::Value>> {
+    todo!()
+}
+
 fn run(args: Args) -> BakerResult<()> {
     if let Some(template_source) = TemplateSource::from_string(&args.template) {
         let template_source_processor: Box<dyn TemplateSourceProcessor> = match template_source {
@@ -72,10 +79,13 @@ fn run(args: Args) -> BakerResult<()> {
         let template_processor = MiniJinjaTemplateProcessor::new();
         let template_dir = template_source_processor.process(template_source)?;
         let output_dir = &args.output_dir;
-        check_output_dir(output_dir, args.force)?;
+        output_dir_exists(output_dir, args.force)?;
 
         // Processing the .bakerignore
         let bakerignore = get_bakerignore(&template_dir)?;
+
+        // Processing the baker.json
+        let bakerfile = get_bakerfile(&template_dir)?;
     } else {
         return Err(BakerError::TemplateError(format!(
             "invalid template source: {}",
