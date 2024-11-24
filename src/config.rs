@@ -50,17 +50,15 @@ pub fn parse_config(
                 // Non-templated strings can be added directly
                 value.clone()
             } else {
-                // For templated strings, use current processed state
-                let current_context = serde_json::json!({
-                    "baker": &processed_config
-                });
+                // Pass current processed state directly without "baker" wrapper
+                let current_context = serde_json::to_value(&processed_config)
+                    .map_err(|e| BakerError::ConfigError(e.to_string()))?;
                 process_value(value, &current_context, template_processor)?
             }
         } else {
             // Process arrays and other types with current context
-            let current_context = serde_json::json!({
-                "baker": &processed_config
-            });
+            let current_context = serde_json::to_value(&processed_config)
+                .map_err(|e| BakerError::ConfigError(e.to_string()))?;
             process_value(value, &current_context, template_processor)?
         };
 

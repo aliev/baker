@@ -55,7 +55,7 @@ template/
 ├── .bakerignore         # Files to ignore (optional)
 ├── .dockerignore.j2     # The template file will be processed as `.dockerignore`
 ├── tests.py.j2          # The template file will be processed as `tests.py`
-├── {% if baker.create_main_file %}main.py{% endif %}
+├── {% if create_main_file %}main.py{% endif %}
 ├── template.j2          # This file will not be processed but will be copied as is
 ├── hooks/               # Template hooks (optional)
 │   ├── pre_gen_project
@@ -86,7 +86,7 @@ Variables can be used in:
 Access variables in templates using:
 
 ```
-{{ baker.variable_name }}
+{{ variable_name }}
 ```
 
 ## Security

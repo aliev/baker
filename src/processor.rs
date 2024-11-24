@@ -98,9 +98,6 @@ pub fn process_template(
     bakerignore: GlobSet,
 ) -> BakerResult<()> {
     debug!("Processing template...");
-    let template_context = serde_json::json!({
-        "baker": context
-    });
 
     for entry in WalkDir::new(template_dir) {
         let entry = entry.map_err(|e| BakerError::IoError(e.into()))?;
@@ -114,7 +111,7 @@ pub fn process_template(
 
         debug!("Processing source file: {}", relative_path);
 
-        let processed_path = template_processor.render(relative_path, &template_context)?;
+        let processed_path = template_processor.render(relative_path, context)?;
 
         debug!("Processed target file: {}", processed_path);
 
@@ -136,7 +133,7 @@ pub fn process_template(
         } else {
             if is_template_path {
                 let content = read_file(path)?;
-                let final_content = template_processor.render(&content, &template_context)?;
+                let final_content = template_processor.render(&content, context)?;
                 write_file(&target_path, &final_content)?;
             } else {
                 // Simply copy the file without processing

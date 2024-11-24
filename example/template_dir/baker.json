@@ -1,9 +1,11 @@
 {
     "project_name": "The Project {{1+1}}",
-    "project_slug": "{{baker.project_name}}",
+    "project_slug": "{{project_name}}",
     "author_name": "Ali Aliyev",
-    "licence": ["MIT", "GPL"],
-    "generate_main": "y",
-    "create": "y",
-    "your_licence": "The licence was {{baker.licence}}"
+    "licence": [
+        "MIT",
+        "GPL"
+    ],
+    "create_main": "y",
+    "your_licence": "The licence was {{licence}}"
 }
