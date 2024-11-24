@@ -1,10 +1,10 @@
 # Baker - Project Template Generator
 
-Baker is a powerful and flexible project scaffolding tool written in Rust that helps you generate projects from templates. It supports both local and GitHub templates with template processing capabilities.
+Baker is a fast and flexible project scaffolding tool written in Rust that helps you generate projects from templates.
 
 ## Features
 
-- Template processing using fast and powerful [Minijinja](https://github.com/mitsuhiko/minijinja)
+- Template processing using fast and powerful [Minijinja](https://github.com/mitsuhiko/minijinja) library.
 - Interactive prompt for template variables
 - Pre and post-generation hooks
 - `.bakerignore` support for excluding files
