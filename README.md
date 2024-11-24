@@ -4,8 +4,7 @@ Baker is a powerful and flexible project scaffolding tool written in Rust that h
 
 ## Features
 
-- Template processing using Jinja2-like syntax
-- Support for local and GitHub templates
+- Template processing using fast and powerful [Minijinja](https://github.com/mitsuhiko/minijinja)
 - Interactive prompt for template variables
 - Pre and post-generation hooks
 - `.bakerignore` support for excluding files
@@ -39,17 +38,22 @@ Options:
 
 ## Template Structure
 
+Files with the double extension `.j2` (the minijinja extension) will be processed by the template engine. For example, files with extensions like `main.py.j2` or even `.dockerignore.j2` (since these are effectively files with double extensions) will be processed and copied as `main.py` and `.dockerignore`, respectively.
+
+You can leverage all the features of the template engine in file names, including conditions and filters, for example: `{% if baker.create_main_file %}main.py{% endif %}` will create a file only if `create_main_file` is true (answered as `yes`).
+
 ```
 template/
 ├── baker.json           # Template configuration
 ├── .bakerignore         # Files to ignore (optional)
-├── .dockerfile.j2       # The template file will be processed
-├── main.py.j2           # The template file will be processed
-├── template.j2          # This file will not be processed but just copied
+├── .dockerignore.j2     # The template file will be processed as `.dockerignore`
+├── tests.py.j2          # The template file will be processed as `tests.py`
+├── {% if baker.create_main_file %}main.py{% endif %}
+├── template.j2          # This file will not be processed but will be copied as is
 ├── hooks/               # Template hooks (optional)
 │   ├── pre_gen_project
 │   └── post_gen_project
-└── ... template files ...
+└── ... other template files ...
 ```
 
 ## Configuration
