@@ -1,5 +1,4 @@
 use crate::error::{BakerError, BakerResult};
-use minijinja::Environment;
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -22,11 +21,6 @@ impl TemplateSource {
 pub trait TemplateSourceProcessor {
     // Processes template source and returns a local path to it.
     fn process(&self, template_source: TemplateSource) -> BakerResult<PathBuf>;
-}
-
-pub trait TemplateProcessor {
-    // Processes template content.
-    fn process(&self, template: &str, context: &serde_json::Value) -> BakerResult<String>;
 }
 
 pub struct LocalTemplateSourceProcessor {}
@@ -64,30 +58,6 @@ impl GithubTemplateSourceProcessor {
 
 impl TemplateSourceProcessor for GithubTemplateSourceProcessor {
     fn process(&self, template_source: TemplateSource) -> BakerResult<PathBuf> {
-        todo!("this method is not implemented yet")
-    }
-}
-
-pub struct MiniJinjaTemplateProcessor {
-    env: Environment<'static>,
-}
-impl MiniJinjaTemplateProcessor {
-    pub fn new() -> Self {
-        let env = Environment::new();
-        Self { env }
-    }
-}
-impl TemplateProcessor for MiniJinjaTemplateProcessor {
-    fn process(&self, template: &str, context: &serde_json::Value) -> BakerResult<String> {
-        let mut env = self.env.clone();
-        env.add_template("temp", template)
-            .map_err(|e| BakerError::TemplateError(e.to_string()))?;
-
-        let tmpl = env
-            .get_template("temp")
-            .map_err(|e| BakerError::TemplateError(e.to_string()))?;
-
-        tmpl.render(context)
-            .map_err(|e| BakerError::TemplateError(e.to_string()))
+        todo!("{:?}", template_source)
     }
 }

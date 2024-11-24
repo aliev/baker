@@ -4,9 +4,10 @@ use baker::{
     config::parse_config,
     error::{BakerError, BakerResult},
     prompt::prompt_for_values,
+    render::{MiniJinjaTemplateProcessor, TemplateRenderer},
     template::{
-        GithubTemplateSourceProcessor, LocalTemplateSourceProcessor, MiniJinjaTemplateProcessor,
-        TemplateProcessor, TemplateSource, TemplateSourceProcessor,
+        GithubTemplateSourceProcessor, LocalTemplateSourceProcessor, TemplateSource,
+        TemplateSourceProcessor,
     },
 };
 use clap::Parser;
@@ -57,7 +58,7 @@ fn run(args: Args) -> BakerResult<()> {
         let output_dir = get_output_dir(&args.output_dir, args.force)?;
 
         // Template processor
-        let template_processor: Box<dyn TemplateProcessor> =
+        let template_processor: Box<dyn TemplateRenderer> =
             Box::new(MiniJinjaTemplateProcessor::new());
 
         // Processing the .bakerignore

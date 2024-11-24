@@ -23,7 +23,9 @@ fn read_input() -> BakerResult<String> {
     Ok(input.trim().to_string())
 }
 
-pub fn prompt_for_values(config: IndexMap<String, serde_json::Value>) -> BakerResult<IndexMap<String, serde_json::Value>> {
+pub fn prompt_for_values(
+    config: IndexMap<String, serde_json::Value>,
+) -> BakerResult<IndexMap<String, serde_json::Value>> {
     let mut final_context = config.clone();
     // Use iter_mut() to maintain the original order from the IndexMap
     for (key, value) in final_context.iter_mut() {

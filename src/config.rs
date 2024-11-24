@@ -1,18 +1,18 @@
 use crate::{
     error::{BakerError, BakerResult},
-    template::TemplateProcessor,
+    render::TemplateRenderer,
 };
 use indexmap::IndexMap;
 
 fn process_value(
     value: &serde_json::Value,
     context: &serde_json::Value,
-    template_processor: &Box<dyn TemplateProcessor>,
+    template_processor: &Box<dyn TemplateRenderer>,
 ) -> BakerResult<serde_json::Value> {
     match value {
         serde_json::Value::String(s) => {
             // Process string values as templates
-            let processed = template_processor.process(s, context)?;
+            let processed = template_processor.render(s, context)?;
             Ok(serde_json::Value::String(processed))
         }
         serde_json::Value::Array(arr) => {
@@ -38,7 +38,7 @@ fn process_value(
 // Reads the JSON from bakerfile and applies the template
 pub fn parse_config(
     content: String,
-    template_processor: &Box<dyn TemplateProcessor>,
+    template_processor: &Box<dyn TemplateRenderer>,
 ) -> BakerResult<IndexMap<String, serde_json::Value>> {
     let bakerfile_map: IndexMap<String, serde_json::Value> =
         serde_json::from_str(&content).map_err(|e| BakerError::ConfigError(e.to_string()))?;
