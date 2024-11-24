@@ -8,8 +8,9 @@ use baker::{
 use clap::Parser;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use indexmap::IndexMap;
-use log::{error, debug};
-use std::{path::PathBuf, fs::read_to_string};
+use log::{debug, error};
+use std::fs;
+use std::{fs::read_to_string, path::PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -46,8 +47,7 @@ fn output_dir_exists(output_dir: &PathBuf, force: bool) -> BakerResult<()> {
 }
 
 // Fetches the .bakerignore file from template directory and returns GlobSet object.
-fn get_bakerignore(template_dir: &PathBuf) -> BakerResult<GlobSet> {
-    let bakerignore_path = template_dir.join(".bakerignore");
+fn get_bakerignore(bakerignore_path: &PathBuf) -> BakerResult<GlobSet> {
     let mut builder = GlobSetBuilder::new();
     if let Ok(contents) = read_to_string(bakerignore_path) {
         for line in contents.lines() {
@@ -58,16 +58,26 @@ fn get_bakerignore(template_dir: &PathBuf) -> BakerResult<GlobSet> {
     } else {
         debug!(".bakerignore does not exist")
     }
-    let glob_set = builder.build().map_err(|e| {
-        BakerError::BakerIgnoreError(format!(".bakerignore loading failed: {}", e))
-    })?;
+    let glob_set = builder
+        .build()
+        .map_err(|e| BakerError::BakerIgnoreError(format!(".bakerignore loading failed: {}", e)))?;
 
     Ok(glob_set)
 }
 
 // Fethes the baker.json from template directory and returns the ordered map.
-fn get_bakerfile(template_dir: &PathBuf) -> BakerResult<IndexMap<String, serde_json::Value>> {
-    todo!()
+fn get_bakerfile(bakerfile_path: &PathBuf) -> BakerResult<IndexMap<String, serde_json::Value>> {
+    if !bakerfile_path.exists() || !bakerfile_path.is_file() {
+        return Err(BakerError::ConfigError(format!(
+            "Invalid configuration path: {}",
+            bakerfile_path.display()
+        )));
+    }
+
+    let content = fs::read_to_string(&bakerfile_path).map_err(BakerError::IoError)?;
+    let map: IndexMap<String, serde_json::Value> =
+        serde_json::from_str(&content).map_err(|e| BakerError::ConfigError(e.to_string()))?;
+    Ok(map)
 }
 
 fn run(args: Args) -> BakerResult<()> {
@@ -76,16 +86,18 @@ fn run(args: Args) -> BakerResult<()> {
             TemplateSource::GitHub(_) => Box::new(GithubTemplateSourceProcessor::new()),
             TemplateSource::LocalPath(_) => Box::new(LocalTemplateSourceProcessor::new()),
         };
-        let template_processor = MiniJinjaTemplateProcessor::new();
         let template_dir = template_source_processor.process(template_source)?;
         let output_dir = &args.output_dir;
         output_dir_exists(output_dir, args.force)?;
 
+        // Template processor
+        let template_processor = MiniJinjaTemplateProcessor::new();
+
         // Processing the .bakerignore
-        let bakerignore = get_bakerignore(&template_dir)?;
+        let bakerignore = get_bakerignore(&template_dir.join(".bakerignore"))?;
 
         // Processing the baker.json
-        let bakerfile = get_bakerfile(&template_dir)?;
+        let bakerfile_content = get_bakerfile(&template_dir.join("baker.json"))?;
     } else {
         return Err(BakerError::TemplateError(format!(
             "invalid template source: {}",
