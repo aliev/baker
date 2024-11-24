@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 use crate::error::{BakerError, BakerResult};
 use crate::prompt::read_input;
 
-pub fn has_hooks(template_dir: &Path) -> (PathBuf, PathBuf) {
+pub fn get_hooks(template_dir: &Path) -> (PathBuf, PathBuf) {
     let pre_hook = template_dir.join("hooks").join("pre_gen_project");
     let post_hook = template_dir.join("hooks").join("post_gen_project");
 

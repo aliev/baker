@@ -3,7 +3,7 @@ use baker::{
     bakerignore::read_bakerignore,
     config::parse_config,
     error::{BakerError, BakerResult},
-    hooks::{confirm_hooks_execution, has_hooks, run_hook},
+    hooks::{confirm_hooks_execution, get_hooks, run_hook},
     processor::process_template,
     prompt::prompt_for_values,
     render::{MiniJinjaTemplateRenderer, TemplateRenderer},
@@ -60,7 +60,7 @@ fn run(args: Args) -> BakerResult<()> {
         let output_dir = get_output_dir(args.output_dir, args.force)?;
 
         let mut execute_hooks = false;
-        let (pre_hook, post_hook) = has_hooks(&template_dir);
+        let (pre_hook, post_hook) = get_hooks(&template_dir);
 
         if pre_hook.exists() || post_hook.exists() {
             execute_hooks = confirm_hooks_execution(args.skip_hooks_check)?;
