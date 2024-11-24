@@ -1,26 +1,25 @@
-use crate::error::{BakerError, BakerResult};
+use crate::{
+    error::{BakerError, BakerResult},
+    template::TemplateProcessor,
+};
 use indexmap::IndexMap;
-
-// Applies content to template string using the template engine.
-fn render_string(template_str: &str, context: &serde_json::Value) -> BakerResult<String> {
-    todo!()
-}
 
 fn process_value(
     value: &serde_json::Value,
     context: &serde_json::Value,
+    template_processor: &dyn TemplateProcessor,
 ) -> BakerResult<serde_json::Value> {
     match value {
         serde_json::Value::String(s) => {
             // Process string values as templates
-            let processed = render_string(s, context)?;
+            let processed = template_processor.process(s, context)?;
             Ok(serde_json::Value::String(processed))
         }
         serde_json::Value::Array(arr) => {
             // Process each array item
             let mut processed_arr = Vec::new();
             for item in arr {
-                processed_arr.push(process_value(item, context)?);
+                processed_arr.push(process_value(item, context, template_processor)?);
             }
             Ok(serde_json::Value::Array(processed_arr))
         }
@@ -28,7 +27,7 @@ fn process_value(
             // Process each object field
             let mut processed_obj = serde_json::Map::new();
             for (k, v) in obj {
-                processed_obj.insert(k.clone(), process_value(v, context)?);
+                processed_obj.insert(k.clone(), process_value(v, context, template_processor)?);
             }
             Ok(serde_json::Value::Object(processed_obj))
         }
@@ -37,7 +36,10 @@ fn process_value(
 }
 
 // Reads the JSON from bakerfile and applies the template
-pub fn parse_config(content: String) -> BakerResult<IndexMap<String, serde_json::Value>> {
+pub fn parse_config(
+    content: String,
+    template_processor: &dyn TemplateProcessor,
+) -> BakerResult<IndexMap<String, serde_json::Value>> {
     let bakerfile_map: IndexMap<String, serde_json::Value> =
         serde_json::from_str(&content).map_err(|e| BakerError::ConfigError(e.to_string()))?;
     let mut processed_config = IndexMap::with_capacity(bakerfile_map.len());
@@ -52,14 +54,14 @@ pub fn parse_config(content: String) -> BakerResult<IndexMap<String, serde_json:
                 let current_context = serde_json::json!({
                     "baker": &processed_config
                 });
-                process_value(value, &current_context)?
+                process_value(value, &current_context, template_processor)?
             }
         } else {
             // Process arrays and other types with current context
             let current_context = serde_json::json!({
                 "baker": &processed_config
             });
-            process_value(value, &current_context)?
+            process_value(value, &current_context, template_processor)?
         };
 
         processed_config.insert(key.clone(), processed_value);

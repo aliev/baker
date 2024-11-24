@@ -63,7 +63,7 @@ fn run(args: Args) -> BakerResult<()> {
 
         // Processing the bakerfile.
         let bakerfile_content = read_bakerfile(&template_dir.join("baker.json"))?;
-        let config = parse_config(bakerfile_content)?;
+        let config = parse_config(bakerfile_content, &template_processor)?;
     } else {
         return Err(BakerError::TemplateError(format!(
             "invalid template source: {}",
