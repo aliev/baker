@@ -5,7 +5,7 @@ use baker::{
     error::{BakerError, BakerResult},
     processor::process,
     prompt::prompt_for_values,
-    render::{MiniJinjaTemplateProcessor, TemplateRenderer},
+    render::{MiniJinjaTemplateRenderer, TemplateRenderer},
     template::{
         FileSystemTemplateSourceProcessor, GithubTemplateSourceProcessor, TemplateSource,
         TemplateSourceProcessor,
@@ -60,7 +60,7 @@ fn run(args: Args) -> BakerResult<()> {
 
         // Template processor
         let template_processor: Box<dyn TemplateRenderer> =
-            Box::new(MiniJinjaTemplateProcessor::new());
+            Box::new(MiniJinjaTemplateRenderer::new());
 
         // Processing the .bakerignore
         let bakerignore = read_bakerignore(&template_dir.join(".bakerignore"))?;

@@ -7,16 +7,16 @@ pub trait TemplateRenderer {
     fn render(&self, template: &str, context: &serde_json::Value) -> BakerResult<String>;
 }
 
-pub struct MiniJinjaTemplateProcessor {
+pub struct MiniJinjaTemplateRenderer {
     env: Environment<'static>,
 }
-impl MiniJinjaTemplateProcessor {
+impl MiniJinjaTemplateRenderer {
     pub fn new() -> Self {
         let env = Environment::new();
         Self { env }
     }
 }
-impl TemplateRenderer for MiniJinjaTemplateProcessor {
+impl TemplateRenderer for MiniJinjaTemplateRenderer {
     fn render(&self, template: &str, context: &serde_json::Value) -> BakerResult<String> {
         let mut env = self.env.clone();
         env.add_template("temp", template)
