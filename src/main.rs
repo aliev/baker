@@ -8,7 +8,7 @@ use baker::{
     prompt::prompt_for_values,
     render::{MiniJinjaTemplateRenderer, TemplateRenderer},
     template::{
-        FileSystemTemplateSourceProcessor, GithubTemplateSourceProcessor, TemplateSource,
+        FileSystemTemplateSourceProcessor, GitTemplateSourceProcessor, TemplateSource,
         TemplateSourceProcessor,
     },
 };
@@ -54,8 +54,8 @@ fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> BakerResult<Pat
 fn run(args: Args) -> BakerResult<()> {
     if let Some(template_source) = TemplateSource::from_string(&args.template) {
         let template_source_processor: Box<dyn TemplateSourceProcessor> = match template_source {
-            TemplateSource::GitHub(_) => Box::new(GithubTemplateSourceProcessor::new()),
-            TemplateSource::LocalPath(_) => Box::new(FileSystemTemplateSourceProcessor::new()),
+            TemplateSource::Git(_) => Box::new(GitTemplateSourceProcessor::new()),
+            TemplateSource::FileSystem(_) => Box::new(FileSystemTemplateSourceProcessor::new()),
         };
         let template_dir = template_source_processor.process(&template_source)?;
         let output_dir = get_output_dir(args.output_dir, args.force)?;
