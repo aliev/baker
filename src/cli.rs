@@ -19,7 +19,7 @@ use clap::{error::ErrorKind, CommandFactory, Parser};
 
 Template Structure:
     template/
-    ├── baker.json           # Template configuration
+    ├── baker.json          # Template configuration
     ├── .bakerignore        # Files to ignore (optional)
     ├── hooks/              # Template hooks (optional)
     │   ├── pre_gen_project

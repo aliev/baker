@@ -21,25 +21,29 @@ impl TemplateSource {
     }
 }
 
-pub trait TemplateSourceProcessor {
-    fn process(&self, template_source: &TemplateSource) -> BakerResult<PathBuf>;
+pub trait TemplateLoader {
+    fn load(&self, source: &TemplateSource) -> BakerResult<PathBuf>; // was process
 }
 
-pub trait TemplateRenderer {
+pub trait TemplateEngine {
     fn render(&self, template: &str, context: &serde_json::Value) -> BakerResult<String>;
 }
 
-pub struct FileSystemTemplateSourceProcessor {}
+pub struct LocalLoader {}
+pub struct GitLoader {}
+pub struct MiniJinjaEngine {
+    env: Environment<'static>,
+}
 
-impl FileSystemTemplateSourceProcessor {
+impl LocalLoader {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl TemplateSourceProcessor for FileSystemTemplateSourceProcessor {
-    fn process(&self, template_source: &TemplateSource) -> BakerResult<PathBuf> {
-        let path = match template_source {
+impl TemplateLoader for LocalLoader {
+    fn load(&self, source: &TemplateSource) -> BakerResult<PathBuf> {
+        let path = match source {
             TemplateSource::FileSystem(path) => path,
             _ => panic!("Expected LocalPath variant"),
         };
@@ -53,16 +57,15 @@ impl TemplateSourceProcessor for FileSystemTemplateSourceProcessor {
     }
 }
 
-pub struct GitTemplateSourceProcessor {}
-impl GitTemplateSourceProcessor {
+impl GitLoader {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl TemplateSourceProcessor for GitTemplateSourceProcessor {
-    fn process(&self, template_source: &TemplateSource) -> BakerResult<PathBuf> {
-        let repo_url = match template_source {
+impl TemplateLoader for GitLoader {
+    fn load(&self, source: &TemplateSource) -> BakerResult<PathBuf> {
+        let repo_url = match source {
             TemplateSource::Git(url) => url,
             _ => return Err(BakerError::TemplateError("Expected Git URL".to_string())),
         };
@@ -104,16 +107,14 @@ impl TemplateSourceProcessor for GitTemplateSourceProcessor {
     }
 }
 
-pub struct MiniJinjaTemplateRenderer {
-    env: Environment<'static>,
-}
-impl MiniJinjaTemplateRenderer {
+impl MiniJinjaEngine {
     pub fn new() -> Self {
         let env = Environment::new();
         Self { env }
     }
 }
-impl TemplateRenderer for MiniJinjaTemplateRenderer {
+
+impl TemplateEngine for MiniJinjaEngine {
     fn render(&self, template: &str, context: &serde_json::Value) -> BakerResult<String> {
         let mut env = self.env.clone();
         env.add_template("temp", template)

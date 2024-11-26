@@ -4,12 +4,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-use crate::{
-    error::{BakerError, BakerResult},
-    template::TemplateRenderer,
-};
+use crate::error::{BakerError, BakerResult};
+use crate::template::TemplateEngine;
 
-pub fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> BakerResult<PathBuf> {
+pub fn ensure_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> BakerResult<PathBuf> {
     let output_dir = output_dir.as_ref();
     if output_dir.exists() && !force {
         return Err(BakerError::ConfigError(format!(
@@ -67,7 +65,7 @@ fn copy_file<P: AsRef<Path>>(source: P, dest: P) -> BakerResult<()> {
         .map_err(BakerError::IoError)
 }
 
-fn is_template_path(filename: &str) -> bool {
+fn is_jinja_template(filename: &str) -> bool {
     let parts: Vec<&str> = filename.split('.').collect();
     if parts.len() > 2 && parts.last() == Some(&"j2") {
         true
@@ -76,26 +74,24 @@ fn is_template_path(filename: &str) -> bool {
     }
 }
 
-fn get_target_path<P: AsRef<Path>>(processed_path: &str, target_dir: P) -> (PathBuf, bool) {
+fn resolve_target_path<P: AsRef<Path>>(source_path: &str, target_dir: P) -> (PathBuf, bool) {
     // Whether the file should be processed by the template renderer.
     let mut should_be_processed = false;
     let target_dir = target_dir.as_ref();
 
-    let target_path = if let Some(filename) = Path::new(processed_path)
-        .file_name()
-        .and_then(|n| n.to_str())
-    {
-        if is_template_path(filename) {
-            // Has double extension, remove .j2
-            let new_name = filename.strip_suffix(".j2").unwrap();
-            should_be_processed = true;
-            target_dir.join(Path::new(processed_path).with_file_name(new_name))
+    let target_path =
+        if let Some(filename) = Path::new(source_path).file_name().and_then(|n| n.to_str()) {
+            if is_jinja_template(filename) {
+                // Has double extension, remove .j2
+                let new_name = filename.strip_suffix(".j2").unwrap();
+                should_be_processed = true;
+                target_dir.join(Path::new(source_path).with_file_name(new_name))
+            } else {
+                target_dir.join(source_path)
+            }
         } else {
-            target_dir.join(processed_path)
-        }
-    } else {
-        target_dir.join(processed_path)
-    };
+            target_dir.join(source_path)
+        };
 
     if should_be_processed {
         debug!("Writing file: {}", target_path.display());
@@ -110,12 +106,12 @@ pub fn process_template<P: AsRef<Path>>(
     template_dir: P,
     output_dir: P,
     context: &serde_json::Value,
-    template_renderer: &Box<dyn TemplateRenderer>,
+    engine: &Box<dyn TemplateEngine>,
     ignored_set: GlobSet,
     force_output_dir: bool,
 ) -> BakerResult<PathBuf> {
     debug!("Processing template...");
-    let output_dir = get_output_dir(output_dir, force_output_dir)?;
+    let output_dir = ensure_output_dir(output_dir, force_output_dir)?;
     let template_dir = template_dir.as_ref();
 
     for entry in WalkDir::new(template_dir) {
@@ -131,7 +127,7 @@ pub fn process_template<P: AsRef<Path>>(
         debug!("Processing source file: {}", relative_path);
 
         // Rendered by template renderer filename.
-        let rendered_path = template_renderer.render(relative_path, context)?;
+        let rendered_path = engine.render(relative_path, context)?;
 
         debug!("Processed target file: {}", rendered_path);
 
@@ -146,14 +142,14 @@ pub fn process_template<P: AsRef<Path>>(
             continue;
         }
 
-        let (target_path, is_template_path) = get_target_path(&rendered_path, &output_dir);
+        let (target_path, is_template_path) = resolve_target_path(&rendered_path, &output_dir);
 
         if path.is_dir() {
             create_dir_all(&target_path)?;
         } else {
             if is_template_path {
                 let content = read_file(path)?;
-                let final_content = template_renderer.render(&content, context)?;
+                let final_content = engine.render(&content, context)?;
                 write_file(&target_path, &final_content)?;
             } else {
                 // Simply copy the file without processing

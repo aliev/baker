@@ -1,24 +1,23 @@
 use baker::{
     cli::{get_args, Args},
-    config::{config_file_read, config_parse_content},
+    config::{load_config, parse_config},
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{confirm_hooks_execution, get_hooks, run_hook},
     ignore::ignore_file_read,
     processor::process_template,
     prompt::prompt_config_values,
     template::{
-        FileSystemTemplateSourceProcessor, GitTemplateSourceProcessor, MiniJinjaTemplateRenderer,
-        TemplateRenderer, TemplateSource, TemplateSourceProcessor,
+        GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader, TemplateSource,
     },
 };
 
 fn run(args: Args) -> BakerResult<()> {
-    if let Some(project_template_type) = TemplateSource::from_string(&args.template) {
-        let template_source: Box<dyn TemplateSourceProcessor> = match project_template_type {
-            TemplateSource::Git(_) => Box::new(GitTemplateSourceProcessor::new()),
-            TemplateSource::FileSystem(_) => Box::new(FileSystemTemplateSourceProcessor::new()),
+    if let Some(source) = TemplateSource::from_string(&args.template) {
+        let loader: Box<dyn TemplateLoader> = match source {
+            TemplateSource::Git(_) => Box::new(GitLoader::new()),
+            TemplateSource::FileSystem(_) => Box::new(LocalLoader::new()),
         };
-        let template_dir = template_source.process(&project_template_type)?;
+        let template_dir = loader.load(&source)?;
 
         let mut execute_hooks = false;
         let (pre_hook, post_hook) = get_hooks(&template_dir);
@@ -28,18 +27,17 @@ fn run(args: Args) -> BakerResult<()> {
         }
 
         // Template processor
-        let template_renderer: Box<dyn TemplateRenderer> =
-            Box::new(MiniJinjaTemplateRenderer::new());
+        let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
 
         // Processing the .bakerignore
         let ignored_set = ignore_file_read(&template_dir.join(".bakerignore"))?;
 
         // Processing the bakerfile.
         let config_file = template_dir.join("baker.json");
-        let config_content = config_file_read(&config_file)?;
+        let config_content = load_config(&config_file)?;
 
         println!("Loading configuration from: {}", &config_file.display());
-        let config = config_parse_content(config_content, &template_renderer)?;
+        let config = parse_config(config_content, &engine)?;
         let context = prompt_config_values(config)?;
 
         if execute_hooks && pre_hook.exists() {
@@ -50,7 +48,7 @@ fn run(args: Args) -> BakerResult<()> {
             &template_dir,
             &args.output_dir,
             &context,
-            &template_renderer,
+            &engine,
             ignored_set,
             args.force,
         )?;
