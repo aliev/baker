@@ -13,18 +13,6 @@ use baker::{
         TemplateSourceProcessor,
     },
 };
-use std::path::{Path, PathBuf};
-
-fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> BakerResult<PathBuf> {
-    let output_dir = output_dir.as_ref();
-    if output_dir.exists() && !force {
-        return Err(BakerError::ConfigError(format!(
-            "output directory already exists: {}. Use --force to overwrite",
-            output_dir.display()
-        )));
-    }
-    Ok(output_dir.to_path_buf())
-}
 
 fn run(args: Args) -> BakerResult<()> {
     if let Some(template_source) = TemplateSource::from_string(&args.template) {
@@ -33,7 +21,6 @@ fn run(args: Args) -> BakerResult<()> {
             TemplateSource::FileSystem(_) => Box::new(FileSystemTemplateSourceProcessor::new()),
         };
         let template_dir = template_source_processor.process(&template_source)?;
-        let output_dir = get_output_dir(args.output_dir, args.force)?;
 
         let mut execute_hooks = false;
         let (pre_hook, post_hook) = get_hooks(&template_dir);
@@ -61,12 +48,13 @@ fn run(args: Args) -> BakerResult<()> {
             run_hook(&pre_hook, &context)?;
         }
 
-        process_template(
+        let output_dir = process_template(
             &template_dir,
-            &output_dir,
+            &args.output_dir,
             &context,
             &template_processor,
             bakerignore,
+            args.force,
         )?;
 
         if execute_hooks && post_hook.exists() {

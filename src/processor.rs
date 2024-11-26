@@ -9,6 +9,17 @@ use crate::{
     render::TemplateRenderer,
 };
 
+pub fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> BakerResult<PathBuf> {
+    let output_dir = output_dir.as_ref();
+    if output_dir.exists() && !force {
+        return Err(BakerError::ConfigError(format!(
+            "output directory already exists: {}. Use --force to overwrite",
+            output_dir.display()
+        )));
+    }
+    Ok(output_dir.to_path_buf())
+}
+
 fn read_file<P: AsRef<Path>>(path: P) -> BakerResult<String> {
     fs::read_to_string(path).map_err(BakerError::IoError)
 }
@@ -99,12 +110,13 @@ pub fn process_template<P: AsRef<Path>>(
     template_dir: P,
     output_dir: P,
     context: &serde_json::Value,
-    template_processor: &Box<dyn TemplateRenderer>,
+    template_renderer: &Box<dyn TemplateRenderer>,
     bakerignore: GlobSet,
-) -> BakerResult<()> {
+    force_output_dir: bool,
+) -> BakerResult<PathBuf> {
     debug!("Processing template...");
+    let output_dir = get_output_dir(output_dir, force_output_dir)?;
     let template_dir = template_dir.as_ref();
-    let output_dir = output_dir.as_ref();
 
     for entry in WalkDir::new(template_dir) {
         let entry = entry.map_err(|e| BakerError::IoError(e.into()))?;
@@ -118,9 +130,10 @@ pub fn process_template<P: AsRef<Path>>(
 
         debug!("Processing source file: {}", relative_path);
 
-        let processed_path = template_processor.render(relative_path, context)?;
+        // Rendered by template renderer filename.
+        let rendered_path = template_renderer.render(relative_path, context)?;
 
-        debug!("Processed target file: {}", processed_path);
+        debug!("Processed target file: {}", rendered_path);
 
         if bakerignore.is_match(&relative_path) {
             debug!("Skipping file {} from .bakerignore", relative_path);
@@ -128,19 +141,19 @@ pub fn process_template<P: AsRef<Path>>(
         }
 
         // Skip if processed path is empty (conditional template evaluated to nothing)
-        if processed_path.trim().is_empty() {
+        if rendered_path.trim().is_empty() {
             debug!("Skipping file as processed path is empty");
             continue;
         }
 
-        let (target_path, is_template_path) = get_target_path(&processed_path, output_dir);
+        let (target_path, is_template_path) = get_target_path(&rendered_path, &output_dir);
 
         if path.is_dir() {
             create_dir_all(&target_path)?;
         } else {
             if is_template_path {
                 let content = read_file(path)?;
-                let final_content = template_processor.render(&content, context)?;
+                let final_content = template_renderer.render(&content, context)?;
                 write_file(&target_path, &final_content)?;
             } else {
                 // Simply copy the file without processing
@@ -148,5 +161,5 @@ pub fn process_template<P: AsRef<Path>>(
             }
         }
     }
-    Ok(())
+    Ok(output_dir)
 }
