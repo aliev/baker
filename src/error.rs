@@ -23,3 +23,8 @@ pub enum BakerError {
 }
 
 pub type BakerResult<T> = Result<T, BakerError>;
+
+pub fn default_error_handler(err: BakerError) {
+    eprintln!("{}", err);
+    std::process::exit(1);
+}

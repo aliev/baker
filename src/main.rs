@@ -1,8 +1,9 @@
 use baker::{
     bakerfile::read_bakerfile,
     bakerignore::read_bakerignore,
+    cli::{get_args, Args},
     config::parse_config,
-    error::{BakerError, BakerResult},
+    error::{default_error_handler, BakerError, BakerResult},
     hooks::{confirm_hooks_execution, get_hooks, run_hook},
     processor::process_template,
     prompt::prompt_for_values,
@@ -12,32 +13,7 @@ use baker::{
         TemplateSourceProcessor,
     },
 };
-use clap::Parser;
 use std::path::{Path, PathBuf};
-
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    /// Template argument
-    #[arg(value_name = "TEMPLATE")]
-    template: String,
-
-    /// Output directory path
-    #[arg(value_name = "OUTPUT_DIR")]
-    output_dir: PathBuf, // Keep as PathBuf since we need to own it
-
-    /// Force overwrite existing output directory
-    #[arg(short, long)]
-    force: bool,
-
-    /// Verbose output
-    #[arg(short, long)]
-    pub verbose: bool,
-
-    /// Skip hooks safety check
-    #[arg(long)]
-    skip_hooks_check: bool,
-}
 
 fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> BakerResult<PathBuf> {
     let output_dir = output_dir.as_ref();
@@ -111,7 +87,8 @@ fn run(args: Args) -> BakerResult<()> {
 }
 
 fn main() {
-    let args = Args::parse();
+    let args = get_args();
+
     env_logger::Builder::new()
         .filter_level(if args.verbose {
             log::LevelFilter::Debug
@@ -121,7 +98,6 @@ fn main() {
         .init();
 
     if let Err(err) = run(args) {
-        eprintln!("{}", err);
-        std::process::exit(1);
+        default_error_handler(err);
     }
 }
