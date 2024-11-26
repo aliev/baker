@@ -1,16 +1,35 @@
+//! Template loading and rendering functionality for Baker.
+//! Handles both local filesystem and git repository templates with support
+//! for MiniJinja template processing.
 use crate::error::{BakerError, BakerResult};
 use git2::{Cred, FetchOptions, RemoteCallbacks};
 use minijinja::Environment;
 use std::env;
 use std::path::PathBuf;
 
+/// Represents the source location of a template.
 #[derive(Debug)]
 pub enum TemplateSource {
+    /// Local filesystem template path
     FileSystem(PathBuf),
+    /// Git repository URL (HTTPS or SSH)
     Git(String),
 }
 
 impl TemplateSource {
+    /// Creates a TemplateSource from a string path or URL.
+    ///
+    /// # Arguments
+    /// * `s` - String containing path or git URL
+    ///
+    /// # Returns
+    /// * `Option<Self>` - Some(TemplateSource) if valid input
+    ///
+    /// # Examples
+    /// ```
+    /// let local = TemplateSource::from_string("./templates/web");
+    /// let git = TemplateSource::from_string("https://github.com/user/template.git");
+    /// ```
     pub fn from_string(s: &str) -> Option<Self> {
         if s.starts_with("git@") || s.starts_with("https://") {
             Some(Self::Git(s.to_string()))
@@ -21,27 +40,60 @@ impl TemplateSource {
     }
 }
 
+/// Trait for loading templates from different sources.
 pub trait TemplateLoader {
+    /// Loads a template from the given source.
+    ///
+    /// # Arguments
+    /// * `source` - Source location of the template
+    ///
+    /// # Returns
+    /// * `BakerResult<PathBuf>` - Path to the loaded template
     fn load(&self, source: &TemplateSource) -> BakerResult<PathBuf>; // was process
 }
 
+/// Trait for template rendering engines.
 pub trait TemplateEngine {
+    /// Renders a template string with the given context.
+    ///
+    /// # Arguments
+    /// * `template` - Template string to render
+    /// * `context` - Context variables for rendering
+    ///
+    /// # Returns
+    /// * `BakerResult<String>` - Rendered template string
     fn render(&self, template: &str, context: &serde_json::Value) -> BakerResult<String>;
 }
 
+/// Loader for templates from the local filesystem.
 pub struct LocalLoader {}
+/// Loader for templates from git repositories.
 pub struct GitLoader {}
+/// MiniJinja-based template rendering engine.
 pub struct MiniJinjaEngine {
+    /// MiniJinja environment instance
     env: Environment<'static>,
 }
 
 impl LocalLoader {
+    /// Creates a new LocalLoader instance.
     pub fn new() -> Self {
         Self {}
     }
 }
 
 impl TemplateLoader for LocalLoader {
+    /// Loads a template from the local filesystem.
+    ///
+    /// # Arguments
+    /// * `source` - Template source (must be FileSystem variant)
+    ///
+    /// # Returns
+    /// * `BakerResult<PathBuf>` - Path to the template directory
+    ///
+    /// # Errors
+    /// * `BakerError::TemplateError` if path doesn't exist
+    /// * Panics if source is not FileSystem variant
     fn load(&self, source: &TemplateSource) -> BakerResult<PathBuf> {
         let path = match source {
             TemplateSource::FileSystem(path) => path,
@@ -58,12 +110,30 @@ impl TemplateLoader for LocalLoader {
 }
 
 impl GitLoader {
+    /// Creates a new GitLoader instance.
     pub fn new() -> Self {
         Self {}
     }
 }
 
 impl TemplateLoader for GitLoader {
+    /// Loads a template by cloning a git repository.
+    ///
+    /// # Arguments
+    /// * `source` - Template source (must be Git variant)
+    ///
+    /// # Returns
+    /// * `BakerResult<PathBuf>` - Path to the cloned repository
+    ///
+    /// # Errors
+    /// * `BakerError::TemplateError` if:
+    ///   - Source is not Git variant
+    ///   - Temp directory creation fails
+    ///   - Repository clone fails
+    ///
+    /// # Notes
+    /// - Clones to system temp directory under 'baker-templates'
+    /// - Uses SSH authentication with default key location
     fn load(&self, source: &TemplateSource) -> BakerResult<PathBuf> {
         let repo_url = match source {
             TemplateSource::Git(url) => url,
@@ -108,6 +178,7 @@ impl TemplateLoader for GitLoader {
 }
 
 impl MiniJinjaEngine {
+    /// Creates a new MiniJinjaEngine instance with default environment.
     pub fn new() -> Self {
         let env = Environment::new();
         Self { env }
@@ -115,6 +186,20 @@ impl MiniJinjaEngine {
 }
 
 impl TemplateEngine for MiniJinjaEngine {
+    /// Renders a template string using MiniJinja.
+    ///
+    /// # Arguments
+    /// * `template` - Template string to render
+    /// * `context` - JSON context for variable interpolation
+    ///
+    /// # Returns
+    /// * `BakerResult<String>` - Rendered template string
+    ///
+    /// # Errors
+    /// * `BakerError::TemplateError` if:
+    ///   - Template addition fails
+    ///   - Template retrieval fails
+    ///   - Template rendering fails
     fn render(&self, template: &str, context: &serde_json::Value) -> BakerResult<String> {
         let mut env = self.env.clone();
         env.add_template("temp", template)

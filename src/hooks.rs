@@ -1,3 +1,7 @@
+//! Hook execution and management for Baker templates.
+//! This module handles pre and post-generation hooks that allow templates
+//! to execute custom scripts during project generation.
+
 use serde::Serialize;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -6,13 +10,26 @@ use std::process::{Command, Stdio};
 use crate::error::{BakerError, BakerResult};
 use crate::prompt::read_input;
 
+/// Structure representing data passed to hook scripts.
+///
+/// This data is serialized to JSON and passed to hook scripts via stdin.
 #[derive(Serialize)]
 struct Output<'a> {
+    /// Absolute path to the template directory
     template_dir: &'a str,
+    /// Absolute path to the output directory
     output_dir: &'a str,
+    /// Context data for template rendering
     context: &'a serde_json::Value,
 }
 
+/// Gets paths to pre and post generation hook scripts.
+///
+/// # Arguments
+/// * `template_dir` - Path to the template directory
+///
+/// # Returns
+/// * `(PathBuf, PathBuf)` - Tuple containing paths to pre and post hook scripts
 pub fn get_hooks<P: AsRef<Path>>(template_dir: P) -> (PathBuf, PathBuf) {
     let template_dir = template_dir.as_ref();
     let pre_hook = template_dir.join("hooks").join("pre_gen_project");
@@ -21,6 +38,16 @@ pub fn get_hooks<P: AsRef<Path>>(template_dir: P) -> (PathBuf, PathBuf) {
     (pre_hook, post_hook)
 }
 
+/// Prompts for confirmation before executing hooks.
+///
+/// # Arguments
+/// * `skip_hooks_check` - Whether to skip the confirmation prompt
+///
+/// # Returns
+/// * `BakerResult<bool>` - Whether hooks should be executed
+///
+/// # Safety
+/// This function provides a safety check before executing potentially dangerous hook scripts.
 pub fn confirm_hooks_execution(skip_hooks_check: bool) -> BakerResult<bool> {
     if skip_hooks_check {
         return Ok(true);
@@ -30,6 +57,21 @@ pub fn confirm_hooks_execution(skip_hooks_check: bool) -> BakerResult<bool> {
     Ok(input.to_lowercase() == "y")
 }
 
+/// Executes a hook script with the provided context.
+///
+/// # Arguments
+/// * `template_dir` - Path to the template directory
+/// * `output_dir` - Path to the output directory
+/// * `script_path` - Path to the hook script to execute
+/// * `context` - Template context data
+///
+/// # Returns
+/// * `BakerResult<()>` - Success or error status of hook execution
+///
+/// # Notes
+/// - Hook scripts receive context data as JSON via stdin
+/// - Hooks must be executable files
+/// - Non-zero exit codes from hooks are treated as errors
 pub fn run_hook<P: AsRef<Path>>(
     template_dir: P,
     output_dir: P,

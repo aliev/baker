@@ -1,9 +1,28 @@
+//! User input handling and prompt functionality for Baker.
+//! This module manages interactive configuration prompts and user input validation
+//! for template variables and configuration values.
 use indexmap::IndexMap;
 use log::debug;
 use std::io::{self, Write};
 
 use crate::error::{BakerError, BakerResult};
 
+/// Evaluates a string input as a yes/no response.
+///
+/// # Arguments
+/// * `value` - The string to evaluate
+///
+/// # Returns
+/// * `(bool, bool)` - Tuple containing:
+///   - Whether the input was valid (true/false)
+///   - Whether the input was affirmative (yes)
+///
+/// # Examples
+/// ```
+/// assert_eq!(yes_no_prompt("yes"), (true, true));
+/// assert_eq!(yes_no_prompt("no"), (true, false));
+/// assert_eq!(yes_no_prompt("invalid"), (false, false));
+/// ```
 fn yes_no_prompt(value: &str) -> (bool, bool) {
     let yes_choices = ["1", "true", "t", "yes", "y", "on"];
     let no_choices = ["0", "false", "f", "no", "n", "off"];
@@ -17,6 +36,13 @@ fn yes_no_prompt(value: &str) -> (bool, bool) {
     )
 }
 
+/// Reads a line of input from stdin.
+///
+/// # Returns
+/// * `BakerResult<String>` - The trimmed input string
+///
+/// # Errors
+/// * Returns `BakerError::IoError` if stdin read fails
 pub fn read_input() -> BakerResult<String> {
     io::stdout().flush()?;
     let mut input = String::new();
@@ -24,6 +50,27 @@ pub fn read_input() -> BakerResult<String> {
     Ok(input.trim().to_string())
 }
 
+/// Prompts for and processes configuration values interactively.
+///
+/// # Arguments
+/// * `config` - Initial configuration key-value pairs
+///
+/// # Returns
+/// * `BakerResult<serde_json::Value>` - Processed configuration with user inputs
+///
+/// # Notes
+/// - Maintains order of configuration keys using IndexMap
+/// - Handles different value types (strings, arrays, booleans)
+/// - Supports default values and validation
+///
+/// # Example
+/// ```
+/// let config = indexmap! {
+///     "project_name".to_string() => json!("My Project"),
+///     "use_docker".to_string() => json!(true)
+/// };
+/// let processed = prompt_config_values(config)?;
+/// ```
 pub fn prompt_config_values(
     config: IndexMap<String, serde_json::Value>,
 ) -> BakerResult<serde_json::Value> {
