@@ -13,7 +13,6 @@ use baker::{
     },
 };
 use clap::Parser;
-use log::{error, info};
 use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
@@ -44,7 +43,7 @@ fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> BakerResult<Pat
     let output_dir = output_dir.as_ref();
     if output_dir.exists() && !force {
         return Err(BakerError::ConfigError(format!(
-            "Output directory already exists: {}. Use --force to overwrite",
+            "output directory already exists: {}. Use --force to overwrite",
             output_dir.display()
         )));
     }
@@ -78,7 +77,7 @@ fn run(args: Args) -> BakerResult<()> {
         let bakerfile = template_dir.join("baker.json");
         let bakerfile_content = read_bakerfile(&bakerfile)?;
 
-        info!("Loading configuration from: {}", &bakerfile.display());
+        println!("Loading configuration from: {}", &bakerfile.display());
         let config = parse_config(bakerfile_content, &template_processor)?;
         let context = prompt_for_values(config)?;
 
@@ -98,7 +97,7 @@ fn run(args: Args) -> BakerResult<()> {
             run_hook(&post_hook, &context)?;
         }
 
-        info!(
+        println!(
             "Template generation completed successfully in directory {}!",
             output_dir.display()
         );
@@ -122,7 +121,7 @@ fn main() {
         .init();
 
     if let Err(err) = run(args) {
-        error!("Error: {}", err);
+        eprintln!("{}", err);
         std::process::exit(1);
     }
 }
