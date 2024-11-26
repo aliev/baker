@@ -19,11 +19,12 @@ use crate::error::{BakerError, BakerResult};
 ///
 /// # Examples
 /// ```
+/// use baker::prompt::yes_no_prompt;
 /// assert_eq!(yes_no_prompt("yes"), (true, true));
 /// assert_eq!(yes_no_prompt("no"), (true, false));
 /// assert_eq!(yes_no_prompt("invalid"), (false, false));
 /// ```
-fn yes_no_prompt(value: &str) -> (bool, bool) {
+pub fn yes_no_prompt(value: &str) -> (bool, bool) {
     let yes_choices = ["1", "true", "t", "yes", "y", "on"];
     let no_choices = ["0", "false", "f", "no", "n", "off"];
 
@@ -65,11 +66,18 @@ pub fn read_input() -> BakerResult<String> {
 ///
 /// # Example
 /// ```
-/// let config = indexmap! {
-///     "project_name".to_string() => json!("My Project"),
-///     "use_docker".to_string() => json!(true)
-/// };
+/// use indexmap::IndexMap;
+/// use serde_json::json;
+/// use baker::prompt::prompt_config_values;
+///
+/// # fn main() -> baker::error::BakerResult<()> {
+/// let config = IndexMap::from([
+///     ("project_name".to_string(), json!("My Project")),
+///     ("use_docker".to_string(), json!(true))
+/// ]);
 /// let processed = prompt_config_values(config)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn prompt_config_values(
     config: IndexMap<String, serde_json::Value>,

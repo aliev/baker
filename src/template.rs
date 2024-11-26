@@ -27,6 +27,7 @@ impl TemplateSource {
     ///
     /// # Examples
     /// ```
+    /// use baker::template::TemplateSource;
     /// let local = TemplateSource::from_string("./templates/web");
     /// let git = TemplateSource::from_string("https://github.com/user/template.git");
     /// ```

@@ -129,10 +129,11 @@ fn copy_file<P: AsRef<Path>>(source: P, dest: P) -> BakerResult<()> {
 ///
 /// # Examples
 /// ```
+/// use baker::processor::is_jinja_template;
 /// assert!(is_jinja_template("template.html.j2"));
 /// assert!(!is_jinja_template("regular.html"));
 /// ```
-fn is_jinja_template(filename: &str) -> bool {
+pub fn is_jinja_template(filename: &str) -> bool {
     let parts: Vec<&str> = filename.split('.').collect();
     if parts.len() > 2 && parts.last() == Some(&"j2") {
         true
@@ -159,11 +160,13 @@ fn is_jinja_template(filename: &str) -> bool {
 ///
 /// # Examples
 /// ```
+/// use std::path::PathBuf;
+/// use baker::processor::resolve_target_path;
 /// let (path, should_process) = resolve_target_path("templates/index.html.j2", "output");
 /// assert_eq!(path, PathBuf::from("output/templates/index.html"));
 /// assert!(should_process);
 /// ```
-fn resolve_target_path<P: AsRef<Path>>(source_path: &str, target_dir: P) -> (PathBuf, bool) {
+pub fn resolve_target_path<P: AsRef<Path>>(source_path: &str, target_dir: P) -> (PathBuf, bool) {
     // Whether the file should be processed by the template renderer.
     let mut should_be_processed = false;
     let target_dir = target_dir.as_ref();
