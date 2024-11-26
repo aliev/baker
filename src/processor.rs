@@ -6,7 +6,7 @@ use walkdir::WalkDir;
 
 use crate::{
     error::{BakerError, BakerResult},
-    render::TemplateRenderer,
+    template::TemplateRenderer,
 };
 
 pub fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> BakerResult<PathBuf> {
@@ -111,7 +111,7 @@ pub fn process_template<P: AsRef<Path>>(
     output_dir: P,
     context: &serde_json::Value,
     template_renderer: &Box<dyn TemplateRenderer>,
-    bakerignore: GlobSet,
+    ignored_set: GlobSet,
     force_output_dir: bool,
 ) -> BakerResult<PathBuf> {
     debug!("Processing template...");
@@ -135,7 +135,7 @@ pub fn process_template<P: AsRef<Path>>(
 
         debug!("Processed target file: {}", rendered_path);
 
-        if bakerignore.is_match(&relative_path) {
+        if ignored_set.is_match(&relative_path) {
             debug!("Skipping file {} from .bakerignore", relative_path);
             continue;
         }

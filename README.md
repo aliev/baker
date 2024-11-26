@@ -2,8 +2,7 @@
 
 <div align="center">
   <img src="artwork/logo.ai.png" alt="" width=320>
-  <p><strong>Baker: is a fast and flexible project scaffolding tool written in Rust that helps you generate projects from templates.</strong></p>
-
+  <p><strong>Baker: is a fast project scaffolding tool written in Rust that generates projects from minijinja templates.</strong></p>
 </div>
 
 ## Features

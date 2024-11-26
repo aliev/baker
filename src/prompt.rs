@@ -24,7 +24,7 @@ pub fn read_input() -> BakerResult<String> {
     Ok(input.trim().to_string())
 }
 
-pub fn prompt_for_values(
+pub fn prompt_config_values(
     config: IndexMap<String, serde_json::Value>,
 ) -> BakerResult<serde_json::Value> {
     debug!("Starting interactive configuration...");

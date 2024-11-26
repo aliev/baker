@@ -4,7 +4,7 @@ use log::debug;
 use std::{fs::read_to_string, path::Path};
 
 // Fetches the .bakerignore file from template directory and returns GlobSet object.
-pub fn read_bakerignore<P: AsRef<Path>>(bakerignore_path: P) -> BakerResult<GlobSet> {
+pub fn ignore_file_read<P: AsRef<Path>>(bakerignore_path: P) -> BakerResult<GlobSet> {
     let mut builder = GlobSetBuilder::new();
     if let Ok(contents) = read_to_string(bakerignore_path.as_ref()) {
         for line in contents.lines() {

@@ -1,10 +1,8 @@
-pub mod bakerfile;
-pub mod bakerignore;
 pub mod cli;
 pub mod config;
 pub mod error;
 pub mod hooks;
+pub mod ignore;
 pub mod processor;
 pub mod prompt;
-pub mod render;
 pub mod template;

@@ -1,26 +1,24 @@
 use baker::{
-    bakerfile::read_bakerfile,
-    bakerignore::read_bakerignore,
     cli::{get_args, Args},
-    config::parse_config,
+    config::{config_file_read, config_parse_content},
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{confirm_hooks_execution, get_hooks, run_hook},
+    ignore::ignore_file_read,
     processor::process_template,
-    prompt::prompt_for_values,
-    render::{MiniJinjaTemplateRenderer, TemplateRenderer},
+    prompt::prompt_config_values,
     template::{
-        FileSystemTemplateSourceProcessor, GitTemplateSourceProcessor, TemplateSource,
-        TemplateSourceProcessor,
+        FileSystemTemplateSourceProcessor, GitTemplateSourceProcessor, MiniJinjaTemplateRenderer,
+        TemplateRenderer, TemplateSource, TemplateSourceProcessor,
     },
 };
 
 fn run(args: Args) -> BakerResult<()> {
-    if let Some(template_source) = TemplateSource::from_string(&args.template) {
-        let template_source_processor: Box<dyn TemplateSourceProcessor> = match template_source {
+    if let Some(project_template_type) = TemplateSource::from_string(&args.template) {
+        let template_source: Box<dyn TemplateSourceProcessor> = match project_template_type {
             TemplateSource::Git(_) => Box::new(GitTemplateSourceProcessor::new()),
             TemplateSource::FileSystem(_) => Box::new(FileSystemTemplateSourceProcessor::new()),
         };
-        let template_dir = template_source_processor.process(&template_source)?;
+        let template_dir = template_source.process(&project_template_type)?;
 
         let mut execute_hooks = false;
         let (pre_hook, post_hook) = get_hooks(&template_dir);
@@ -30,19 +28,19 @@ fn run(args: Args) -> BakerResult<()> {
         }
 
         // Template processor
-        let template_processor: Box<dyn TemplateRenderer> =
+        let template_renderer: Box<dyn TemplateRenderer> =
             Box::new(MiniJinjaTemplateRenderer::new());
 
         // Processing the .bakerignore
-        let bakerignore = read_bakerignore(&template_dir.join(".bakerignore"))?;
+        let ignored_set = ignore_file_read(&template_dir.join(".bakerignore"))?;
 
         // Processing the bakerfile.
-        let bakerfile = template_dir.join("baker.json");
-        let bakerfile_content = read_bakerfile(&bakerfile)?;
+        let config_file = template_dir.join("baker.json");
+        let config_content = config_file_read(&config_file)?;
 
-        println!("Loading configuration from: {}", &bakerfile.display());
-        let config = parse_config(bakerfile_content, &template_processor)?;
-        let context = prompt_for_values(config)?;
+        println!("Loading configuration from: {}", &config_file.display());
+        let config = config_parse_content(config_content, &template_renderer)?;
+        let context = prompt_config_values(config)?;
 
         if execute_hooks && pre_hook.exists() {
             run_hook(&pre_hook, &context)?;
@@ -52,8 +50,8 @@ fn run(args: Args) -> BakerResult<()> {
             &template_dir,
             &args.output_dir,
             &context,
-            &template_processor,
-            bakerignore,
+            &template_renderer,
+            ignored_set,
             args.force,
         )?;
 
