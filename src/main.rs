@@ -41,7 +41,7 @@ fn run(args: Args) -> BakerResult<()> {
         let context = prompt_config_values(config)?;
 
         if execute_hooks && pre_hook.exists() {
-            run_hook(&pre_hook, &context)?;
+            run_hook(&template_dir, &args.output_dir, &pre_hook, &context)?;
         }
 
         let output_dir = process_template(
@@ -54,7 +54,7 @@ fn run(args: Args) -> BakerResult<()> {
         )?;
 
         if execute_hooks && post_hook.exists() {
-            run_hook(&post_hook, &context)?;
+            run_hook(&template_dir, &args.output_dir, &post_hook, &context)?;
         }
 
         println!(
