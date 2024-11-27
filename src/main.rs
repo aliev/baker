@@ -57,6 +57,8 @@ fn run(args: Args) -> BakerResult<()> {
             TemplateSource::FileSystem(_) => Box::new(LocalLoader::new()),
         };
         let template_dir = loader.load(&source)?;
+        // Load and parse configuration
+        let config_content = load_config(&template_dir, &CONFIG_FILES)?;
 
         let mut execute_hooks = false;
         let (pre_hook, post_hook) = get_hooks(&template_dir);
@@ -67,14 +69,11 @@ fn run(args: Args) -> BakerResult<()> {
 
         // Template processor initialization
         let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
+        let config = parse_config(config_content, &engine)?;
+        let context = prompt_config_values(config)?;
 
         // Process ignore patterns
         let ignored_set = ignore_file_read(&template_dir.join(IGNORE_FILE))?;
-
-        // Load and parse configuration
-        let config_content = load_config(&template_dir, &CONFIG_FILES)?;
-        let config = parse_config(config_content, &engine)?;
-        let context = prompt_config_values(config)?;
 
         // Execute pre-generation hook
         if execute_hooks && pre_hook.exists() {

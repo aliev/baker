@@ -5,6 +5,7 @@
 use crate::error::{BakerError, BakerResult};
 use crate::template::TemplateEngine;
 use indexmap::IndexMap;
+use log::debug;
 use std::path::Path;
 
 /// Loads configuration from a template directory, trying multiple file formats.
@@ -23,6 +24,7 @@ pub fn load_config<P: AsRef<Path>>(template_dir: P, config_files: &[&str]) -> Ba
     for file in config_files {
         let config_path = template_dir.as_ref().join(file);
         if config_path.exists() {
+            debug!("Loading configuration from {}", config_path.display());
             return Ok(std::fs::read_to_string(&config_path).map_err(BakerError::IoError)?);
         }
     }
