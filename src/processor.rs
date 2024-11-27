@@ -219,14 +219,30 @@ pub fn process_template<P: AsRef<Path>>(
     let template_dir = template_dir.as_ref();
 
     for entry in WalkDir::new(template_dir) {
-        let entry = entry.map_err(|e| BakerError::IoError(e.into()))?;
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                log::error!("Error accessing entry: {}", e);
+                continue;
+            }
+        };
+
         let path = entry.path();
-        let relative_path = path
-            .strip_prefix(template_dir)
-            .map_err(|e| BakerError::ConfigError(e.to_string()))?;
-        let relative_path = relative_path
-            .to_str()
-            .ok_or_else(|| BakerError::ConfigError("Invalid path".to_string()))?;
+        let relative_path = match path.strip_prefix(template_dir) {
+            Ok(p) => p,
+            Err(e) => {
+                log::error!("Error processing path {}: {}", path.display(), e);
+                continue;
+            }
+        };
+
+        let relative_path = match relative_path.to_str() {
+            Some(p) => p,
+            None => {
+                log::error!("Invalid path: {}", path.display());
+                continue;
+            }
+        };
 
         if ignored_set.is_match(&relative_path) {
             debug!("Skipping file {} from .bakerignore", relative_path);
@@ -234,9 +250,14 @@ pub fn process_template<P: AsRef<Path>>(
         }
 
         // Rendered by template renderer filename.
-        let rendered_path = template_renderer.render(relative_path, context)?;
+        let rendered_path = match template_renderer.render(relative_path, context) {
+            Ok(p) => p,
+            Err(e) => {
+                log::error!("Error rendering path {}: {}", relative_path, e);
+                continue;
+            }
+        };
 
-        // Skip if processed path is empty (conditional template evaluated to nothing)
         if rendered_path.trim().is_empty() {
             debug!("Skipping file as processed path is empty");
             continue;
@@ -250,15 +271,36 @@ pub fn process_template<P: AsRef<Path>>(
         let (target_path, is_template_path) = resolve_target_path(&rendered_path, &output_dir);
 
         if path.is_dir() {
-            create_dir_all(&target_path)?;
+            if let Err(e) = create_dir_all(&target_path) {
+                log::error!("Error creating directory {}: {}", target_path.display(), e);
+                continue;
+            }
         } else {
-            if is_template_path {
-                let content = read_file(path)?;
-                let final_content = template_renderer.render(&content, context)?;
-                write_file(&target_path, &final_content)?;
+            let result = if is_template_path {
+                match read_file(path) {
+                    Ok(content) => match template_renderer.render(&content, context) {
+                        Ok(final_content) => write_file(&target_path, &final_content),
+                        Err(e) => {
+                            log::error!("Error rendering template {}: {}", path.display(), e);
+                            continue;
+                        }
+                    },
+                    Err(e) => {
+                        log::error!("Error reading file {}: {}", path.display(), e);
+                        continue;
+                    }
+                }
             } else {
-                // Simply copy the file without processing
-                copy_file(path, &target_path)?;
+                copy_file(path, &target_path)
+            };
+
+            if let Err(e) = result {
+                log::error!(
+                    "Error processing file {} to {}: {}",
+                    path.display(),
+                    target_path.display(),
+                    e
+                );
             }
         }
     }
