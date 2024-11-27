@@ -6,6 +6,7 @@ use git2::{Cred, FetchOptions, RemoteCallbacks};
 use minijinja::Environment;
 use std::env;
 use std::path::PathBuf;
+use url::Url;
 
 /// Represents the source location of a template.
 #[derive(Debug)]
@@ -32,12 +33,21 @@ impl TemplateSource {
     /// let git = TemplateSource::from_string("https://github.com/user/template.git");
     /// ```
     pub fn from_string(s: &str) -> Option<Self> {
-        if s.starts_with("git@") || s.starts_with("https://") {
-            Some(Self::Git(s.to_string()))
-        } else {
-            let path = PathBuf::from(s);
-            Some(Self::FileSystem(path))
+        // First try to parse as URL
+        if let Ok(url) = Url::parse(s) {
+            if url.scheme() == "https" || url.scheme() == "git" {
+                return Some(Self::Git(s.to_string()));
+            }
         }
+
+        // Check for SSH git URL format
+        if s.starts_with("git@") {
+            return Some(Self::Git(s.to_string()));
+        }
+
+        // Treat as filesystem path
+        let path = PathBuf::from(s);
+        Some(Self::FileSystem(path))
     }
 }
 
