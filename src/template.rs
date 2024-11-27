@@ -6,6 +6,7 @@ use git2::{Cred, FetchOptions, RemoteCallbacks};
 use minijinja::Environment;
 use std::env;
 use std::path::PathBuf;
+use tempfile::TempDir;
 use url::Url;
 
 /// Represents the source location of a template.
@@ -79,7 +80,9 @@ pub trait TemplateEngine {
 /// Loader for templates from the local filesystem.
 pub struct LocalLoader {}
 /// Loader for templates from git repositories.
-pub struct GitLoader {}
+pub struct GitLoader {
+    _temp_dir: Option<TempDir>, // Keep TempDir alive
+}
 /// MiniJinja-based template rendering engine.
 pub struct MiniJinjaEngine {
     /// MiniJinja environment instance
@@ -123,7 +126,7 @@ impl TemplateLoader for LocalLoader {
 impl GitLoader {
     /// Creates a new GitLoader instance.
     pub fn new() -> Self {
-        Self {}
+        Self { _temp_dir: None }
     }
 }
 
@@ -151,8 +154,9 @@ impl TemplateLoader for GitLoader {
             _ => return Err(BakerError::TemplateError("Expected Git URL".to_string())),
         };
 
-        let temp_dir = env::temp_dir().join("baker-templates");
-        std::fs::create_dir_all(&temp_dir)
+        let temp_dir = tempfile::Builder::new()
+            .prefix("baker-")
+            .tempdir()
             .map_err(|e| BakerError::TemplateError(format!("Failed to create temp dir: {}", e)))?;
 
         let repo_name = repo_url
@@ -160,7 +164,7 @@ impl TemplateLoader for GitLoader {
             .last()
             .unwrap_or("temp")
             .trim_end_matches(".git");
-        let clone_path = temp_dir.join(repo_name);
+        let clone_path = temp_dir.path().join(repo_name);
 
         let mut callbacks = RemoteCallbacks::new();
         callbacks.credentials(|_url, username_from_url, _allowed_types| {
