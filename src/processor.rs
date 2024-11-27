@@ -228,23 +228,24 @@ pub fn process_template<P: AsRef<Path>>(
             .to_str()
             .ok_or_else(|| BakerError::ConfigError("Invalid path".to_string()))?;
 
-        debug!("Processing source file: {}", relative_path);
-
-        // Rendered by template renderer filename.
-        let rendered_path = template_renderer.render(relative_path, context)?;
-
-        debug!("Processed target file: {}", rendered_path);
-
         if ignored_set.is_match(&relative_path) {
             debug!("Skipping file {} from .bakerignore", relative_path);
             continue;
         }
+
+        // Rendered by template renderer filename.
+        let rendered_path = template_renderer.render(relative_path, context)?;
 
         // Skip if processed path is empty (conditional template evaluated to nothing)
         if rendered_path.trim().is_empty() {
             debug!("Skipping file as processed path is empty");
             continue;
         }
+
+        debug!(
+            "Processing source file: {} to target file {}",
+            relative_path, rendered_path
+        );
 
         let (target_path, is_template_path) = resolve_target_path(&rendered_path, &output_dir);
 

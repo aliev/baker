@@ -2,11 +2,12 @@
 //! Handles both local filesystem and git repository templates with support
 //! for MiniJinja template processing.
 use crate::error::{BakerError, BakerResult};
-use git2::{Cred, FetchOptions, RemoteCallbacks};
+use crate::prompt::read_input;
+use git2;
+use log::debug;
 use minijinja::Environment;
-use std::env;
+use std::fs;
 use std::path::PathBuf;
-use tempfile::TempDir;
 use url::Url;
 
 /// Represents the source location of a template.
@@ -80,9 +81,8 @@ pub trait TemplateEngine {
 /// Loader for templates from the local filesystem.
 pub struct LocalLoader {}
 /// Loader for templates from git repositories.
-pub struct GitLoader {
-    _temp_dir: Option<TempDir>, // Keep TempDir alive
-}
+pub struct GitLoader {}
+
 /// MiniJinja-based template rendering engine.
 pub struct MiniJinjaEngine {
     /// MiniJinja environment instance
@@ -126,7 +126,7 @@ impl TemplateLoader for LocalLoader {
 impl GitLoader {
     /// Creates a new GitLoader instance.
     pub fn new() -> Self {
-        Self { _temp_dir: None }
+        Self {}
     }
 }
 
@@ -140,47 +140,55 @@ impl TemplateLoader for GitLoader {
     /// * `BakerResult<PathBuf>` - Path to the cloned repository
     ///
     /// # Errors
-    /// * `BakerError::TemplateError` if:
-    ///   - Source is not Git variant
-    ///   - Temp directory creation fails
-    ///   - Repository clone fails
-    ///
-    /// # Notes
-    /// - Clones to system temp directory under 'baker-templates'
-    /// - Uses SSH authentication with default key location
+    /// * `BakerError::TemplateError` if clone fails
     fn load(&self, source: &TemplateSource) -> BakerResult<PathBuf> {
         let repo_url = match source {
             TemplateSource::Git(url) => url,
             _ => return Err(BakerError::TemplateError("Expected Git URL".to_string())),
         };
 
-        let temp_dir = tempfile::Builder::new()
-            .prefix("baker-")
-            .tempdir()
-            .map_err(|e| BakerError::TemplateError(format!("Failed to create temp dir: {}", e)))?;
+        debug!("Cloning repository {}", repo_url);
 
         let repo_name = repo_url
             .split('/')
             .last()
-            .unwrap_or("temp")
+            .unwrap_or("template")
             .trim_end_matches(".git");
-        let clone_path = temp_dir.path().join(repo_name);
+        let clone_path = PathBuf::from(repo_name);
 
-        let mut callbacks = RemoteCallbacks::new();
+        if clone_path.exists() {
+            print!("Directory {} already exists. Replace it? [y/N] ", repo_name);
+            let response = read_input()?;
+            if response.to_lowercase() == "y" {
+                fs::remove_dir_all(&clone_path).map_err(|e| {
+                    BakerError::TemplateError(format!("Failed to remove existing directory: {}", e))
+                })?;
+            } else {
+                debug!("Using existing directory: {}", clone_path.display());
+                return Ok(clone_path);
+            }
+        }
+
+        debug!("Cloning to {}", clone_path.display());
+
+        // Set up authentication callbacks
+        let mut callbacks = git2::RemoteCallbacks::new();
         callbacks.credentials(|_url, username_from_url, _allowed_types| {
-            Cred::ssh_key(
+            git2::Cred::ssh_key(
                 username_from_url.unwrap_or("git"),
                 None,
-                std::path::Path::new(&format!("{}/.ssh/id_rsa", env::var("HOME").unwrap())),
+                std::path::Path::new(&format!("{}/.ssh/id_rsa", std::env::var("HOME").unwrap())),
                 None,
             )
         });
 
-        let mut fetch_options = FetchOptions::new();
-        fetch_options.remote_callbacks(callbacks);
+        // Configure fetch options with callbacks
+        let mut fetch_opts = git2::FetchOptions::new();
+        fetch_opts.remote_callbacks(callbacks);
 
+        // Set up and perform clone
         let mut builder = git2::build::RepoBuilder::new();
-        builder.fetch_options(fetch_options);
+        builder.fetch_options(fetch_opts);
 
         match builder.clone(repo_url, &clone_path) {
             Ok(_) => Ok(clone_path),
