@@ -5,6 +5,7 @@
 use baker::{
     cli::{get_args, Args},
     config::{load_config, parse_config},
+    constants::{CONFIG_FILES, IGNORE_FILE},
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{confirm_hooks_execution, get_hooks, run_hook},
     ignore::ignore_file_read,
@@ -68,13 +69,10 @@ fn run(args: Args) -> BakerResult<()> {
         let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
 
         // Process ignore patterns
-        let ignored_set = ignore_file_read(&template_dir.join(".bakerignore"))?;
+        let ignored_set = ignore_file_read(&template_dir.join(IGNORE_FILE))?;
 
         // Load and parse configuration
-        let config_file = template_dir.join("baker.json");
-        let config_content = load_config(&config_file)?;
-
-        println!("Loading configuration from: {}", &config_file.display());
+        let config_content = load_config(&template_dir, &CONFIG_FILES)?;
         let config = parse_config(config_content, &engine)?;
         let context = prompt_config_values(config)?;
 

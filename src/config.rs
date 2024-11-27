@@ -7,24 +7,30 @@ use crate::template::TemplateEngine;
 use indexmap::IndexMap;
 use std::path::Path;
 
-/// Loads configuration from a JSON file at the specified path.
+/// Loads configuration from a template directory, trying multiple file formats.
+/// Supports: baker.json, baker.yml, baker.yaml
 ///
 /// # Arguments
-/// * `config_path` - Path to the configuration file
+/// * `template_dir` - Directory containing the template configuration
+/// * `config_files` - List of configuration files to try
 ///
 /// # Returns
-/// * `BakerResult<String>` - Contents of the configuration file as a string
+/// * `BakerResult<String>` - Contents of the first found configuration file
 ///
 /// # Errors
-/// * `BakerError::IoError` if the file cannot be read
-pub fn load_config<P: AsRef<Path>>(config_path: P) -> BakerResult<String> {
-    if !config_path.as_ref().exists() {
-        return Err(BakerError::ConfigError(
-            "Configuration file does not exist".to_string(),
-        ));
+/// * `BakerError::ConfigError` if no valid config file exists
+pub fn load_config<P: AsRef<Path>>(template_dir: P, config_files: &[&str]) -> BakerResult<String> {
+    for file in config_files {
+        let config_path = template_dir.as_ref().join(file);
+        if config_path.exists() {
+            return Ok(std::fs::read_to_string(&config_path).map_err(BakerError::IoError)?);
+        }
     }
 
-    Ok(std::fs::read_to_string(config_path).map_err(BakerError::IoError)?)
+    Err(BakerError::ConfigError(format!(
+        "No configuration file found (tried: {})",
+        config_files.join(", ")
+    )))
 }
 
 /// Processes a configuration value, recursively handling template interpolation.
@@ -81,16 +87,24 @@ fn process_config_value(
 /// * `engine` - Template engine for rendering
 ///
 /// # Returns
-/// * `BakerResult<IndexMap<String, serde_json::Value>>` - Processed configuration as key-value pairs
+/// * `BakerResult<IndexMap<String, serde_json::Value>>` - Processed configuration
 ///
 /// # Errors
-/// * `BakerError::ConfigError` if JSON parsing fails
+/// * `BakerError::ConfigError` if parsing fails
 pub fn parse_config(
     content: String,
     engine: &Box<dyn TemplateEngine>,
 ) -> BakerResult<IndexMap<String, serde_json::Value>> {
-    let value: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| BakerError::ConfigError(format!("Invalid JSON: {}", e)))?;
+    // Try parsing as JSON first
+    let value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(_) => {
+            // If JSON fails, try YAML
+            serde_yaml::from_str(&content).map_err(|e| {
+                BakerError::ConfigError(format!("Invalid configuration format: {}", e))
+            })?
+        }
+    };
 
     if let serde_json::Value::Object(map) = value {
         let mut result = IndexMap::new();
@@ -100,7 +114,7 @@ pub fn parse_config(
         Ok(result)
     } else {
         Err(BakerError::ConfigError(
-            "Configuration must be a JSON object".to_string(),
+            "Configuration must be an object".to_string(),
         ))
     }
 }

@@ -10,13 +10,13 @@ use std::{fs::read_to_string, path::Path};
 /// Reads and processes the .bakerignore file to create a set of glob patterns.
 ///
 /// # Arguments
-/// * `bakerignore_path` - Path to the .bakerignore file
+/// * `bakerignore_path` - Path to the ignore file (typically .bakerignore)
 ///
 /// # Returns
 /// * `BakerResult<GlobSet>` - Set of compiled glob patterns for path matching
 ///
 /// # Notes
-/// - If the .bakerignore file doesn't exist, returns an empty GlobSet
+/// - If the ignore file doesn't exist, returns an empty GlobSet
 /// - Each line in the file is treated as a separate glob pattern
 /// - Invalid patterns will result in a BakerIgnoreError
 ///

@@ -48,3 +48,6 @@ pub mod prompt;
 /// - MiniJinja template rendering
 /// - Variable interpolation
 pub mod template;
+
+/// Common constants used throughout the application.
+pub mod constants;
