@@ -4,11 +4,10 @@
 
 use baker::{
     cli::{get_args, Args},
-    config::{load_config, parse_config},
-    constants::{CONFIG_FILES, IGNORE_FILE},
+    config::{load_config, parse_config, CONFIG_FILES},
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{confirm_hooks_execution, get_hooks, run_hook},
-    ignore::ignore_file_read,
+    ignore::{ignore_file_read, IGNORE_FILE},
     processor::process_template,
     prompt::prompt_config_values,
     template::{

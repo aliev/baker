@@ -8,6 +8,9 @@ use indexmap::IndexMap;
 use log::debug;
 use std::path::Path;
 
+/// Supported configuration file names
+pub const CONFIG_FILES: [&str; 3] = ["baker.json", "baker.yml", "baker.yaml"];
+
 /// Loads configuration from a template directory, trying multiple file formats.
 /// Supports: baker.json, baker.yml, baker.yaml
 ///

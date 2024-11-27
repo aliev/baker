@@ -18,6 +18,9 @@ const DEFAULT_IGNORE_PATTERNS: &[&str] = &[
     "**/.DS_Store",
 ];
 
+/// Baker's ignore file name
+pub const IGNORE_FILE: &str = ".bakerignore";
+
 /// Reads and processes the .bakerignore file to create a set of glob patterns.
 ///
 /// # Arguments
