@@ -158,7 +158,10 @@ impl TemplateLoader for GitLoader {
 
         if clone_path.exists() {
             let response = Confirm::new()
-                .with_prompt(format!("Directory {} already exists.", repo_name))
+                .with_prompt(format!(
+                    "Directory {} already exists. Replace it?",
+                    repo_name
+                ))
                 .default(false)
                 .interact()
                 .map_err(|e| BakerError::HookError(e.to_string()))?;

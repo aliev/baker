@@ -54,7 +54,7 @@ pub fn confirm_hooks_execution(skip_hooks_check: bool) -> BakerResult<bool> {
     }
     Ok(Confirm::new()
         .with_prompt(
-            "WARNING: This template contains hooks that will execute commands on your system.",
+            "WARNING: This template contains hooks that will execute commands on your system. Do you want to run these hooks?",
         )
         .default(false)
         .interact()

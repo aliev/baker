@@ -40,40 +40,113 @@ pub fn load_config<P: AsRef<Path>>(template_dir: P, config_files: &[&str]) -> Ba
     )))
 }
 
-pub fn parse_config(content: String) -> BakerResult<IndexMap<String, serde_json::Value>> {
-    let raw_value: IndexMap<String, serde_json::Value> = match serde_json::from_str(&content) {
-        Ok(v) => v,
-        Err(_) => serde_yaml::from_str(&content)
-            .map_err(|e| BakerError::ConfigError(format!("Invalid configuration format: {}", e)))?,
-    };
-    Ok(raw_value)
-}
-
+/// Type of question to be presented to the user
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum QuestionType {
+    /// String input question type
     Str,
+    /// Boolean (yes/no) question type
     Bool,
 }
 
+/// Represents a single question in the configuration
 #[derive(Debug, Deserialize)]
 pub struct Question {
+    /// Help text/prompt to display to the user
     #[serde(default)]
     help: String,
+    /// Type of the question (string or boolean)
     #[serde(rename = "type")]
     question_type: QuestionType,
+    /// Optional default value for the question
     #[serde(default)]
     default: Option<String>,
+    /// Available choices for string questions
     #[serde(default)]
     choices: Vec<String>,
 }
 
+/// Main configuration structure holding all questions
 #[derive(Debug, Deserialize)]
 pub struct Config {
+    /// Map of question identifiers to their configurations
     #[serde(flatten)]
     pub questions: IndexMap<String, Question>,
 }
 
+fn parse_str(
+    prompt: String,
+    key: String,
+    engine: &Box<dyn TemplateEngine>,
+    question: Question,
+    current_context: serde_json::Value,
+) -> BakerResult<(String, serde_json::Value)> {
+    if !question.choices.is_empty() {
+        let selection = Select::new()
+            .with_prompt(prompt)
+            .default(0)
+            .items(&question.choices)
+            .interact()
+            .map_err(|e| BakerError::ConfigError(e.to_string()))?;
+
+        Ok((
+            key,
+            serde_json::Value::String(question.choices[selection].clone()),
+        ))
+    } else {
+        let default_value = if let Some(default_template) = question.default {
+            engine
+                .render(&default_template, &current_context)
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
+
+        let input: String = Input::new()
+            .with_prompt(prompt)
+            .default(default_value)
+            .interact_text()
+            .map_err(|e| BakerError::ConfigError(e.to_string()))?;
+
+        Ok((key, serde_json::Value::String(input)))
+    }
+}
+
+fn parse_bool(
+    prompt: String,
+    key: String,
+    question: Question,
+) -> BakerResult<(String, serde_json::Value)> {
+    let default_value = question
+        .default
+        .and_then(|v| match v.to_lowercase().as_str() {
+            "yes" | "true" | "1" => Some(true),
+            "no" | "false" | "0" => Some(false),
+            _ => None,
+        })
+        .unwrap_or(false);
+
+    let result = Confirm::new()
+        .with_prompt(prompt)
+        .default(default_value)
+        .interact()
+        .map_err(|e| BakerError::ConfigError(e.to_string()))?;
+
+    Ok((key, serde_json::Value::Bool(result)))
+}
+
+/// Prompts the user for answers to all configured questions
+///
+/// # Arguments
+/// * `questions` - Map of questions to ask
+/// * `engine` - Template engine for rendering help text and default values
+///
+/// # Returns
+/// * `BakerResult<serde_json::Value>` - JSON object containing all answers
+///
+/// # Errors
+/// * `BakerError::ConfigError` if there's an error during user interaction
 pub fn prompt_questions(
     questions: IndexMap<String, Question>,
     engine: &Box<dyn TemplateEngine>,
@@ -88,53 +161,13 @@ pub fn prompt_questions(
 
         match question.question_type {
             QuestionType::Str => {
-                if !question.choices.is_empty() {
-                    let selection = Select::new()
-                        .with_prompt(prompt)
-                        .default(0)
-                        .items(&question.choices)
-                        .interact()
-                        .map_err(|e| BakerError::ConfigError(e.to_string()))?;
-
-                    context.insert(
-                        key,
-                        serde_json::Value::String(question.choices[selection].clone()),
-                    );
-                } else {
-                    let default_value = if let Some(default_template) = question.default {
-                        engine
-                            .render(&default_template, &current_context)
-                            .unwrap_or_default()
-                    } else {
-                        String::new()
-                    };
-
-                    let input: String = Input::new()
-                        .with_prompt(prompt)
-                        .default(default_value)
-                        .interact_text()
-                        .map_err(|e| BakerError::ConfigError(e.to_string()))?;
-
-                    context.insert(key, serde_json::Value::String(input));
-                }
+                let (key, value) = parse_str(prompt, key, engine, question, current_context)?;
+                context.insert(key, value);
             }
             QuestionType::Bool => {
-                let default_value = question
-                    .default
-                    .and_then(|v| match v.to_lowercase().as_str() {
-                        "yes" | "true" | "1" => Some(true),
-                        "no" | "false" | "0" => Some(false),
-                        _ => None,
-                    })
-                    .unwrap_or(false);
+                let (key, value) = parse_bool(prompt, key, question)?;
 
-                let result = Confirm::new()
-                    .with_prompt(prompt)
-                    .default(default_value)
-                    .interact()
-                    .map_err(|e| BakerError::ConfigError(e.to_string()))?;
-
-                context.insert(key, serde_json::Value::Bool(result));
+                context.insert(key, value);
             }
         };
     }
