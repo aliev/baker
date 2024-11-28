@@ -16,6 +16,9 @@ const DEFAULT_IGNORE_PATTERNS: &[&str] = &[
     ".svn/**",
     ".svn",
     "**/.DS_Store",
+    ".bakerignore",
+    "hooks",
+    "hooks/**",
 ];
 
 /// Baker's ignore file name

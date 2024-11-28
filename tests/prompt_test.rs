@@ -2,10 +2,10 @@ use std::io::Cursor;
 
 #[cfg(test)]
 mod tests {
+    use crate::MockStdin;
+    use baker::config::ConfigValue;
     use baker::prompt::{prompt_config_values, yes_no_prompt};
     use indexmap::IndexMap;
-
-    use crate::MockStdin;
 
     #[test]
     fn test_yes_no_prompt() {
@@ -22,11 +22,17 @@ mod tests {
         let mut config = IndexMap::new();
         config.insert(
             "test_string".to_string(),
-            serde_json::Value::String("default".to_string()),
+            ConfigValue::String {
+                question: "Enter test string".to_string(),
+                default: "default".to_string(),
+            },
         );
         config.insert(
             "test_array".to_string(),
-            serde_json::json!(["option1", "option2"]),
+            ConfigValue::Array {
+                question: "Select an option".to_string(),
+                choices: vec!["option1".to_string(), "option2".to_string()],
+            },
         );
 
         // Simulate user input

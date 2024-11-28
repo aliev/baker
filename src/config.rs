@@ -6,10 +6,25 @@ use crate::error::{BakerError, BakerResult};
 use crate::template::TemplateEngine;
 use indexmap::IndexMap;
 use log::debug;
+use serde::Deserialize;
 use std::path::Path;
 
 /// Supported configuration file names
 pub const CONFIG_FILES: [&str; 3] = ["baker.json", "baker.yml", "baker.yaml"];
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+pub enum ConfigValue {
+    #[serde(rename = "string")]
+    String { question: String, default: String },
+    #[serde(rename = "boolean")]
+    Boolean { question: String, default: bool },
+    #[serde(rename = "array")]
+    Array {
+        question: String,
+        choices: Vec<String>,
+    },
+}
 
 /// Loads configuration from a template directory, trying multiple file formats.
 /// Supports: baker.json, baker.yml, baker.yaml
@@ -92,34 +107,64 @@ fn process_config_value(
 /// * `engine` - Template engine for rendering
 ///
 /// # Returns
-/// * `BakerResult<IndexMap<String, serde_json::Value>>` - Processed configuration
+/// * `BakerResult<IndexMap<String, ConfigValue>>` - Processed configuration
 ///
 /// # Errors
 /// * `BakerError::ConfigError` if parsing fails
 pub fn parse_config(
     content: String,
     engine: &Box<dyn TemplateEngine>,
-) -> BakerResult<IndexMap<String, serde_json::Value>> {
-    // Try parsing as JSON first
-    let value = match serde_json::from_str(&content) {
+) -> BakerResult<IndexMap<String, ConfigValue>> {
+    // Try parsing as JSON first, explicitly as IndexMap
+    let raw_value: IndexMap<String, serde_json::Value> = match serde_json::from_str(&content) {
         Ok(v) => v,
-        Err(_) => {
-            // If JSON fails, try YAML
-            serde_yaml::from_str(&content).map_err(|e| {
-                BakerError::ConfigError(format!("Invalid configuration format: {}", e))
-            })?
-        }
+        Err(_) => serde_yaml::from_str(&content)
+            .map_err(|e| BakerError::ConfigError(format!("Invalid configuration format: {}", e)))?,
     };
 
-    if let serde_json::Value::Object(map) = value {
-        let mut result = IndexMap::new();
-        for (key, value) in map {
-            result.insert(key, process_config_value(&value, &value, engine)?);
-        }
-        Ok(result)
-    } else {
-        Err(BakerError::ConfigError(
-            "Configuration must be an object".to_string(),
-        ))
+    // Process each field in order, building up the context as we go
+    let mut context = serde_json::Map::new();
+    let mut result = IndexMap::new();
+
+    for (key, value) in raw_value {
+        let config_value: ConfigValue = serde_json::from_value(value.clone())
+            .map_err(|e| BakerError::ConfigError(format!("Invalid schema: {}", e)))?;
+
+        // Process this field with current context
+        let current_context = serde_json::Value::Object(context.clone());
+        let processed_value = match config_value {
+            ConfigValue::String { question, default } => {
+                let processed_question = engine.render(&question, &current_context)?;
+                let processed_default = engine.render(&default, &current_context)?;
+                ConfigValue::String {
+                    question: processed_question,
+                    default: processed_default,
+                }
+            }
+            ConfigValue::Boolean { question, default } => {
+                let processed_question = engine.render(&question, &current_context)?;
+                ConfigValue::Boolean {
+                    question: processed_question,
+                    default,
+                }
+            }
+            ConfigValue::Array { question, choices } => {
+                let processed_question = engine.render(&question, &current_context)?;
+                let processed_choices = choices
+                    .into_iter()
+                    .map(|c| engine.render(&c, &current_context))
+                    .collect::<Result<Vec<_>, _>>()?;
+                ConfigValue::Array {
+                    question: processed_question,
+                    choices: processed_choices,
+                }
+            }
+        };
+
+        // Add this field to context for next iterations
+        context.insert(key.clone(), value);
+        result.insert(key, processed_value);
     }
+
+    Ok(result)
 }

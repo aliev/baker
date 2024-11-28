@@ -2,10 +2,10 @@
 //! This module manages interactive configuration prompts and user input validation
 //! for template variables and configuration values.
 use indexmap::IndexMap;
-use log::debug;
 use std::io::{self, Write};
 
-use crate::error::{BakerError, BakerResult};
+use crate::config::ConfigValue;
+use crate::error::BakerResult;
 
 /// Evaluates a string input as a yes/no response.
 ///
@@ -67,65 +67,69 @@ pub fn read_input() -> BakerResult<String> {
 /// # Example
 /// ```
 /// use indexmap::IndexMap;
-/// use serde_json::json;
+/// use baker::config::ConfigValue;
 /// use baker::prompt::prompt_config_values;
 ///
 /// # fn main() -> baker::error::BakerResult<()> {
-/// let config = IndexMap::from([
-///     ("project_name".to_string(), json!("My Project")),
-///     ("use_docker".to_string(), json!(true))
-/// ]);
+/// let mut config = IndexMap::new();
+/// config.insert(
+///     "project_name".to_string(),
+///     ConfigValue::String {
+///         question: "Project name?".to_string(),
+///         default: "My Project".to_string(),
+///     }
+/// );
 /// let processed = prompt_config_values(config)?;
 /// # Ok(())
 /// # }
-/// ```
+///
 pub fn prompt_config_values(
-    config: IndexMap<String, serde_json::Value>,
+    config: IndexMap<String, ConfigValue>,
 ) -> BakerResult<serde_json::Value> {
-    debug!("Starting interactive configuration...");
-    let mut final_context = config.clone();
-    // Use iter_mut() to maintain the original order from the IndexMap
-    for (key, value) in final_context.iter_mut() {
+    let mut final_context = serde_json::Map::new();
+
+    for (key, value) in config {
         match value {
-            serde_json::Value::String(default_value) => {
-                print!("{} [{}]: ", key.replace("_", " "), default_value);
-
+            ConfigValue::String { question, default } => {
+                print!("{} [{}]: ", question, default);
                 let input = read_input()?;
-
-                let (is_yes_no_choice, yes_no_choice) = yes_no_prompt(if input.is_empty() {
-                    default_value
+                final_context.insert(
+                    key,
+                    serde_json::Value::String(if input.is_empty() { default } else { input }),
+                );
+            }
+            ConfigValue::Boolean { question, default } => {
+                print!("{} [{}]: ", question, if default { "Y/n" } else { "y/N" });
+                let input = read_input()?;
+                let (_, choice) = yes_no_prompt(if input.is_empty() {
+                    if default {
+                        "yes"
+                    } else {
+                        "no"
+                    }
                 } else {
                     &input
                 });
-
-                if is_yes_no_choice {
-                    *value = serde_json::Value::Bool(yes_no_choice);
-                } else if !input.is_empty() {
-                    *value = serde_json::Value::String(input);
-                }
+                final_context.insert(key, serde_json::Value::Bool(choice));
             }
-            serde_json::Value::Array(arr) => {
-                println!("Select {}:", key.replace("_", " "));
-                for (i, opt) in arr.iter().enumerate() {
-                    println!("{} - {}", i + 1, opt.as_str().unwrap_or_default());
+            ConfigValue::Array { question, choices } => {
+                println!("{}:", question);
+                for (i, choice) in choices.iter().enumerate() {
+                    println!("{} - {}", i + 1, choice);
                 }
-                print!("Choose from 1-{} [1]: ", arr.len());
+                print!("Choose from 1-{} [1]: ", choices.len());
                 let input = read_input()?;
                 let choice = if input.is_empty() {
                     0
                 } else {
                     input.parse::<usize>().unwrap_or(1).saturating_sub(1)
                 };
-                if choice < arr.len() {
-                    *value = arr[choice].clone();
+                if choice < choices.len() {
+                    final_context.insert(key, serde_json::Value::String(choices[choice].clone()));
                 }
             }
-            _ => {}
         }
     }
 
-    let context =
-        serde_json::to_value(final_context).map_err(|e| BakerError::ConfigError(e.to_string()))?;
-    debug!("Final configuration: {:#?}", context);
-    Ok(context)
+    Ok(serde_json::Value::Object(final_context))
 }
