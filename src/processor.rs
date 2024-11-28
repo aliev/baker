@@ -210,7 +210,7 @@ pub fn process_template<P: AsRef<Path>>(
     template_dir: P,
     output_dir: P,
     context: &serde_json::Value,
-    template_renderer: &Box<dyn TemplateEngine>,
+    engine: &Box<dyn TemplateEngine>,
     ignored_set: GlobSet,
     force_output_dir: bool,
 ) -> BakerResult<PathBuf> {
@@ -250,7 +250,7 @@ pub fn process_template<P: AsRef<Path>>(
         }
 
         // Rendered by template renderer filename.
-        let rendered_path = match template_renderer.render(relative_path, context) {
+        let rendered_path = match engine.render(relative_path, context) {
             Ok(p) => p,
             Err(e) => {
                 log::error!("Error rendering path {}: {}", relative_path, e);
@@ -278,7 +278,7 @@ pub fn process_template<P: AsRef<Path>>(
         } else {
             let result = if is_template_path {
                 match read_file(path) {
-                    Ok(content) => match template_renderer.render(&content, context) {
+                    Ok(content) => match engine.render(&content, context) {
                         Ok(final_content) => write_file(&target_path, &final_content),
                         Err(e) => {
                             log::error!("Error rendering template {}: {}", path.display(), e);

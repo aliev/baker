@@ -4,12 +4,11 @@
 
 use baker::{
     cli::{get_args, Args},
-    config::{load_config, parse_config, CONFIG_FILES},
+    config::{load_config, prompt_questions, Config, CONFIG_FILES},
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{confirm_hooks_execution, get_hooks, run_hook},
     ignore::{ignore_file_read, IGNORE_FILE},
     processor::process_template,
-    prompt::prompt_config_values,
     template::{
         GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader, TemplateSource,
     },
@@ -68,8 +67,8 @@ fn run(args: Args) -> BakerResult<()> {
 
         // Template processor initialization
         let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
-        let config = parse_config(config_content, &engine)?;
-        let context = prompt_config_values(config)?;
+        let config: Config = serde_yaml::from_str(&config_content).unwrap();
+        let context = prompt_questions(config.questions, &engine)?;
 
         // Process ignore patterns
         let ignored_set = ignore_file_read(&template_dir.join(IGNORE_FILE))?;

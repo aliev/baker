@@ -4,6 +4,7 @@
 
 use crate::error::{BakerError, BakerResult};
 use crate::template::TemplateEngine;
+use dialoguer::{Confirm, Input, Select};
 use indexmap::IndexMap;
 use log::debug;
 use serde::Deserialize;
@@ -11,20 +12,6 @@ use std::path::Path;
 
 /// Supported configuration file names
 pub const CONFIG_FILES: [&str; 3] = ["baker.json", "baker.yml", "baker.yaml"];
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "type")]
-pub enum ConfigValue {
-    #[serde(rename = "string")]
-    String { question: String, default: String },
-    #[serde(rename = "boolean")]
-    Boolean { question: String, default: bool },
-    #[serde(rename = "array")]
-    Array {
-        question: String,
-        choices: Vec<String>,
-    },
-}
 
 /// Loads configuration from a template directory, trying multiple file formats.
 /// Supports: baker.json, baker.yml, baker.yaml
@@ -53,118 +40,104 @@ pub fn load_config<P: AsRef<Path>>(template_dir: P, config_files: &[&str]) -> Ba
     )))
 }
 
-/// Processes a configuration value, recursively handling template interpolation.
-///
-/// # Arguments
-/// * `value` - The JSON value to process
-/// * `context` - Template context for variable interpolation
-/// * `engine` - Template engine for rendering
-///
-/// # Returns
-/// * `BakerResult<serde_json::Value>` - Processed JSON value with interpolated variables
-///
-/// # Note
-/// Handles three types of values:
-/// - Strings: Processed as templates
-/// - Arrays: Each element processed recursively
-/// - Objects: Each value processed recursively
-fn process_config_value(
-    value: &serde_json::Value,
-    context: &serde_json::Value,
-    engine: &Box<dyn TemplateEngine>,
-) -> BakerResult<serde_json::Value> {
-    match value {
-        serde_json::Value::String(s) => {
-            // Process string values as templates
-            let processed = engine.render(s, context)?;
-            Ok(serde_json::Value::String(processed))
-        }
-        serde_json::Value::Array(arr) => {
-            // Process each array item recursively
-            let mut processed_arr = Vec::new();
-            for item in arr {
-                processed_arr.push(process_config_value(item, context, engine)?);
-            }
-            Ok(serde_json::Value::Array(processed_arr))
-        }
-        serde_json::Value::Object(obj) => {
-            // Process each object field recursively
-            let mut processed_obj = serde_json::Map::new();
-            for (k, v) in obj {
-                processed_obj.insert(k.clone(), process_config_value(v, context, engine)?);
-            }
-            Ok(serde_json::Value::Object(processed_obj))
-        }
-        // Non-string values are returned as-is
-        _ => Ok(value.clone()),
-    }
-}
-
-/// Parses and processes the configuration content.
-///
-/// # Arguments
-/// * `content` - Raw configuration content as string
-/// * `engine` - Template engine for rendering
-///
-/// # Returns
-/// * `BakerResult<IndexMap<String, ConfigValue>>` - Processed configuration
-///
-/// # Errors
-/// * `BakerError::ConfigError` if parsing fails
-pub fn parse_config(
-    content: String,
-    engine: &Box<dyn TemplateEngine>,
-) -> BakerResult<IndexMap<String, ConfigValue>> {
-    // Try parsing as JSON first, explicitly as IndexMap
+pub fn parse_config(content: String) -> BakerResult<IndexMap<String, serde_json::Value>> {
     let raw_value: IndexMap<String, serde_json::Value> = match serde_json::from_str(&content) {
         Ok(v) => v,
         Err(_) => serde_yaml::from_str(&content)
             .map_err(|e| BakerError::ConfigError(format!("Invalid configuration format: {}", e)))?,
     };
+    Ok(raw_value)
+}
 
-    // Process each field in order, building up the context as we go
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum QuestionType {
+    Str,
+    Bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Question {
+    #[serde(default)]
+    help: String,
+    #[serde(rename = "type")]
+    question_type: QuestionType,
+    #[serde(default)]
+    default: Option<String>,
+    #[serde(default)]
+    choices: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Config {
+    #[serde(flatten)]
+    pub questions: IndexMap<String, Question>,
+}
+
+pub fn prompt_questions(
+    questions: IndexMap<String, Question>,
+    engine: &Box<dyn TemplateEngine>,
+) -> BakerResult<serde_json::Value> {
     let mut context = serde_json::Map::new();
-    let mut result = IndexMap::new();
 
-    for (key, value) in raw_value {
-        let config_value: ConfigValue = serde_json::from_value(value.clone())
-            .map_err(|e| BakerError::ConfigError(format!("Invalid schema: {}", e)))?;
-
-        // Process this field with current context
+    for (key, question) in questions {
         let current_context = serde_json::Value::Object(context.clone());
-        let processed_value = match config_value {
-            ConfigValue::String { question, default } => {
-                let processed_question = engine.render(&question, &current_context)?;
-                let processed_default = engine.render(&default, &current_context)?;
-                ConfigValue::String {
-                    question: processed_question,
-                    default: processed_default,
+        let prompt = engine
+            .render(&question.help, &current_context)
+            .unwrap_or(question.help.clone());
+
+        match question.question_type {
+            QuestionType::Str => {
+                if !question.choices.is_empty() {
+                    let selection = Select::new()
+                        .with_prompt(prompt)
+                        .default(0)
+                        .items(&question.choices)
+                        .interact()
+                        .map_err(|e| BakerError::ConfigError(e.to_string()))?;
+
+                    context.insert(
+                        key,
+                        serde_json::Value::String(question.choices[selection].clone()),
+                    );
+                } else {
+                    let default_value = if let Some(default_template) = question.default {
+                        engine
+                            .render(&default_template, &current_context)
+                            .unwrap_or_default()
+                    } else {
+                        String::new()
+                    };
+
+                    let input: String = Input::new()
+                        .with_prompt(prompt)
+                        .default(default_value)
+                        .interact_text()
+                        .map_err(|e| BakerError::ConfigError(e.to_string()))?;
+
+                    context.insert(key, serde_json::Value::String(input));
                 }
             }
-            ConfigValue::Boolean { question, default } => {
-                let processed_question = engine.render(&question, &current_context)?;
-                ConfigValue::Boolean {
-                    question: processed_question,
-                    default,
-                }
-            }
-            ConfigValue::Array { question, choices } => {
-                let processed_question = engine.render(&question, &current_context)?;
-                let processed_choices = choices
-                    .into_iter()
-                    .map(|c| engine.render(&c, &current_context))
-                    .collect::<Result<Vec<_>, _>>()?;
-                ConfigValue::Array {
-                    question: processed_question,
-                    choices: processed_choices,
-                }
+            QuestionType::Bool => {
+                let default_value = question
+                    .default
+                    .and_then(|v| match v.to_lowercase().as_str() {
+                        "yes" | "true" | "1" => Some(true),
+                        "no" | "false" | "0" => Some(false),
+                        _ => None,
+                    })
+                    .unwrap_or(false);
+
+                let result = Confirm::new()
+                    .with_prompt(prompt)
+                    .default(default_value)
+                    .interact()
+                    .map_err(|e| BakerError::ConfigError(e.to_string()))?;
+
+                context.insert(key, serde_json::Value::Bool(result));
             }
         };
-
-        // Add this field to context for next iterations
-        context.insert(key.clone(), value);
-        result.insert(key, processed_value);
     }
 
-    Ok(result)
+    Ok(serde_json::Value::Object(context))
 }

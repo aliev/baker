@@ -2,7 +2,7 @@
 //! Handles both local filesystem and git repository templates with support
 //! for MiniJinja template processing.
 use crate::error::{BakerError, BakerResult};
-use crate::prompt::read_input;
+use dialoguer::Confirm;
 use git2;
 use log::debug;
 use minijinja::Environment;
@@ -157,9 +157,12 @@ impl TemplateLoader for GitLoader {
         let clone_path = PathBuf::from(repo_name);
 
         if clone_path.exists() {
-            print!("Directory {} already exists. Replace it? [y/N] ", repo_name);
-            let response = read_input()?;
-            if response.to_lowercase() == "y" {
+            let response = Confirm::new()
+                .with_prompt(format!("Directory {} already exists.", repo_name))
+                .default(false)
+                .interact()
+                .map_err(|e| BakerError::HookError(e.to_string()))?;
+            if response {
                 fs::remove_dir_all(&clone_path).map_err(|e| {
                     BakerError::TemplateError(format!("Failed to remove existing directory: {}", e))
                 })?;

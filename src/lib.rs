@@ -35,13 +35,6 @@ pub mod ignore;
 /// - Hook execution
 pub mod processor;
 
-/// User input and interaction handling.
-/// Manages interactive prompts for:
-/// - Template variables
-/// - Configuration values
-/// - Hook execution confirmation
-pub mod prompt;
-
 /// Template parsing and rendering functionality.
 /// Handles the actual template processing logic:
 /// - Local and Git template sources
