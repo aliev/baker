@@ -14,13 +14,13 @@ use crate::prompt::read_input;
 ///
 /// This data is serialized to JSON and passed to hook scripts via stdin.
 #[derive(Serialize)]
-struct Output<'a> {
+pub struct Output<'a> {
     /// Absolute path to the template directory
-    template_dir: &'a str,
+    pub template_dir: &'a str,
     /// Absolute path to the output directory
-    output_dir: &'a str,
+    pub output_dir: &'a str,
     /// Context data for template rendering
-    context: &'a serde_json::Value,
+    pub context: &'a serde_json::Value,
 }
 
 /// Gets paths to pre and post generation hook scripts.
