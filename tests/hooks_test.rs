@@ -13,7 +13,7 @@ fn test_get_hooks() {
 #[test]
 fn test_confirm_hooks_execution() {
     // Test with skip_hooks_check = true
-    assert!(confirm_hooks_execution(true).unwrap());
+    assert!(confirm_hooks_execution(true, "").unwrap());
 
     // Note: Testing user input would require mock stdin
 }

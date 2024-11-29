@@ -23,6 +23,21 @@ pub struct Output<'a> {
     pub context: &'a serde_json::Value,
 }
 
+/// Returns the file path as a string if the file exists; otherwise, returns an empty string.
+/// # Arguments
+/// * `path` - Path to the file
+///
+/// # Returns
+/// * `String` - The file path
+pub fn get_path_if_exists<P: AsRef<Path>>(path: P) -> String {
+    let path = path.as_ref();
+    if path.exists() {
+        return format!("{}\n", path.to_string_lossy());
+    } else {
+        return "".into();
+    };
+}
+
 /// Gets paths to pre and post generation hook scripts.
 ///
 /// # Arguments
@@ -48,14 +63,15 @@ pub fn get_hooks<P: AsRef<Path>>(template_dir: P) -> (PathBuf, PathBuf) {
 ///
 /// # Safety
 /// This function provides a safety check before executing potentially dangerous hook scripts.
-pub fn confirm_hooks_execution(skip_hooks_check: bool) -> BakerResult<bool> {
+pub fn confirm_hooks_execution<S: Into<String>>(
+    skip_hooks_check: bool,
+    prompt: S,
+) -> BakerResult<bool> {
     if skip_hooks_check {
         return Ok(true);
     }
     Ok(Confirm::new()
-        .with_prompt(
-            "WARNING: This template contains hooks that will execute commands on your system. Do you want to run these hooks?",
-        )
+        .with_prompt(prompt)
         .default(false)
         .interact()
         .map_err(|e| BakerError::HookError(e.to_string()))?)
