@@ -1,10 +1,10 @@
-use baker::hooks::{confirm_hooks_execution, get_hooks, Output};
+use baker::hooks::{confirm_hooks_execution, get_hooks_dir, Output};
 use tempfile::TempDir;
 
 #[test]
-fn test_get_hooks() {
+fn test_get_hooks_dir() {
     let temp_dir = TempDir::new().unwrap();
-    let (pre_hook, post_hook) = get_hooks(temp_dir.path());
+    let (pre_hook, post_hook) = get_hooks_dir(temp_dir.path());
 
     assert_eq!(pre_hook, temp_dir.path().join("hooks/pre_gen_project"));
     assert_eq!(post_hook, temp_dir.path().join("hooks/post_gen_project"));
