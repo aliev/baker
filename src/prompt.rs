@@ -81,6 +81,30 @@ fn prompt_bool(
     Ok((key, serde_json::Value::Bool(result)))
 }
 
+/// Prompts for confirmation before executing hooks.
+///
+/// # Arguments
+/// * `skip_hooks_check` - Whether to skip the confirmation prompt
+///
+/// # Returns
+/// * `BakerResult<bool>` - Whether hooks should be executed
+///
+/// # Safety
+/// This function provides a safety check before executing potentially dangerous hook scripts.
+pub fn prompt_confirm_hooks_execution<S: Into<String>>(
+    skip_hooks_check: bool,
+    prompt: S,
+) -> BakerResult<bool> {
+    if skip_hooks_check {
+        return Ok(true);
+    }
+    Ok(Confirm::new()
+        .with_prompt(prompt)
+        .default(false)
+        .interact()
+        .map_err(|e| BakerError::HookError(e.to_string()))?)
+}
+
 /// Prompts the user for answers to all configured questions
 ///
 /// # Arguments

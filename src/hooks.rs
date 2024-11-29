@@ -2,7 +2,6 @@
 //! This module handles pre and post-generation hooks that allow templates
 //! to execute custom scripts during project generation.
 
-use dialoguer::Confirm;
 use serde::Serialize;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -53,30 +52,6 @@ pub fn get_hooks<P: AsRef<Path>>(template_dir: P) -> (PathBuf, PathBuf) {
         hooks_dir.join("pre_gen_project"),
         hooks_dir.join("post_gen_project"),
     )
-}
-
-/// Prompts for confirmation before executing hooks.
-///
-/// # Arguments
-/// * `skip_hooks_check` - Whether to skip the confirmation prompt
-///
-/// # Returns
-/// * `BakerResult<bool>` - Whether hooks should be executed
-///
-/// # Safety
-/// This function provides a safety check before executing potentially dangerous hook scripts.
-pub fn confirm_hooks_execution<S: Into<String>>(
-    skip_hooks_check: bool,
-    prompt: S,
-) -> BakerResult<bool> {
-    if skip_hooks_check {
-        return Ok(true);
-    }
-    Ok(Confirm::new()
-        .with_prompt(prompt)
-        .default(false)
-        .interact()
-        .map_err(|e| BakerError::HookError(e.to_string()))?)
 }
 
 /// Executes a hook script with the provided context.

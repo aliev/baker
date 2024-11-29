@@ -6,10 +6,10 @@ use baker::{
     cli::{get_args, Args},
     config::{load_config, Config, CONFIG_FILES},
     error::{default_error_handler, BakerError, BakerResult},
-    hooks::{confirm_hooks_execution, get_hooks, get_path_if_exists, run_hook},
+    hooks::{get_hooks, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
     processor::process_template,
-    prompt::prompt_questions,
+    prompt::{prompt_confirm_hooks_execution, prompt_questions},
     template::{
         GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader, TemplateSource,
     },
@@ -64,7 +64,7 @@ fn run(args: Args) -> BakerResult<()> {
         let (pre_hook, post_hook) = get_hooks(&template_dir);
 
         if pre_hook.exists() || post_hook.exists() {
-            execute_hooks = confirm_hooks_execution(
+            execute_hooks = prompt_confirm_hooks_execution(
                 args.skip_hooks_check,
                 format!(
                     "WARNING: This template contains the following hooks that will execute commands on your system:\n{}{}{}",
