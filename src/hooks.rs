@@ -45,7 +45,7 @@ pub fn get_path_if_exists<P: AsRef<Path>>(path: P) -> String {
 ///
 /// # Returns
 /// * `(PathBuf, PathBuf)` - Tuple containing paths to pre and post hook scripts
-pub fn get_hooks_dir<P: AsRef<Path>>(template_dir: P) -> (PathBuf, PathBuf) {
+pub fn get_hooks<P: AsRef<Path>>(template_dir: P) -> (PathBuf, PathBuf) {
     let template_dir = template_dir.as_ref();
     let hooks_dir = template_dir.join("hooks");
 
