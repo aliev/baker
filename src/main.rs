@@ -7,7 +7,7 @@ use baker::{
     config::{load_config, prompt_questions, Config, CONFIG_FILES},
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{confirm_hooks_execution, get_hooks, run_hook},
-    ignore::{ignore_file_read, IGNORE_FILE},
+    ignore::{parse_bakerignore_file, IGNORE_FILE},
     processor::process_template,
     template::{
         GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader, TemplateSource,
@@ -71,7 +71,7 @@ fn run(args: Args) -> BakerResult<()> {
         let context = prompt_questions(config.questions, &engine)?;
 
         // Process ignore patterns
-        let ignored_set = ignore_file_read(&template_dir.join(IGNORE_FILE))?;
+        let ignored_set = parse_bakerignore_file(&template_dir.join(IGNORE_FILE))?;
 
         // Execute pre-generation hook
         if execute_hooks && pre_hook.exists() {

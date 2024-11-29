@@ -36,15 +36,7 @@ pub const IGNORE_FILE: &str = ".bakerignore";
 /// - If the ignore file doesn't exist, returns an empty GlobSet
 /// - Each line in the file is treated as a separate glob pattern
 /// - Invalid patterns will result in a BakerIgnoreError
-///
-/// # Example
-/// ```ignore
-/// # Contents of .bakerignore:
-/// *.pyc
-/// __pycache__/
-/// .git/
-/// ```
-pub fn ignore_file_read<P: AsRef<Path>>(bakerignore_path: P) -> BakerResult<GlobSet> {
+pub fn parse_bakerignore_file<P: AsRef<Path>>(bakerignore_path: P) -> BakerResult<GlobSet> {
     let mut builder = GlobSetBuilder::new();
 
     // Add default patterns first

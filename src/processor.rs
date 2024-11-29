@@ -132,6 +132,7 @@ fn copy_file<P: AsRef<Path>>(source: P, dest: P) -> BakerResult<()> {
 /// use baker::processor::is_jinja_template;
 /// assert!(is_jinja_template("template.html.j2"));
 /// assert!(!is_jinja_template("regular.html"));
+/// assert!(!is_jinja_template("regular.j2"));
 /// ```
 pub fn is_jinja_template(filename: &str) -> bool {
     let parts: Vec<&str> = filename.split('.').collect();
