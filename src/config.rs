@@ -61,7 +61,7 @@ pub struct Question {
     question_type: QuestionType,
     /// Optional default value for the question
     #[serde(default)]
-    default: Option<String>,
+    default: Option<serde_json::Value>,
     /// Available choices for string questions
     #[serde(default)]
     choices: Vec<String>,
@@ -85,7 +85,7 @@ fn parse_str(
     if !question.choices.is_empty() {
         let selection = Select::new()
             .with_prompt(prompt)
-            .default(0)
+            .default(1)
             .items(&question.choices)
             .interact()
             .map_err(|e| BakerError::ConfigError(e.to_string()))?;
@@ -95,15 +95,17 @@ fn parse_str(
             serde_json::Value::String(question.choices[selection].clone()),
         ))
     } else {
-        let default_value = if let Some(default_template) = question.default {
-            engine
-                .render(&default_template, &current_context)
-                .unwrap_or_default()
+        let default_value = if let Some(default_value) = question.default {
+            if let Some(s) = default_value.as_str() {
+                engine.render(s, &current_context).unwrap_or_default()
+            } else {
+                String::new()
+            }
         } else {
             String::new()
         };
 
-        let input: String = Input::new()
+        let input = Input::new()
             .with_prompt(prompt)
             .default(default_value)
             .interact_text()
@@ -118,14 +120,7 @@ fn parse_bool(
     key: String,
     question: Question,
 ) -> BakerResult<(String, serde_json::Value)> {
-    let default_value = question
-        .default
-        .and_then(|v| match v.to_lowercase().as_str() {
-            "yes" | "true" | "1" => Some(true),
-            "no" | "false" | "0" => Some(false),
-            _ => None,
-        })
-        .unwrap_or(false);
+    let default_value = question.default.and_then(|v| v.as_bool()).unwrap_or(false);
 
     let result = Confirm::new()
         .with_prompt(prompt)
