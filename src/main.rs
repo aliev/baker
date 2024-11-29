@@ -78,7 +78,12 @@ fn run(args: Args) -> BakerResult<()> {
         // Template processor initialization
         let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
         let config: Config = serde_yaml::from_str(&config_content).unwrap();
-        let context = prompt_questions(config.questions, &engine)?;
+
+        let context = if !args.context.is_empty() {
+            serde_json::from_str(&args.context).unwrap()
+        } else {
+            prompt_questions(config.questions, &engine)?
+        };
 
         // Process ignore patterns
         let ignored_set = parse_bakerignore_file(&template_dir.join(IGNORE_FILE))?;

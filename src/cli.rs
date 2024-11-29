@@ -48,6 +48,10 @@ pub struct Args {
     /// Skip confirmation prompt for executing hooks
     #[arg(long)]
     pub skip_hooks_check: bool,
+
+    /// Get context from argument not from the questions
+    #[arg(short, long, default_value = "")]
+    pub context: String,
 }
 
 /// Parses command line arguments and returns the Args structure.
