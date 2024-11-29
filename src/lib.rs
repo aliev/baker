@@ -41,3 +41,5 @@ pub mod processor;
 /// - MiniJinja template rendering
 /// - Variable interpolation
 pub mod template;
+
+pub mod prompt;
