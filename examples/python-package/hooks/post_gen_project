@@ -1,0 +1,32 @@
+#!/usr/bin/env python
+
+from typing import TypedDict
+import pathlib
+from venv import create
+import sys
+import json
+
+
+class Context(TypedDict):
+    create_tests: bool
+    licence: str
+    project_name: str
+    project_slug: str
+
+
+class Input(TypedDict):
+    context: Context
+    template_dir: str
+    output_dir: str
+
+
+def main():
+    context: Input = json.load(sys.stdin)
+    path = pathlib.Path()
+    output_dir_path = path / context["output_dir"] / ".venv"
+    print("Creating virtual environment in", output_dir_path)
+    create(output_dir_path)
+    print("Virtual environment created")
+
+if __name__ == "__main__":
+    main()

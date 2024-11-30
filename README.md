@@ -8,13 +8,14 @@
 **Baker** is inspired by [cookiecutter](https://github.com/cookiecutter/cookiecutter) and [copier](https://github.com/copier-org/copier), but distinguishes itself by:
 
 - Being written in Rust for enhanced speed and reliability.
-- Not requiring Python dependencies, resulting in faster operation.
+- Not requiring Python dependencies.
 - Providing a unified binary for seamless usage.
-- Excellent integration with [Minijinja](https://github.com/mitsuhiko/minijinja).
+- Uses [Minijinja](https://github.com/mitsuhiko/minijinja) as a template engine.
 
 ## Features
 
 - **Interactive Prompt**: Asks for template variables interactively.
+- **Git Repository Support**: Generate templates directly from Git repositories.
 - **Hooks Support**: Execute pre and post-generation hooks.
 - **File Exclusion**: `.bakerignore` to specify files/directories to exclude.
 - **File Interpolation**: Template variable interpolation in filenames.
@@ -66,8 +67,8 @@ template/
 ├── main.py.j2           # Will be processed as `main.py`
 ├── {% if create_tests %}tests.py.j2{% endif %}   # Conditional file
 ├── hooks/               # Hooks (optional)
-│   ├── pre              # Executed before project generation
-│   └── post             # Executed after project generation
+│   ├── pre_gen_project  # Executed before project generation
+│   └── post_gen_project # Executed after project generation
 └── ... other template files ...
 ```
 
@@ -106,7 +107,7 @@ This configuration will prompt users for necessary details when generating a pro
 ### Example Usage with Interactive Prompt
 
 ```bash
-baker my-template hello_world -f
+baker examples/python-package baker-example
 ```
 
 This command will prompt you interactively for template variables.
@@ -114,35 +115,7 @@ This command will prompt you interactively for template variables.
 ### Example Usage with Context Provided as JSON
 
 ```bash
-baker my-template hello_world -f --context '{"generate_main": true, "licence": "MIT", "project_name": "Hello, World", "project_slug": "hello_world"}' --skip-hooks-check
+baker examples/python-package baker-example --context '{"generate_main": true, "licence": "MIT", "project_name": "Baker Python package", "project_slug": "baker"}'
 ```
 
 This command allows skipping the interactive prompts by providing all required values.
-
-## Template Variables
-
-Template variables can be used in:
-
-- File and directory names
-- File contents
-- Configuration values
-
-In templates, use variable interpolation like:
-
-```
-{{ variable_name }}
-```
-
-## Security Considerations
-
-- Hooks are executed only after explicit user confirmation.
-- Use the `--skip-hooks-check` flag to bypass confirmation for executing hooks.
-
-## Example
-
-```bash
-# Using a local template
-baker ./my-template ./output
-```
-
-This command will generate the output using the specified local template.
