@@ -1,0 +1,145 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'baker'",
+      "cargo": {
+        "args": ["test", "--no-run", "--lib", "--package=baker"],
+        "filter": {
+          "name": "baker",
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'baker'",
+      "cargo": {
+        "args": ["build", "--bin=baker", "--package=baker"],
+        "filter": {
+          "name": "baker",
+          "kind": "bin"
+        }
+      },
+      "args": [
+        "examples/python-package",
+        "out",
+        "-v",
+        "-f",
+        "--skip-hooks-check"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'baker'",
+      "cargo": {
+        "args": ["test", "--no-run", "--bin=baker", "--package=baker"],
+        "filter": {
+          "name": "baker",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug integration test 'template_test'",
+      "cargo": {
+        "args": ["test", "--no-run", "--test=template_test", "--package=baker"],
+        "filter": {
+          "name": "template_test",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug integration test 'ignore_test'",
+      "cargo": {
+        "args": ["test", "--no-run", "--test=ignore_test", "--package=baker"],
+        "filter": {
+          "name": "ignore_test",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug integration test 'processor_test'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--test=processor_test",
+          "--package=baker"
+        ],
+        "filter": {
+          "name": "processor_test",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug integration test 'error_test'",
+      "cargo": {
+        "args": ["test", "--no-run", "--test=error_test", "--package=baker"],
+        "filter": {
+          "name": "error_test",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug integration test 'cli_test'",
+      "cargo": {
+        "args": ["test", "--no-run", "--test=cli_test", "--package=baker"],
+        "filter": {
+          "name": "cli_test",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug integration test 'hooks_test'",
+      "cargo": {
+        "args": ["test", "--no-run", "--test=hooks_test", "--package=baker"],
+        "filter": {
+          "name": "hooks_test",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
