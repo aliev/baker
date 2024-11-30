@@ -1,25 +1,30 @@
-# Baker - Project Scaffolding Tool
-
 <div align="center">
   <img src="artwork/logo.ai.png" alt="" width=320>
-  <p><strong>Baker: is a fast project scaffolding tool written in Rust that generates projects from minijinja templates.</strong></p>
+  <p><strong>baker: a fast project scaffolding tool written in Rust that generates projects from minijinja templates.</strong></p>
 </div>
+
+## Overview
+
+**Baker** is inspired by [cookiecutter](https://github.com/cookiecutter/cookiecutter) and [copier](https://github.com/copier-org/copier), but distinguishes itself by:
+
+- Being written in Rust for enhanced speed and reliability.
+- Not requiring Python dependencies, resulting in faster operation.
+- Providing a unified binary for seamless usage.
+- Excellent integration with [Minijinja](https://github.com/mitsuhiko/minijinja).
 
 ## Features
 
-Baker was inspired by the [cookiecutter](https://github.com/cookiecutter/cookiecutter) project. The key difference is that Baker does not rely on Python dependencies, operates much faster, and provides a unified binary. At the same time, it retains excellent integration capabilities with Jinja 2 (via [Minijinja](https://github.com/mitsuhiko/minijinja)).
-
-Basic features
-
-- Interactive prompt for template variables
-- Pre and post-generation hooks
-- `.bakerignore` support for excluding files
-- Template variable interpolation in filenames
-- Configurable via `baker.json`
+- **Interactive Prompt**: Asks for template variables interactively.
+- **Hooks Support**: Execute pre and post-generation hooks.
+- **File Exclusion**: `.bakerignore` to specify files/directories to exclude.
+- **File Interpolation**: Template variable interpolation in filenames.
+- **Configurable**: Uses `baker.json`, `baker.yaml`, or `baker.yml` for configuration.
 
 ## Installation
 
-To build from source:
+### Build from Source
+
+To build Baker from the source, ensure you have Rust installed and run the following command:
 
 ```bash
 cargo install --path .
@@ -27,71 +32,111 @@ cargo install --path .
 
 ## Usage
 
+Generate a project from a template with the following command:
+
 ```bash
 baker [OPTIONS] <TEMPLATE> <OUTPUT_DIR>
 ```
 
-Arguments:
+### Arguments
 
-- `TEMPLATE`: Path to local template or GitHub repository (e.g., `user/repo`)
-- `OUTPUT_DIR`: Directory where the generated project will be created
+- **TEMPLATE**: Path to a local template or a GitHub repository (e.g., `user/repo`).
+- **OUTPUT_DIR**: Directory where the generated project will be created.
 
-Options:
+### Options
 
-- `-f, --force`: Force overwrite existing output directory
-- `-v, --verbose`: Enable verbose output
-- `--skip-hooks-check`: Skip hooks safety check
+- `-f, --force` : Force overwrite of an existing output directory.
+- `-v, --verbose` : Enable verbose logging output.
+- `--skip-hooks-check` : Skip confirmation prompt for executing hooks.
+- `-c, --context <CONTEXT>` : Provide context from arguments (as JSON) instead of interactive prompts.
+- `-h, --help` : Show help information.
+- `-V, --version` : Show version information.
 
 ## Template Structure
 
-Files with the double extension `.j2` (the minijinja extension) will be processed by the template engine. For example, files with extensions like `main.py.j2` or even `.dockerignore.j2` (since these are effectively files with double extensions) will be processed and copied as `main.py` and `.dockerignore`, respectively.
+Baker processes files with a `.j2` extension (Minijinja template files) for generating the final output. For example, `main.py.j2` is processed and copied as `main.py`. You can use Minijinja features such as conditions and filters within filenames as well.
 
-You can leverage all the features of the template engine in file names, including conditions and filters, for example: `{% if baker.create_main_file %}main.py{% endif %}` will create a file only if `create_main_file` is true (answered as `yes`).
+Example template structure:
 
 ```
 template/
 ├── baker.json           # Template configuration
 ├── .bakerignore         # Files to ignore (optional)
-├── .dockerignore.j2     # The template file will be processed as `.dockerignore`
-├── tests.py.j2          # The template file will be processed as `tests.py`
-├── {% if create_main_file %}main.py{% endif %}
-├── template.j2          # This file will not be processed but will be copied as is
-├── hooks/               # Template hooks (optional)
-│   ├── pre_gen_project
-│   └── post_gen_project
+├── .dockerignore.j2     # Will be processed as `.dockerignore`
+├── main.py.j2           # Will be processed as `main.py`
+├── {% if create_tests %}tests.py.j2{% endif %}   # Conditional file
+├── hooks/               # Hooks (optional)
+│   ├── pre              # Executed before project generation
+│   └── post             # Executed after project generation
 └── ... other template files ...
 ```
 
 ## Configuration
 
-Create a `baker.json` file in your template root:
+Templates can be configured via a `baker.json` file placed in the root directory of the template. This file defines the variables required by the template.
+
+Example `baker.json`:
 
 ```json
 {
-  "project_name": "My Project",
-  "use_docker": "no",
-  "framework": ["Django", "Flask", "FastAPI"]
+  "create_tests": {
+    "type": "bool",
+    "help": "Should I generate tests.py file?",
+    "default": true
+  },
+  "licence": {
+    "type": "str",
+    "choices": ["MIT", "Apache"],
+    "help": "What is your licence?"
+  },
+  "project_name": {
+    "type": "str",
+    "help": "What is your project name?"
+  },
+  "project_slug": {
+    "type": "str",
+    "help": "What is your project slug?",
+    "default": "{{ project_name|lower|replace(' ', '_') }}"
+  }
 }
 ```
 
+This configuration will prompt users for necessary details when generating a project.
+
+### Example Usage with Interactive Prompt
+
+```bash
+baker my-template hello_world -f
+```
+
+This command will prompt you interactively for template variables.
+
+### Example Usage with Context Provided as JSON
+
+```bash
+baker my-template hello_world -f --context '{"generate_main": true, "licence": "MIT", "project_name": "Hello, World", "project_slug": "hello_world"}' --skip-hooks-check
+```
+
+This command allows skipping the interactive prompts by providing all required values.
+
 ## Template Variables
 
-Variables can be used in:
+Template variables can be used in:
 
-- File/directory names
+- File and directory names
 - File contents
 - Configuration values
 
-Access variables in templates using:
+In templates, use variable interpolation like:
 
 ```
 {{ variable_name }}
 ```
 
-## Security
+## Security Considerations
 
-- Hooks require explicit user confirmation before execution
-- Use `--skip-hooks-check` to bypass confirmation
+- Hooks are executed only after explicit user confirmation.
+- Use the `--skip-hooks-check` flag to bypass confirmation for executing hooks.
 
 ## Example
 
@@ -99,3 +144,5 @@ Access variables in templates using:
 # Using a local template
 baker ./my-template ./output
 ```
+
+This command will generate the output using the specified local template.
