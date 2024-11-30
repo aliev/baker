@@ -11,33 +11,6 @@ use std::path::Path;
 /// Supported configuration file names
 pub const CONFIG_FILES: [&str; 3] = ["baker.json", "baker.yml", "baker.yaml"];
 
-/// Loads configuration from a template directory, trying multiple file formats.
-/// Supports: baker.json, baker.yml, baker.yaml
-///
-/// # Arguments
-/// * `template_dir` - Directory containing the template configuration
-/// * `config_files` - List of configuration files to try
-///
-/// # Returns
-/// * `BakerResult<String>` - Contents of the first found configuration file
-///
-/// # Errors
-/// * `BakerError::ConfigError` if no valid config file exists
-pub fn load_config<P: AsRef<Path>>(template_dir: P, config_files: &[&str]) -> BakerResult<String> {
-    for file in config_files {
-        let config_path = template_dir.as_ref().join(file);
-        if config_path.exists() {
-            debug!("Loading configuration from {}", config_path.display());
-            return Ok(std::fs::read_to_string(&config_path).map_err(BakerError::IoError)?);
-        }
-    }
-
-    Err(BakerError::ConfigError(format!(
-        "No configuration file found (tried: {})",
-        config_files.join(", ")
-    )))
-}
-
 /// Type of question to be presented to the user
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -71,4 +44,31 @@ pub struct Config {
     /// Map of question identifiers to their configurations
     #[serde(flatten)]
     pub questions: IndexMap<String, Question>,
+}
+
+/// Loads configuration from a template directory, trying multiple file formats.
+/// Supports: baker.json, baker.yml, baker.yaml
+///
+/// # Arguments
+/// * `template_dir` - Directory containing the template configuration
+/// * `config_files` - List of configuration files to try
+///
+/// # Returns
+/// * `BakerResult<String>` - Contents of the first found configuration file
+///
+/// # Errors
+/// * `BakerError::ConfigError` if no valid config file exists
+pub fn load_config<P: AsRef<Path>>(template_dir: P, config_files: &[&str]) -> BakerResult<String> {
+    for file in config_files {
+        let config_path = template_dir.as_ref().join(file);
+        if config_path.exists() {
+            debug!("Loading configuration from {}", config_path.display());
+            return Ok(std::fs::read_to_string(&config_path).map_err(BakerError::IoError)?);
+        }
+    }
+
+    Err(BakerError::ConfigError(format!(
+        "No configuration file found (tried: {})",
+        config_files.join(", ")
+    )))
 }

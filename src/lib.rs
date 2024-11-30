@@ -42,4 +42,17 @@ pub mod processor;
 /// - Variable interpolation
 pub mod template;
 
+/// User input and interaction handling.
+///
+/// This module provides functionality for:
+/// - Interactive command-line prompts
+/// - User input validation
+/// - Configuration value processing
+/// - Boolean (yes/no) prompts
+/// - Selection from choices
+///
+/// # Notes
+/// - Uses dialoguer for interactive prompts
+/// - Handles different input types (strings, booleans, selections)
+/// - Provides error handling via BakerResult
 pub mod prompt;
