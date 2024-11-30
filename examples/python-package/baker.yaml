@@ -20,6 +20,7 @@ project_license:
 copyright_holder:
   type: str
   help: "The project's {{project_name}} copyright"
+  # when: "{%if project_license == 'Not open source'%}true{%endif%}"
   default: |-
       {% if project_license == 'Not open source' -%}
           {{ author_name }}

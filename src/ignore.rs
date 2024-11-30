@@ -19,6 +19,9 @@ const DEFAULT_IGNORE_PATTERNS: &[&str] = &[
     ".bakerignore",
     "hooks",
     "hooks/**",
+    "baker.yaml",
+    "baker.yml",
+    "baker.json",
 ];
 
 /// Baker's ignore file name
