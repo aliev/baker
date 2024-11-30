@@ -23,10 +23,19 @@ class Input(TypedDict):
 def main():
     context: Input = json.load(sys.stdin)
     path = pathlib.Path()
-    output_dir_path = path / context["output_dir"] / ".venv"
-    template_dir_path = path / context["output_dir"] / ".venv"
+    output_dir_path = path / context["output_dir"]
+    template_dir_path = path / context["template_dir"]
+
+    if context["context"]["project_license"] != "Not open source":
+        with open(template_dir_path / "licences" / context["context"]["project_license"], "r") as f:
+            licence_content = f.read()
+
+        with open(output_dir_path / "LICENSE", "w") as f:
+            f.write(licence_content)
+
+
     print("Creating virtual environment in", output_dir_path)
-    create(output_dir_path)
+    create(output_dir_path / ".venv")
     print("Virtual environment created")
 
 if __name__ == "__main__":
