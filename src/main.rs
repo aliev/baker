@@ -8,7 +8,7 @@ use baker::{
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{get_hooks, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
-    processor::process_template,
+    processor::{ensure_output_dir, process_template},
     prompt::{prompt_confirm_hooks_execution, prompt_questions},
     template::{
         GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader, TemplateSource,
@@ -51,6 +51,7 @@ fn main() {
 /// 8. Executes post-generation hooks
 fn run(args: Args) -> BakerResult<()> {
     if let Some(source) = TemplateSource::from_string(&args.template) {
+        let output_dir = ensure_output_dir(args.output_dir, args.force)?;
         let loader: Box<dyn TemplateLoader> = match source {
             TemplateSource::Git(_) => Box::new(GitLoader::new()),
             TemplateSource::FileSystem(_) => Box::new(LocalLoader::new()),
@@ -90,22 +91,15 @@ fn run(args: Args) -> BakerResult<()> {
 
         // Execute pre-generation hook
         if execute_hooks && pre_hook.exists() {
-            run_hook(&template_dir, &args.output_dir, &pre_hook, &context)?;
+            run_hook(&template_dir, &output_dir, &pre_hook, &context)?;
         }
 
         // Process template files
-        let output_dir = process_template(
-            &template_dir,
-            &args.output_dir,
-            &context,
-            &engine,
-            ignored_set,
-            args.force,
-        )?;
+        process_template(&template_dir, &output_dir, &context, &engine, ignored_set);
 
         // Execute post-generation hook
         if execute_hooks && post_hook.exists() {
-            run_hook(&template_dir, &args.output_dir, &post_hook, &context)?;
+            run_hook(&template_dir, &output_dir, &post_hook, &context)?;
         }
 
         println!(

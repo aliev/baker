@@ -213,10 +213,8 @@ pub fn process_template<P: AsRef<Path>>(
     context: &serde_json::Value,
     engine: &Box<dyn TemplateEngine>,
     ignored_set: GlobSet,
-    force_output_dir: bool,
-) -> BakerResult<PathBuf> {
+) {
     debug!("Processing template...");
-    let output_dir = ensure_output_dir(output_dir, force_output_dir)?;
     let template_dir = template_dir.as_ref();
 
     for entry in WalkDir::new(template_dir) {
@@ -305,5 +303,4 @@ pub fn process_template<P: AsRef<Path>>(
             }
         }
     }
-    Ok(output_dir)
 }

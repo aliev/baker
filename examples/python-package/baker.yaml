@@ -1,0 +1,26 @@
+project_name:
+  type: str
+  help: "Please enter the project name"
+author_name:
+  type: str
+  help: "Please enter the author name"
+project_slug:
+  type: str
+  help: "Pleasse enter the project slug"
+  default: "{{ project_name|lower|replace(' ', '_') }}"
+project_license:
+  type: str
+  help: "Please select the licence"
+  choices:
+  - MIT
+  - BSD
+  - GPLv3
+  - Apache Software License 2.0
+  - Not open source
+copyright_holder:
+  type: str
+  help: "The project's {{project_name}} copyright"
+  default: |-
+      {% if project_license == 'Not open source' -%}
+          {{ author_name }}
+      {%- endif %}
