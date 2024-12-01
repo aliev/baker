@@ -195,6 +195,64 @@ pub fn resolve_target_path<P: AsRef<Path>>(source_path: &str, target_dir: P) -> 
     (target_path, should_be_processed)
 }
 
+/// Validates a given path against a template directory.
+///
+/// # Arguments
+/// * `rendered_path` - A string representation of the path to be validated.
+/// * `template_dir` - The base directory that will be used to validate the path.
+///
+/// # Returns
+/// * `BakerResult<String>` - Returns an error if the path is invalid or if it cannot be
+///   converted relative to the template directory. Otherwise, it returns the valid relative path.
+///
+/// This function performs the following steps:
+/// 1. Splits the `rendered_path` by `/` and collects only the non-empty segments.
+/// 2. Joins these segments back into a valid path string.
+/// 3. Attempts to create a relative path by removing the `template_dir` prefix from the given path.
+/// 4. If successful, returns the relative path as a `String`.
+/// 5. Returns an error if any of these operations fail.
+///
+/// # Errors
+/// * If the `rendered_path` contains empty segments or cannot be converted relative to the
+///   `template_dir`, a `TemplateError` is returned.
+///
+/// # Examples
+/// ```
+/// use baker::processor::is_valid_path
+/// ```
+fn is_valid_path<P: AsRef<Path>>(rendered_path: String, template_dir: P) -> BakerResult<String> {
+    // Split the path by "/" and collect non-empty segments.
+    let path_parts = rendered_path.split('/');
+
+    let empty_parts: Vec<&str> = path_parts
+        .clone()
+        .filter(|part| part.trim().is_empty())
+        .collect();
+    let path_parts: Vec<&str> = path_parts.collect();
+
+    // If any segment is empty after trimming, return an error.
+    if !empty_parts.is_empty() {
+        return Err(BakerError::TemplateError(
+            "Skipping file/directory as path contains empty segments".to_string(),
+        ));
+    }
+
+    // Join the non-empty segments back into a path string.
+    let valid_path = path_parts.join("/");
+
+    // Convert the valid path to a Path object and attempt to strip the template directory prefix.
+    let relative_path = Path::new(&valid_path)
+        .strip_prefix(template_dir)
+        .map_err(|e| BakerError::TemplateError(e.to_string()))?;
+
+    // Convert the relative path back to a string and return it.
+    let relative_path_str = relative_path
+        .to_str()
+        .ok_or_else(|| BakerError::TemplateError("Failed to convert path to string".to_string()))?;
+
+    Ok(relative_path_str.to_owned())
+}
+
 /// Processes a template directory to generate output.
 ///
 /// # Arguments
@@ -227,26 +285,25 @@ pub fn process_template<P: AsRef<Path>>(
         };
 
         let path = entry.path();
-        let relative_path = match path.strip_prefix(template_dir) {
+        let without_p = match path.strip_prefix(template_dir) {
             Ok(p) => p,
             Err(e) => {
                 log::error!("Error processing path {}: {}", path.display(), e);
                 continue;
             }
         };
+        if ignored_set.is_match(without_p) {
+            debug!("Skipping file {} from .bakerignore", without_p.display());
+            continue;
+        }
 
-        let relative_path = match relative_path.to_str() {
+        let relative_path = match path.to_str() {
             Some(p) => p,
             None => {
                 log::error!("Invalid path: {}", path.display());
                 continue;
             }
         };
-
-        if ignored_set.is_match(&relative_path) {
-            debug!("Skipping file {} from .bakerignore", relative_path);
-            continue;
-        }
 
         // Rendered by template renderer filename.
         let rendered_path = match engine.render(relative_path, context) {
@@ -257,10 +314,13 @@ pub fn process_template<P: AsRef<Path>>(
             }
         };
 
-        if rendered_path.trim().is_empty() {
-            debug!("Skipping file as processed path is empty");
-            continue;
-        }
+        let rendered_path = match is_valid_path(rendered_path, template_dir) {
+            Ok(p) => p,
+            Err(e) => {
+                log::error!("Error rendering path {}: {}", relative_path, e);
+                continue;
+            }
+        };
 
         debug!(
             "Processing source file: {} to target file {}",
