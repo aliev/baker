@@ -290,78 +290,54 @@ fn process_entry(
     context: &serde_json::Value,
     engine: &Box<dyn TemplateEngine>,
     ignored_set: &GlobSet,
-) {
+) -> BakerResult<()> {
     let path = entry.path();
 
     // Get path relative to template directory
-    let relative_to_template = match path.strip_prefix(template_dir) {
-        Ok(p) => p,
-        Err(e) => {
-            log::error!("Failed to strip prefix: {}", e);
-            return;
-        }
-    };
+    let relative_to_template = path
+        .strip_prefix(template_dir)
+        .map_err(|e| BakerError::TemplateError(format!("Failed to strip prefix: {}", e)))?;
 
     // Check if file should be ignored
     if ignored_set.is_match(relative_to_template) {
-        debug!("Skipping ignored file: {}", relative_to_template.display());
-        return;
+        return Err(BakerError::TemplateError(format!(
+            "Skipping ignored file: {}",
+            relative_to_template.display()
+        )));
     }
 
-    // Get path as string for template rendering
-    let path_str = match path.to_str() {
-        Some(p) => p,
-        None => {
-            log::error!("Invalid path: {}", path.display());
-            return;
-        }
-    };
+    let path_str = path
+        .to_str()
+        .ok_or_else(|| BakerError::TemplateError(format!("Invalid path: {}", path.display())))?;
 
-    // Render the path itself as a template
-    let rendered_path = match engine.render(path_str, context) {
-        Ok(p) => p,
-        Err(e) => {
-            log::error!("Failed to render path {}: {}", path_str, e);
-            return;
-        }
-    };
+    let rendered_path = engine.render(path_str, context).map_err(|e| {
+        BakerError::TemplateError(format!("Failed to render path {}: {}", path_str, e))
+    })?;
 
     // Validate rendered path
     if !is_rendered_path_valid(&rendered_path) {
-        log::error!("Invalid rendered path: {}", rendered_path);
-        return;
+        return Err(BakerError::TemplateError(format!(
+            "Invalid rendered path: {}",
+            rendered_path
+        )));
     }
 
     // Convert rendered string back to Path
     let rendered_path = Path::new(&rendered_path);
-    let relative_path = match get_relative_path(rendered_path, template_dir) {
-        Ok(p) => p,
-        Err(e) => {
-            log::error!("Failed to get relative path: {}", e);
-            return;
-        }
-    };
+
+    let relative_path = get_relative_path(rendered_path, template_dir)?;
 
     // Resolve final target path
     let (target_path, needs_processing) = resolve_target_path(&relative_path, output_dir);
 
     // Process directory or file
     if path.is_dir() {
-        process_directory(&target_path);
+        create_dir_all(&target_path)?
     } else {
-        process_file(path, &target_path, needs_processing, context, engine);
+        process_file(path, &target_path, needs_processing, context, engine)?
     }
-}
 
-/// Process a directory entry
-fn process_directory(target_path: &Path) {
-    if let Err(e) = create_dir_all(target_path) {
-        log::error!(
-            "Failed to create directory {}: {}",
-            target_path.display(),
-            e
-        );
-    }
+    Ok(())
 }
 
 /// Process a file entry
@@ -371,21 +347,13 @@ fn process_file(
     needs_processing: bool,
     context: &serde_json::Value,
     engine: &Box<dyn TemplateEngine>,
-) {
-    let result = if needs_processing {
-        process_template_file(source, target, context, engine)
+) -> BakerResult<()> {
+    if needs_processing {
+        process_template_file(source, target, context, engine)?
     } else {
-        copy_file(source, target)
-    };
-
-    if let Err(e) = result {
-        log::error!(
-            "Failed to write file from {} to {}: {}",
-            source.display(),
-            target.display(),
-            e
-        );
+        copy_file(source, target)?
     }
+    Ok(())
 }
 
 pub fn process_template<P: AsRef<Path>>(
