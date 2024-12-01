@@ -21,9 +21,9 @@ fn main() {
 
     env_logger::Builder::new()
         .filter_level(if args.verbose {
-            log::LevelFilter::Debug
+            log::LevelFilter::Trace
         } else {
-            log::LevelFilter::Info
+            log::LevelFilter::Off
         })
         .init();
 

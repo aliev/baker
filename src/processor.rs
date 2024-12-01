@@ -215,12 +215,10 @@ pub fn resolve_target_path<P: AsRef<Path>>(source_path: &str, target_dir: P) -> 
 /// # Errors
 /// * If the `rendered_path` contains empty segments or cannot be converted relative to the
 ///   `template_dir`, a `TemplateError` is returned.
-///
-/// # Examples
-/// ```
-/// use baker::processor::is_valid_path
-/// ```
-fn is_valid_path<P: AsRef<Path>>(rendered_path: String, template_dir: P) -> BakerResult<String> {
+fn is_rendered_path_valid<P: AsRef<Path>>(
+    rendered_path: String,
+    template_dir: P,
+) -> BakerResult<String> {
     // Split the path by "/" and collect non-empty segments.
     let path_parts = rendered_path.split('/');
 
@@ -253,6 +251,45 @@ fn is_valid_path<P: AsRef<Path>>(rendered_path: String, template_dir: P) -> Bake
     Ok(relative_path_str.to_owned())
 }
 
+/// Processes a single template file.
+///
+/// # Arguments
+/// * `path` - Path to the template file
+/// * `target_path` - Target output path
+/// * `context` - Template context
+/// * `engine` - Template rendering engine
+///
+/// # Returns
+/// * `BakerResult<()>` - Success or error status
+fn process_template_file<P: AsRef<Path>>(
+    path: P,
+    target_path: P,
+    context: &serde_json::Value,
+    engine: &Box<dyn TemplateEngine>,
+) -> BakerResult<()> {
+    match read_file(&path) {
+        Ok(content) => match engine.render(&content, context) {
+            Ok(final_content) => write_file(&target_path, &final_content),
+            Err(e) => {
+                log::error!(
+                    "Failed to render template content for {}: {}",
+                    path.as_ref().display(),
+                    e
+                );
+                Err(BakerError::TemplateError(e.to_string()))
+            }
+        },
+        Err(e) => {
+            log::error!(
+                "Failed to read template file {}: {}",
+                path.as_ref().display(),
+                e
+            );
+            Err(e)
+        }
+    }
+}
+
 /// Processes a template directory to generate output.
 ///
 /// # Arguments
@@ -279,7 +316,7 @@ pub fn process_template<P: AsRef<Path>>(
         let entry = match entry {
             Ok(e) => e,
             Err(e) => {
-                log::error!("Error accessing entry: {}", e);
+                log::error!("Failed to access entry: {}", e);
                 continue;
             }
         };
@@ -288,74 +325,68 @@ pub fn process_template<P: AsRef<Path>>(
         let without_p = match path.strip_prefix(template_dir) {
             Ok(p) => p,
             Err(e) => {
-                log::error!("Error processing path {}: {}", path.display(), e);
+                log::error!(
+                    "Failed to strip template directory prefix from {}: {}",
+                    path.display(),
+                    e
+                );
                 continue;
             }
         };
+
         if ignored_set.is_match(without_p) {
-            debug!("Skipping file {} from .bakerignore", without_p.display());
+            debug!("Skipping ignored file: {}", without_p.display());
             continue;
         }
 
         let relative_path = match path.to_str() {
             Some(p) => p,
             None => {
-                log::error!("Invalid path: {}", path.display());
+                log::error!("Failed to convert path to string: {}", path.display());
                 continue;
             }
         };
 
-        // Rendered by template renderer filename.
         let rendered_path = match engine.render(relative_path, context) {
             Ok(p) => p,
             Err(e) => {
-                log::error!("Error rendering path {}: {}", relative_path, e);
+                log::error!("Failed to render template path {}: {}", relative_path, e);
                 continue;
             }
         };
 
-        let rendered_path = match is_valid_path(rendered_path, template_dir) {
+        let rendered_path = match is_rendered_path_valid(rendered_path, template_dir) {
             Ok(p) => p,
             Err(e) => {
-                log::error!("Error rendering path {}: {}", relative_path, e);
+                log::error!("Failed to validate rendered path {}: {}", relative_path, e);
                 continue;
             }
         };
 
-        debug!(
-            "Processing source file: {} to target file {}",
-            relative_path, rendered_path
-        );
+        debug!("Processing file: {} -> {}", relative_path, rendered_path);
 
-        let (target_path, is_template_path) = resolve_target_path(&rendered_path, &output_dir);
+        let (target_path, needs_template_rendering) =
+            resolve_target_path(&rendered_path, &output_dir);
 
         if path.is_dir() {
             if let Err(e) = create_dir_all(&target_path) {
-                log::error!("Error creating directory {}: {}", target_path.display(), e);
+                log::error!(
+                    "Failed to create directory {}: {}",
+                    target_path.display(),
+                    e
+                );
                 continue;
             }
         } else {
-            let result = if is_template_path {
-                match read_file(path) {
-                    Ok(content) => match engine.render(&content, context) {
-                        Ok(final_content) => write_file(&target_path, &final_content),
-                        Err(e) => {
-                            log::error!("Error rendering template {}: {}", path.display(), e);
-                            continue;
-                        }
-                    },
-                    Err(e) => {
-                        log::error!("Error reading file {}: {}", path.display(), e);
-                        continue;
-                    }
-                }
+            let result = if needs_template_rendering {
+                process_template_file(path, &target_path, context, engine)
             } else {
                 copy_file(path, &target_path)
             };
 
             if let Err(e) = result {
                 log::error!(
-                    "Error processing file {} to {}: {}",
+                    "Failed to write output file from {} to {}: {}",
                     path.display(),
                     target_path.display(),
                     e
