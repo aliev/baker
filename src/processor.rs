@@ -211,38 +211,6 @@ pub fn is_rendered_path_valid(rendered_path: &str) -> bool {
     empty_parts.is_empty()
 }
 
-/// Converts a rendered path to a path relative to the template directory.
-///
-/// # Arguments
-/// * `rendered_path` - A string representation of the path to be converted
-/// * `template_dir` - The base directory to make the path relative to
-///
-/// # Returns
-/// * `BakerResult<String>` - The relative path as a string
-///
-/// Example
-///
-/// rendered_path: examples/python-package/tests/__init__.py
-/// template_dir: examples/python-package
-/// ->
-/// tests/__init__.py
-fn get_relative_path<P: AsRef<Path>>(rendered_path: P, template_dir: P) -> BakerResult<PathBuf> {
-    // // Split the path by "/" and collect non-empty segments.
-    // let path_parts = rendered_path.split('/');
-    // let path_parts: Vec<&str> = path_parts.collect();
-
-    // // Join the non-empty segments back into a path string.
-    // let valid_path = path_parts.join("/");
-
-    // Convert the valid path to a Path object and attempt to strip the template directory prefix.
-    let relative_path = rendered_path
-        .as_ref()
-        .strip_prefix(template_dir)
-        .map_err(|e| BakerError::TemplateError(e.to_string()))?;
-
-    Ok(relative_path.to_path_buf())
-}
-
 /// Processes a single template file.
 ///
 /// # Arguments
@@ -309,25 +277,28 @@ fn process_entry(
         .to_str()
         .ok_or_else(|| BakerError::TemplateError(format!("Invalid path: {}", path.display())))?;
 
-    let rendered_path = engine.render(path_str, context).map_err(|e| {
+    let rendered_path_str = engine.render(path_str, context).map_err(|e| {
         BakerError::TemplateError(format!("Failed to render path {}: {}", path_str, e))
     })?;
 
     // Validate rendered path
-    if !is_rendered_path_valid(&rendered_path) {
+    if !is_rendered_path_valid(&rendered_path_str) {
         return Err(BakerError::TemplateError(format!(
             "Invalid rendered path: {}",
-            rendered_path
+            rendered_path_str
         )));
     }
 
-    // Convert rendered string back to Path
-    let rendered_path = Path::new(&rendered_path);
+    // Convert rendered string back to Path and get relative path
+    let rendered_path = PathBuf::from(&rendered_path_str);
 
-    let relative_path = get_relative_path(rendered_path, template_dir)?;
+    // Removes template_dir prefix from rendered_path
+    let relative_path = rendered_path
+        .strip_prefix(template_dir)
+        .map_err(|e| BakerError::TemplateError(e.to_string()))?;
 
     // Resolve final target path
-    let (target_path, needs_processing) = resolve_target_path(&relative_path, output_dir);
+    let (target_path, needs_processing) = resolve_target_path(relative_path, output_dir);
 
     // Process directory or file
     if path.is_dir() {
