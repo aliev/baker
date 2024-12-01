@@ -195,6 +195,20 @@ pub fn resolve_target_path<P: AsRef<Path>>(source_path: &str, target_dir: P) -> 
     (target_path, should_be_processed)
 }
 
+/// Validates whether the rendered path is valid.
+fn is_rendered_path_valid(rendered_path: &str) -> bool {
+    // Split the path by "/" and collect non-empty segments.
+    let path_parts = rendered_path.split('/');
+
+    let empty_parts: Vec<&str> = path_parts
+        .clone()
+        .filter(|part| part.trim().is_empty())
+        .collect();
+
+    // If any segment is empty after trimming, return an error.
+    empty_parts.is_empty()
+}
+
 /// Validates a given path against a template directory.
 ///
 /// # Arguments
@@ -215,25 +229,13 @@ pub fn resolve_target_path<P: AsRef<Path>>(source_path: &str, target_dir: P) -> 
 /// # Errors
 /// * If the `rendered_path` contains empty segments or cannot be converted relative to the
 ///   `template_dir`, a `TemplateError` is returned.
-fn is_rendered_path_valid<P: AsRef<Path>>(
+fn strip_rendered_path<P: AsRef<Path>>(
     rendered_path: String,
     template_dir: P,
 ) -> BakerResult<String> {
     // Split the path by "/" and collect non-empty segments.
     let path_parts = rendered_path.split('/');
-
-    let empty_parts: Vec<&str> = path_parts
-        .clone()
-        .filter(|part| part.trim().is_empty())
-        .collect();
     let path_parts: Vec<&str> = path_parts.collect();
-
-    // If any segment is empty after trimming, return an error.
-    if !empty_parts.is_empty() {
-        return Err(BakerError::TemplateError(
-            "Skipping file/directory as path contains empty segments".to_string(),
-        ));
-    }
 
     // Join the non-empty segments back into a path string.
     let valid_path = path_parts.join("/");
@@ -355,7 +357,13 @@ pub fn process_template<P: AsRef<Path>>(
             }
         };
 
-        let rendered_path = match is_rendered_path_valid(rendered_path, template_dir) {
+        // If any segment is empty after trimming, return an error.
+        if !is_rendered_path_valid(&rendered_path) {
+            log::error!("Invalid rendered path: {}", rendered_path);
+            continue;
+        }
+
+        let rendered_path = match strip_rendered_path(rendered_path, template_dir) {
             Ok(p) => p,
             Err(e) => {
                 log::error!("Failed to validate rendered path {}: {}", relative_path, e);

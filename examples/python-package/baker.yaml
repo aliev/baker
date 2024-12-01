@@ -8,6 +8,10 @@ project_slug:
   type: str
   help: "Pleasse enter the project slug"
   default: "{{ project_name|lower|replace(' ', '_') }}"
+generate_tests:
+  type: bool
+  help: "Should I generate tests?"
+  default: false
 project_license:
   type: str
   help: "Please select the licence"
