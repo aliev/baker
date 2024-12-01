@@ -282,18 +282,112 @@ fn process_template_file<P: AsRef<Path>>(
     }
 }
 
-/// Processes a template directory to generate output.
-///
-/// # Arguments
-/// * `template_dir` - Source template directory
-/// * `output_dir` - Target output directory
-/// * `context` - Template variables
-/// * `engine` - Template rendering engine
-/// * `ignored_set` - Set of patterns to ignore
-/// * `force_output_dir` - Whether to overwrite existing output
-///
-/// # Returns
-/// * `BakerResult<PathBuf>` - Path to generated output directory
+/// Processes a single entry in the template directory
+fn process_entry(
+    entry: walkdir::DirEntry,
+    template_dir: &Path,
+    output_dir: &Path,
+    context: &serde_json::Value,
+    engine: &Box<dyn TemplateEngine>,
+    ignored_set: &GlobSet,
+) {
+    let path = entry.path();
+
+    // Get path relative to template directory
+    let relative_to_template = match path.strip_prefix(template_dir) {
+        Ok(p) => p,
+        Err(e) => {
+            log::error!("Failed to strip prefix: {}", e);
+            return;
+        }
+    };
+
+    // Check if file should be ignored
+    if ignored_set.is_match(relative_to_template) {
+        debug!("Skipping ignored file: {}", relative_to_template.display());
+        return;
+    }
+
+    // Get path as string for template rendering
+    let path_str = match path.to_str() {
+        Some(p) => p,
+        None => {
+            log::error!("Invalid path: {}", path.display());
+            return;
+        }
+    };
+
+    // Render the path itself as a template
+    let rendered_path = match engine.render(path_str, context) {
+        Ok(p) => p,
+        Err(e) => {
+            log::error!("Failed to render path {}: {}", path_str, e);
+            return;
+        }
+    };
+
+    // Validate rendered path
+    if !is_rendered_path_valid(&rendered_path) {
+        log::error!("Invalid rendered path: {}", rendered_path);
+        return;
+    }
+
+    // Convert rendered string back to Path
+    let rendered_path = Path::new(&rendered_path);
+    let relative_path = match get_relative_path(rendered_path, template_dir) {
+        Ok(p) => p,
+        Err(e) => {
+            log::error!("Failed to get relative path: {}", e);
+            return;
+        }
+    };
+
+    // Resolve final target path
+    let (target_path, needs_processing) = resolve_target_path(&relative_path, output_dir);
+
+    // Process directory or file
+    if path.is_dir() {
+        process_directory(&target_path);
+    } else {
+        process_file(path, &target_path, needs_processing, context, engine);
+    }
+}
+
+/// Process a directory entry
+fn process_directory(target_path: &Path) {
+    if let Err(e) = create_dir_all(target_path) {
+        log::error!(
+            "Failed to create directory {}: {}",
+            target_path.display(),
+            e
+        );
+    }
+}
+
+/// Process a file entry
+fn process_file(
+    source: &Path,
+    target: &Path,
+    needs_processing: bool,
+    context: &serde_json::Value,
+    engine: &Box<dyn TemplateEngine>,
+) {
+    let result = if needs_processing {
+        process_template_file(source, target, context, engine)
+    } else {
+        copy_file(source, target)
+    };
+
+    if let Err(e) = result {
+        log::error!(
+            "Failed to write file from {} to {}: {}",
+            source.display(),
+            target.display(),
+            e
+        );
+    }
+}
+
 pub fn process_template<P: AsRef<Path>>(
     template_dir: P,
     output_dir: P,
@@ -303,95 +397,21 @@ pub fn process_template<P: AsRef<Path>>(
 ) {
     debug!("Processing template...");
     let template_dir = template_dir.as_ref();
+    let output_dir = output_dir.as_ref();
 
     for entry in WalkDir::new(template_dir) {
-        let entry = match entry {
-            Ok(e) => e,
-            Err(e) => {
-                log::error!("Failed to access entry: {}", e);
-                continue;
-            }
-        };
-
-        let path = entry.path();
-        let without_p = match path.strip_prefix(template_dir) {
-            Ok(p) => p,
-            Err(e) => {
-                log::error!(
-                    "Failed to strip template directory prefix from {}: {}",
-                    path.display(),
-                    e
-                );
-                continue;
-            }
-        };
-
-        if ignored_set.is_match(without_p) {
-            debug!("Skipping ignored file: {}", without_p.display());
-            continue;
-        }
-
-        let relative_path = match path.to_str() {
-            Some(p) => p,
-            None => {
-                log::error!("Failed to convert path to string: {}", path.display());
-                continue;
-            }
-        };
-
-        let rendered_path = match engine.render(relative_path, context) {
-            Ok(p) => p,
-            Err(e) => {
-                log::error!("Failed to render template path {}: {}", relative_path, e);
-                continue;
-            }
-        };
-
-        // If any segment is empty after trimming, return an error.
-        if !is_rendered_path_valid(&rendered_path) {
-            log::error!("Invalid rendered path: {}", rendered_path);
-            continue;
-        }
-
-        let rendered_path = Path::new(&rendered_path);
-
-        let rendered_path = match get_relative_path(rendered_path, template_dir) {
-            Ok(p) => p,
-            Err(e) => {
-                log::error!("Failed to get relative path: {}", e);
-                continue;
-            }
-        };
-
-        // debug!("Processing file: {} -> {}", relative_path, rendered_path);
-
-        let (target_path, needs_template_rendering) =
-            resolve_target_path(&rendered_path, &output_dir);
-
-        if path.is_dir() {
-            if let Err(e) = create_dir_all(&target_path) {
-                log::error!(
-                    "Failed to create directory {}: {}",
-                    target_path.display(),
-                    e
-                );
-                continue;
-            }
-        } else {
-            let result = if needs_template_rendering {
-                process_template_file(path, &target_path, context, engine)
-            } else {
-                copy_file(path, &target_path)
-            };
-
-            if let Err(e) = result {
-                log::error!(
-                    "Failed to write output file from {} to {}: {}",
-                    path.display(),
-                    target_path.display(),
-                    e
+        match entry {
+            Ok(entry) => {
+                process_entry(
+                    entry,
+                    template_dir,
+                    output_dir,
+                    context,
+                    engine,
+                    &ignored_set,
                 );
             }
+            Err(e) => log::error!("Failed to access entry: {}", e),
         }
     }
 }
