@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-use baker::processor::{ensure_output_dir, is_jinja_template, resolve_target_path};
+use baker::processor::{
+    ensure_output_dir, is_jinja_template, is_rendered_path_valid, resolve_target_path,
+};
 use tempfile::TempDir;
 
 #[test]
@@ -36,4 +38,13 @@ fn test_resolve_target_path() {
     let (path, should_process) = resolve_target_path("regular.txt", "output");
     assert_eq!(path, PathBuf::from("output/regular.txt"));
     assert!(!should_process);
+}
+
+#[test]
+fn test_is_rendered_path_valid() {
+    assert!(!is_rendered_path_valid(""));
+    assert!(!is_rendered_path_valid("output//filename.txt"));
+    assert!(!is_rendered_path_valid("/filename.txt"));
+    assert!(is_rendered_path_valid("filename.txt"));
+    assert!(is_rendered_path_valid("output/filename.txt"));
 }

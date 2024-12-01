@@ -196,7 +196,7 @@ pub fn resolve_target_path<P: AsRef<Path>>(source_path: &str, target_dir: P) -> 
 }
 
 /// Validates whether the rendered path is valid.
-fn is_rendered_path_valid(rendered_path: &str) -> bool {
+pub fn is_rendered_path_valid(rendered_path: &str) -> bool {
     // Split the path by "/" and collect non-empty segments.
     let path_parts = rendered_path.split('/');
 
