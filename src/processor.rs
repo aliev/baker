@@ -259,27 +259,26 @@ fn process_template_file<P: AsRef<Path>>(
     context: &serde_json::Value,
     engine: &Box<dyn TemplateEngine>,
 ) -> BakerResult<()> {
-    match read_file(&path) {
-        Ok(content) => match engine.render(&content, context) {
-            Ok(final_content) => write_file(&target_path, &final_content),
-            Err(e) => {
-                log::error!(
-                    "Failed to render template content for {}: {}",
-                    path.as_ref().display(),
-                    e
-                );
-                Err(BakerError::TemplateError(e.to_string()))
-            }
-        },
-        Err(e) => {
-            log::error!(
-                "Failed to read template file {}: {}",
-                path.as_ref().display(),
-                e
-            );
-            Err(e)
-        }
+    let content = read_file(&path)?;
+    let final_content = engine.render(&content, context)?;
+    write_file(&target_path, &final_content)?;
+    Ok(())
+}
+
+/// Process a file entry
+fn process_file(
+    source: &Path,
+    target: &Path,
+    needs_processing: bool,
+    context: &serde_json::Value,
+    engine: &Box<dyn TemplateEngine>,
+) -> BakerResult<()> {
+    if needs_processing {
+        process_template_file(source, target, context, engine)?
+    } else {
+        copy_file(source, target)?
     }
+    Ok(())
 }
 
 /// Processes a single entry in the template directory
@@ -340,22 +339,6 @@ fn process_entry(
     Ok(())
 }
 
-/// Process a file entry
-fn process_file(
-    source: &Path,
-    target: &Path,
-    needs_processing: bool,
-    context: &serde_json::Value,
-    engine: &Box<dyn TemplateEngine>,
-) -> BakerResult<()> {
-    if needs_processing {
-        process_template_file(source, target, context, engine)?
-    } else {
-        copy_file(source, target)?
-    }
-    Ok(())
-}
-
 pub fn process_template<P: AsRef<Path>>(
     template_dir: P,
     output_dir: P,
@@ -370,14 +353,22 @@ pub fn process_template<P: AsRef<Path>>(
     for entry in WalkDir::new(template_dir) {
         match entry {
             Ok(entry) => {
-                process_entry(
+                if let Err(e) = process_entry(
                     entry,
                     template_dir,
                     output_dir,
                     context,
                     engine,
                     &ignored_set,
-                );
+                ) {
+                    match e {
+                        BakerError::TemplateError(msg) => {
+                            log::warn!("Template processing: {}", msg)
+                        }
+                        BakerError::IoError(e) => log::error!("IO error: {}", e),
+                        _ => log::error!("Unexpected error: {}", e),
+                    }
+                }
             }
             Err(e) => log::error!("Failed to access entry: {}", e),
         }
