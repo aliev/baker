@@ -171,22 +171,30 @@ pub fn resolve_target_path<P1: AsRef<Path>, P2: AsRef<Path>>(
     source_path: P1,
     target_dir: P2,
 ) -> (PathBuf, bool) {
-    // Whether the file should be processed by the template renderer.
     let target_dir = target_dir.as_ref();
+    let source_path = source_path.as_ref();
 
-    if let Some(filename) = source_path.as_ref().file_name().and_then(|n| n.to_str()) {
-        if is_jinja_template(filename) {
-            // Has double extension, remove .j2
-            let new_name = filename.strip_suffix(".j2").unwrap();
-            return (
-                target_dir.join(source_path.as_ref().with_file_name(new_name)),
-                true,
-            );
-        } else {
-            return (target_dir.join(source_path), false);
-        }
+    // Get filename if it exists, otherwise return unprocessed path
+    let filename = match source_path.file_name().and_then(|n| n.to_str()) {
+        Some(name) => name,
+        None => return (target_dir.join(source_path), false),
+    };
+
+    // Check if file is a template
+    if !is_jinja_template(filename) {
+        return (target_dir.join(source_path), false);
     }
-    (target_dir.join(source_path), false)
+
+    // Process template file by removing .j2 extension
+    let new_name = filename.strip_suffix(".j2").unwrap();
+    let target_path = target_dir.join(source_path.with_file_name(new_name));
+
+    debug!(
+        "Template file detected: {} -> {}",
+        filename,
+        target_path.display()
+    );
+    (target_path, true)
 }
 
 /// Validates whether the rendered path is valid.
