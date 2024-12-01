@@ -167,32 +167,26 @@ pub fn is_jinja_template(filename: &str) -> bool {
 /// assert_eq!(path, PathBuf::from("output/templates/index.html"));
 /// assert!(should_process);
 /// ```
-pub fn resolve_target_path<P: AsRef<Path>>(source_path: &str, target_dir: P) -> (PathBuf, bool) {
+pub fn resolve_target_path<P1: AsRef<Path>, P2: AsRef<Path>>(
+    source_path: P1,
+    target_dir: P2,
+) -> (PathBuf, bool) {
     // Whether the file should be processed by the template renderer.
-    let mut should_be_processed = false;
     let target_dir = target_dir.as_ref();
 
-    let target_path =
-        if let Some(filename) = Path::new(source_path).file_name().and_then(|n| n.to_str()) {
-            if is_jinja_template(filename) {
-                // Has double extension, remove .j2
-                let new_name = filename.strip_suffix(".j2").unwrap();
-                should_be_processed = true;
-                target_dir.join(Path::new(source_path).with_file_name(new_name))
-            } else {
-                target_dir.join(source_path)
-            }
+    if let Some(filename) = source_path.as_ref().file_name().and_then(|n| n.to_str()) {
+        if is_jinja_template(filename) {
+            // Has double extension, remove .j2
+            let new_name = filename.strip_suffix(".j2").unwrap();
+            return (
+                target_dir.join(source_path.as_ref().with_file_name(new_name)),
+                true,
+            );
         } else {
-            target_dir.join(source_path)
-        };
-
-    if should_be_processed {
-        debug!("Writing file: {}", target_path.display());
-    } else {
-        debug!("Copying file: {}", target_path.display());
+            return (target_dir.join(source_path), false);
+        }
     }
-
-    (target_path, should_be_processed)
+    (target_dir.join(source_path), false)
 }
 
 /// Validates whether the rendered path is valid.
@@ -209,48 +203,36 @@ pub fn is_rendered_path_valid(rendered_path: &str) -> bool {
     empty_parts.is_empty()
 }
 
-/// Validates a given path against a template directory.
+/// Converts a rendered path to a path relative to the template directory.
 ///
 /// # Arguments
-/// * `rendered_path` - A string representation of the path to be validated.
-/// * `template_dir` - The base directory that will be used to validate the path.
+/// * `rendered_path` - A string representation of the path to be converted
+/// * `template_dir` - The base directory to make the path relative to
 ///
 /// # Returns
-/// * `BakerResult<String>` - Returns an error if the path is invalid or if it cannot be
-///   converted relative to the template directory. Otherwise, it returns the valid relative path.
+/// * `BakerResult<String>` - The relative path as a string
 ///
-/// This function performs the following steps:
-/// 1. Splits the `rendered_path` by `/` and collects only the non-empty segments.
-/// 2. Joins these segments back into a valid path string.
-/// 3. Attempts to create a relative path by removing the `template_dir` prefix from the given path.
-/// 4. If successful, returns the relative path as a `String`.
-/// 5. Returns an error if any of these operations fail.
+/// Example
 ///
-/// # Errors
-/// * If the `rendered_path` contains empty segments or cannot be converted relative to the
-///   `template_dir`, a `TemplateError` is returned.
-fn strip_rendered_path<P: AsRef<Path>>(
-    rendered_path: String,
-    template_dir: P,
-) -> BakerResult<String> {
-    // Split the path by "/" and collect non-empty segments.
-    let path_parts = rendered_path.split('/');
-    let path_parts: Vec<&str> = path_parts.collect();
+/// rendered_path: examples/python-package/tests/__init__.py
+/// template_dir: examples/python-package
+/// ->
+/// tests/__init__.py
+fn get_relative_path<P: AsRef<Path>>(rendered_path: P, template_dir: P) -> BakerResult<PathBuf> {
+    // // Split the path by "/" and collect non-empty segments.
+    // let path_parts = rendered_path.split('/');
+    // let path_parts: Vec<&str> = path_parts.collect();
 
-    // Join the non-empty segments back into a path string.
-    let valid_path = path_parts.join("/");
+    // // Join the non-empty segments back into a path string.
+    // let valid_path = path_parts.join("/");
 
     // Convert the valid path to a Path object and attempt to strip the template directory prefix.
-    let relative_path = Path::new(&valid_path)
+    let relative_path = rendered_path
+        .as_ref()
         .strip_prefix(template_dir)
         .map_err(|e| BakerError::TemplateError(e.to_string()))?;
 
-    // Convert the relative path back to a string and return it.
-    let relative_path_str = relative_path
-        .to_str()
-        .ok_or_else(|| BakerError::TemplateError("Failed to convert path to string".to_string()))?;
-
-    Ok(relative_path_str.to_owned())
+    Ok(relative_path.to_path_buf())
 }
 
 /// Processes a single template file.
@@ -363,15 +345,17 @@ pub fn process_template<P: AsRef<Path>>(
             continue;
         }
 
-        let rendered_path = match strip_rendered_path(rendered_path, template_dir) {
+        let rendered_path = Path::new(&rendered_path);
+
+        let rendered_path = match get_relative_path(rendered_path, template_dir) {
             Ok(p) => p,
             Err(e) => {
-                log::error!("Failed to validate rendered path {}: {}", relative_path, e);
+                log::error!("Failed to get relative path: {}", e);
                 continue;
             }
         };
 
-        debug!("Processing file: {} -> {}", relative_path, rendered_path);
+        // debug!("Processing file: {} -> {}", relative_path, rendered_path);
 
         let (target_path, needs_template_rendering) =
             resolve_target_path(&rendered_path, &output_dir);
