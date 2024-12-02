@@ -1,11 +1,11 @@
 //! Core template processing module for Baker.
 //! Handles file system operations, template rendering, and output generation
 //! with support for path manipulation and error handling.
+use dialoguer::Confirm;
 use globset::GlobSet;
 use log::debug;
 use std::fs;
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 use crate::error::{BakerError, BakerResult};
 use crate::template::TemplateEngine;
@@ -167,10 +167,7 @@ pub fn is_jinja_template(filename: &str) -> bool {
 /// assert_eq!(path, PathBuf::from("output/templates/index.html"));
 /// assert!(should_process);
 /// ```
-pub fn resolve_target_path<P1: AsRef<Path>, P2: AsRef<Path>>(
-    source_path: P1,
-    target_dir: P2,
-) -> (PathBuf, bool) {
+pub fn resolve_target_path<P: AsRef<Path>>(source_path: P, target_dir: P) -> (PathBuf, bool) {
     let target_dir = target_dir.as_ref();
     let source_path = source_path.as_ref();
 
@@ -234,30 +231,45 @@ fn process_template_file<P: AsRef<Path>>(
 }
 
 /// Process a file entry
-fn process_file(
-    source: &Path,
-    target: &Path,
+fn process_file<P: AsRef<Path>>(
+    source: P,
+    target: P,
     needs_processing: bool,
     context: &serde_json::Value,
     engine: &Box<dyn TemplateEngine>,
 ) -> BakerResult<()> {
-    if needs_processing {
-        process_template_file(source, target, context, engine)?
-    } else {
-        copy_file(source, target)?
+    let source = source.as_ref();
+    let target = target.as_ref();
+    let mut should_overwrite = false;
+    if target.exists() && !should_overwrite {
+        should_overwrite = Confirm::new()
+            .with_prompt(format!("Overwrite {}", target.display()))
+            .default(false)
+            .interact()
+            .map_err(|e| BakerError::ConfigError(e.to_string()))?;
+    } else if !target.exists() {
+        println!("create: {}", target.display());
+    }
+    if should_overwrite {
+        if needs_processing {
+            process_template_file(source, target, context, engine)?
+        } else {
+            copy_file(source, target)?
+        }
     }
     Ok(())
 }
 
 /// Processes a single entry in the template directory
-fn process_entry(
-    entry: walkdir::DirEntry,
+pub fn process_entry(
+    entry: Result<walkdir::DirEntry, walkdir::Error>,
     template_dir: &Path,
     output_dir: &Path,
     context: &serde_json::Value,
     engine: &Box<dyn TemplateEngine>,
     ignored_set: &GlobSet,
 ) -> BakerResult<()> {
+    let entry = entry.map_err(|e| BakerError::TemplateError(e.to_string()))?;
     let path = entry.path();
 
     // Get path relative to template directory
@@ -308,40 +320,4 @@ fn process_entry(
     }
 
     Ok(())
-}
-
-pub fn process_template<P: AsRef<Path>>(
-    template_dir: P,
-    output_dir: P,
-    context: &serde_json::Value,
-    engine: &Box<dyn TemplateEngine>,
-    ignored_set: GlobSet,
-) {
-    debug!("Processing template...");
-    let template_dir = template_dir.as_ref();
-    let output_dir = output_dir.as_ref();
-
-    for entry in WalkDir::new(template_dir) {
-        match entry {
-            Ok(entry) => {
-                if let Err(e) = process_entry(
-                    entry,
-                    template_dir,
-                    output_dir,
-                    context,
-                    engine,
-                    &ignored_set,
-                ) {
-                    match e {
-                        BakerError::TemplateError(msg) => {
-                            log::warn!("Template processing: {}", msg)
-                        }
-                        BakerError::IoError(e) => log::error!("IO error: {}", e),
-                        _ => log::error!("Unexpected error: {}", e),
-                    }
-                }
-            }
-            Err(e) => log::error!("Failed to access entry: {}", e),
-        }
-    }
 }

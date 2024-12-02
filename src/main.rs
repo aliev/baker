@@ -8,17 +8,19 @@ use baker::{
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{get_hooks, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
-    processor::{ensure_output_dir, process_template},
+    processor::{ensure_output_dir, process_entry},
     prompt::{prompt_confirm_hooks_execution, prompt_questions},
     template::{
         GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader, TemplateSource,
     },
 };
+use walkdir::WalkDir;
 
 /// Main application entry point.
 fn main() {
     let args = get_args();
 
+    // Logger configuration
     env_logger::Builder::new()
         .filter_level(if args.verbose {
             log::LevelFilter::Trace
@@ -78,12 +80,14 @@ fn run(args: Args) -> BakerResult<()> {
 
         // Template processor initialization
         let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
+        // TODO: map_err
         let config: Config = serde_yaml::from_str(&config_content).unwrap();
 
-        let context = if !args.context.is_empty() {
-            serde_json::from_str(&args.context).unwrap()
-        } else {
+        let context = if args.context.is_empty() {
             prompt_questions(config.questions, &engine)?
+        } else {
+            // TODO: map_err
+            serde_json::from_str(&args.context).unwrap()
         };
 
         // Process ignore patterns
@@ -95,7 +99,22 @@ fn run(args: Args) -> BakerResult<()> {
         }
 
         // Process template files
-        process_template(&template_dir, &output_dir, &context, &engine, ignored_set);
+        for entry in WalkDir::new(&template_dir) {
+            if let Err(e) = process_entry(
+                entry,
+                &template_dir,
+                &output_dir,
+                &context,
+                &engine,
+                &ignored_set,
+            ) {
+                match e {
+                    BakerError::TemplateError(msg) => log::warn!("Template processing: {}", msg),
+                    BakerError::IoError(e) => log::error!("IO error: {}", e),
+                    _ => log::error!("Unexpected error: {}", e),
+                }
+            }
+        }
 
         // Execute post-generation hook
         if execute_hooks && post_hook.exists() {
