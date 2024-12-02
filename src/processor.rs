@@ -240,22 +240,28 @@ fn process_file<P: AsRef<Path>>(
 ) -> BakerResult<()> {
     let source = source.as_ref();
     let target = target.as_ref();
-    let mut should_overwrite = false;
-    if target.exists() && !should_overwrite {
-        should_overwrite = Confirm::new()
+    if target.exists() {
+        let confirm = Confirm::new()
             .with_prompt(format!("Overwrite {}", target.display()))
             .default(false)
             .interact()
             .map_err(|e| BakerError::ConfigError(e.to_string()))?;
-    } else if !target.exists() {
+
+        if !confirm {
+            println!("skipping: {}", target.display());
+            return Ok(());
+        }
+    }
+
+    if target.exists() {
+        println!("overwrite: {}", target.display());
+    } else {
         println!("create: {}", target.display());
     }
-    if should_overwrite {
-        if needs_processing {
-            process_template_file(source, target, context, engine)?
-        } else {
-            copy_file(source, target)?
-        }
+    if needs_processing {
+        process_template_file(source, target, context, engine)?
+    } else {
+        copy_file(source, target)?
     }
     Ok(())
 }
