@@ -107,6 +107,7 @@ fn run(args: Args) -> BakerResult<()> {
                 &context,
                 &engine,
                 &ignored_set,
+                args.overwrite,
             ) {
                 match e {
                     BakerError::TemplateError(msg) => log::warn!("Template processing: {}", msg),

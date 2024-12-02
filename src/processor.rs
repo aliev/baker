@@ -237,15 +237,19 @@ fn process_file<P: AsRef<Path>>(
     needs_processing: bool,
     context: &serde_json::Value,
     engine: &Box<dyn TemplateEngine>,
+    overwrite: Option<bool>,
 ) -> BakerResult<()> {
     let source = source.as_ref();
     let target = target.as_ref();
     if target.exists() {
-        let confirm = Confirm::new()
-            .with_prompt(format!("Overwrite {}", target.display()))
-            .default(false)
-            .interact()
-            .map_err(|e| BakerError::ConfigError(e.to_string()))?;
+        let confirm = match overwrite {
+            Some(val) => val,
+            _ => Confirm::new()
+                .with_prompt(format!("Overwrite {}", target.display()))
+                .default(false)
+                .interact()
+                .map_err(|e| BakerError::ConfigError(e.to_string()))?,
+        };
 
         if !confirm {
             println!("skipping: {}", target.display());
@@ -274,6 +278,7 @@ pub fn process_entry(
     context: &serde_json::Value,
     engine: &Box<dyn TemplateEngine>,
     ignored_set: &GlobSet,
+    overwrite: Option<bool>,
 ) -> BakerResult<()> {
     let entry = entry.map_err(|e| BakerError::TemplateError(e.to_string()))?;
     let path = entry.path();
@@ -322,7 +327,14 @@ pub fn process_entry(
     if path.is_dir() {
         create_dir_all(&target_path)?
     } else {
-        process_file(path, &target_path, needs_processing, context, engine)?
+        process_file(
+            path,
+            &target_path,
+            needs_processing,
+            context,
+            engine,
+            overwrite,
+        )?
     }
 
     Ok(())

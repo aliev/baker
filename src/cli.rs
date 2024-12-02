@@ -52,6 +52,10 @@ pub struct Args {
     /// Get context from argument not from the questions
     #[arg(short, long, default_value = "")]
     pub context: String,
+
+    /// Overwrite files that already exist, without asking.
+    #[arg(short, long)]
+    pub overwrite: Option<bool>,
 }
 
 /// Parses command line arguments and returns the Args structure.
