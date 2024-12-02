@@ -36,6 +36,9 @@ pub struct Question {
     /// Available choices for string questions
     #[serde(default)]
     pub choices: Vec<String>,
+    /// Available option for string questions
+    #[serde(default)]
+    pub multiselect: bool,
 }
 
 /// Main configuration structure holding all questions
@@ -62,13 +65,14 @@ pub fn load_config<P: AsRef<Path>>(template_dir: P, config_files: &[&str]) -> Ba
     for file in config_files {
         let config_path = template_dir.as_ref().join(file);
         if config_path.exists() {
-            debug!("Loading configuration from {}", config_path.display());
+            debug!("Loading configuration from '{}'.", config_path.display());
             return Ok(std::fs::read_to_string(&config_path).map_err(BakerError::IoError)?);
         }
     }
 
     Err(BakerError::ConfigError(format!(
-        "No configuration file found (tried: {})",
+        "No configuration file found in '{}'. Tried: {}.",
+        template_dir.as_ref().display(),
         config_files.join(", ")
     )))
 }

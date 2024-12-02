@@ -25,7 +25,7 @@ pub fn ensure_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> BakerRes
     let output_dir = output_dir.as_ref();
     if output_dir.exists() && !force {
         return Err(BakerError::ConfigError(format!(
-            "output directory already exists: {}. Use --force to overwrite",
+            "Output directory '{}' already exists. Use --force to overwrite.",
             output_dir.display()
         )));
     }
@@ -245,22 +245,22 @@ fn process_file<P: AsRef<Path>>(
         let confirm = match overwrite {
             Some(val) => val,
             _ => Confirm::new()
-                .with_prompt(format!("Overwrite {}", target.display()))
+                .with_prompt(format!("Overwrite '{}'?", target.display()))
                 .default(false)
                 .interact()
                 .map_err(|e| BakerError::ConfigError(e.to_string()))?,
         };
 
         if !confirm {
-            println!("skipping: {}", target.display());
+            println!("Skipping: '{}'.", target.display());
             return Ok(());
         }
     }
 
     if target.exists() {
-        println!("overwrite: {}", target.display());
+        println!("Overwriting: '{}'.", target.display());
     } else {
-        println!("create: {}", target.display());
+        println!("Creating: '{}'.", target.display());
     }
     if needs_processing {
         process_template_file(source, target, context, engine)?
@@ -291,23 +291,23 @@ pub fn process_entry(
     // Check if file should be ignored
     if ignored_set.is_match(relative_to_template) {
         return Err(BakerError::TemplateError(format!(
-            "Skipping ignored file: {}",
+            "Skipping ignored file '{}'.",
             relative_to_template.display()
         )));
     }
 
     let path_str = path
         .to_str()
-        .ok_or_else(|| BakerError::TemplateError(format!("Invalid path: {}", path.display())))?;
+        .ok_or_else(|| BakerError::TemplateError(format!("Invalid path '{}'.", path.display())))?;
 
     let rendered_path_str = engine.render(path_str, context).map_err(|e| {
-        BakerError::TemplateError(format!("Failed to render path {}: {}", path_str, e))
+        BakerError::TemplateError(format!("Failed to render path '{}': {}.", path_str, e))
     })?;
 
     // Validate rendered path
     if !is_rendered_path_valid(&rendered_path_str) {
         return Err(BakerError::TemplateError(format!(
-            "Invalid rendered path: {}",
+            "Invalid rendered path '{}'.",
             rendered_path_str
         )));
     }

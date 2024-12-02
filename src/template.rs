@@ -111,12 +111,13 @@ impl TemplateLoader for LocalLoader {
     fn load(&self, source: &TemplateSource) -> BakerResult<PathBuf> {
         let path = match source {
             TemplateSource::FileSystem(path) => path,
-            _ => panic!("Expected LocalPath variant"),
+            _ => panic!("Expected LocalPath variant."),
         };
         if !path.exists() {
-            return Err(BakerError::TemplateError(
-                "template path does not exist".to_string(),
-            ));
+            return Err(BakerError::TemplateError(format!(
+                "Template path '{}' does not exist.",
+                path.display()
+            )));
         }
 
         Ok(path.to_path_buf())
@@ -144,10 +145,10 @@ impl TemplateLoader for GitLoader {
     fn load(&self, source: &TemplateSource) -> BakerResult<PathBuf> {
         let repo_url = match source {
             TemplateSource::Git(url) => url,
-            _ => return Err(BakerError::TemplateError("Expected Git URL".to_string())),
+            _ => return Err(BakerError::TemplateError("Expected Git URL.".to_string())),
         };
 
-        debug!("Cloning repository {}", repo_url);
+        debug!("Cloning repository '{}'.", repo_url);
 
         let repo_name = repo_url
             .split('/')
@@ -159,7 +160,7 @@ impl TemplateLoader for GitLoader {
         if clone_path.exists() {
             let response = Confirm::new()
                 .with_prompt(format!(
-                    "Directory {} already exists. Replace it?",
+                    "Directory '{}' already exists. Replace it?",
                     repo_name
                 ))
                 .default(false)
@@ -167,15 +168,19 @@ impl TemplateLoader for GitLoader {
                 .map_err(|e| BakerError::HookError(e.to_string()))?;
             if response {
                 fs::remove_dir_all(&clone_path).map_err(|e| {
-                    BakerError::TemplateError(format!("Failed to remove existing directory: {}", e))
+                    BakerError::TemplateError(format!(
+                        "Failed to remove existing directory '{}': {}.",
+                        clone_path.display(),
+                        e
+                    ))
                 })?;
             } else {
-                debug!("Using existing directory: {}", clone_path.display());
+                debug!("Using existing directory '{}'.", clone_path.display());
                 return Ok(clone_path);
             }
         }
 
-        debug!("Cloning to {}", clone_path.display());
+        debug!("Cloning to '{}'.", clone_path.display());
 
         // Set up authentication callbacks
         let mut callbacks = git2::RemoteCallbacks::new();
@@ -199,8 +204,8 @@ impl TemplateLoader for GitLoader {
         match builder.clone(repo_url, &clone_path) {
             Ok(_) => Ok(clone_path),
             Err(e) => Err(BakerError::TemplateError(format!(
-                "Failed to clone repository: {}",
-                e
+                "Failed to clone repository '{}': {}.",
+                repo_url, e
             ))),
         }
     }

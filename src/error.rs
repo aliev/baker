@@ -11,27 +11,27 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum BakerError {
     /// Represents errors that occur during file system operations
-    #[error("IO error: {0}")]
+    #[error("IO error: {0}.")]
     IoError(#[from] io::Error),
 
     /// Represents errors that occur during template processing
-    #[error("Template error: {0}")]
+    #[error("Template error: {0}.")]
     TemplateError(String),
 
     /// Represents errors that occur during configuration parsing or processing
-    #[error("Configuration error: {0}")]
+    #[error("Configuration error: {0}.")]
     ConfigError(String),
 
     /// Represents errors that occur during hook script execution
-    #[error("Hook execution error: {0}")]
+    #[error("Hook execution error: {0}.")]
     HookError(String),
 
     /// Represents validation failures in user input or data
-    #[error("Validation error: {0}")]
+    #[error("Validation error: {0}.")]
     ValidationError(String),
 
     /// Represents errors in processing .bakerignore files
-    #[error("BakerIgnore error: {0}")]
+    #[error("BakerIgnore error: {0}.")]
     BakerIgnoreError(String),
 }
 

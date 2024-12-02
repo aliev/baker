@@ -98,15 +98,17 @@ pub fn run_hook<P: AsRef<Path>>(
 
     // Write context to stdin
     if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(&output_data).map_err(BakerError::IoError)?;
+        stdin
+            .write_all(&output_data)
+            .map_err(|e| BakerError::IoError(e))?;
     }
 
     // Wait for the process to complete
-    let status = child.wait().map_err(BakerError::IoError)?;
+    let status = child.wait().map_err(|e| BakerError::IoError(e))?;
 
     if !status.success() {
         return Err(BakerError::HookError(format!(
-            "Hook failed with status: {}",
+            "hook execution failed with status: {}",
             status
         )));
     }

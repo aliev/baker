@@ -110,9 +110,11 @@ fn run(args: Args) -> BakerResult<()> {
                 args.overwrite,
             ) {
                 match e {
-                    BakerError::TemplateError(msg) => log::warn!("Template processing: {}", msg),
-                    BakerError::IoError(e) => log::error!("IO error: {}", e),
-                    _ => log::error!("Unexpected error: {}", e),
+                    BakerError::TemplateError(msg) => {
+                        log::warn!("Template processing failed: {}", msg)
+                    }
+                    BakerError::IoError(e) => log::error!("IO operation failed: {}", e),
+                    _ => log::error!("Operation failed: {}", e),
                 }
             }
         }
@@ -123,7 +125,7 @@ fn run(args: Args) -> BakerResult<()> {
         }
 
         println!(
-            "Template generation completed successfully in directory {}!",
+            "Template generation completed successfully in {}.",
             output_dir.display()
         );
     } else {

@@ -5,8 +5,27 @@
 use crate::config::{Question, QuestionType};
 use crate::error::{BakerError, BakerResult};
 use crate::template::TemplateEngine;
-use dialoguer::{Confirm, Input, Select};
+use dialoguer::{Confirm, Input, MultiSelect, Select};
 use indexmap::IndexMap;
+
+fn prompt_multi_selection(
+    prompt: String,
+    key: String,
+    question: Question,
+) -> BakerResult<(String, serde_json::Value)> {
+    let indices = MultiSelect::new()
+        .with_prompt(prompt)
+        .items(&question.choices)
+        .interact()
+        .map_err(|e| BakerError::ConfigError(format!("failed to get user selection: {}", e)))?;
+
+    let selected: Vec<serde_json::Value> = indices
+        .iter()
+        .map(|&i| serde_json::Value::String(question.choices[i].clone()))
+        .collect();
+
+    Ok((key, serde_json::Value::Array(selected)))
+}
 
 fn prompt_selection(
     prompt: String,
@@ -32,7 +51,7 @@ fn prompt_selection(
         .default(default_value)
         .items(&question.choices)
         .interact()
-        .map_err(|e| BakerError::ConfigError(e.to_string()))?;
+        .map_err(|e| BakerError::ConfigError(format!("failed to get user selection: {}", e)))?;
 
     Ok((
         key,
@@ -60,7 +79,7 @@ fn prompt_string(
         .with_prompt(prompt)
         .default(default_value)
         .interact_text()
-        .map_err(|e| BakerError::ConfigError(e.to_string()))?;
+        .map_err(|e| BakerError::ConfigError(format!("failed to get user input: {}", e)))?;
 
     Ok((key, serde_json::Value::String(input)))
 }
@@ -76,7 +95,7 @@ fn prompt_bool(
         .with_prompt(prompt)
         .default(default_value)
         .interact()
-        .map_err(|e| BakerError::ConfigError(e.to_string()))?;
+        .map_err(|e| BakerError::ConfigError(format!("failed to get user confirmation: {}", e)))?;
 
     Ok((key, serde_json::Value::Bool(result)))
 }
@@ -102,7 +121,7 @@ pub fn prompt_confirm_hooks_execution<S: Into<String>>(
         .with_prompt(prompt)
         .default(false)
         .interact()
-        .map_err(|e| BakerError::HookError(e.to_string()))?)
+        .map_err(|e| BakerError::HookError(format!("failed to get hooks confirmation: {}", e)))?)
 }
 
 /// Prompts the user for answers to all configured questions
@@ -131,7 +150,11 @@ pub fn prompt_questions(
         match question.question_type {
             QuestionType::Str => {
                 let (key, value) = if !question.choices.is_empty() {
-                    prompt_selection(prompt, key, question)?
+                    if question.multiselect {
+                        prompt_multi_selection(prompt, key, question)?
+                    } else {
+                        prompt_selection(prompt, key, question)?
+                    }
                 } else {
                     prompt_string(prompt, key, engine, question.default, current_context)?
                 };

@@ -45,7 +45,7 @@ pub fn parse_bakerignore_file<P: AsRef<Path>>(bakerignore_path: P) -> BakerResul
     // Add default patterns first
     for pattern in DEFAULT_IGNORE_PATTERNS {
         builder.add(Glob::new(pattern).map_err(|e| {
-            BakerError::BakerIgnoreError(format!("Default pattern loading failed: {}", e))
+            BakerError::BakerIgnoreError(format!("failed to parse default pattern: {}", e))
         })?);
     }
 
@@ -55,17 +55,17 @@ pub fn parse_bakerignore_file<P: AsRef<Path>>(bakerignore_path: P) -> BakerResul
             let line = line.trim();
             if !line.is_empty() && !line.starts_with('#') {
                 builder.add(Glob::new(line).map_err(|e| {
-                    BakerError::BakerIgnoreError(format!(".bakerignore loading failed: {}", e))
+                    BakerError::BakerIgnoreError(format!("failed to parse ignore pattern: {}", e))
                 })?);
             }
         }
     } else {
-        debug!(".bakerignore does not exist")
+        debug!("No .bakerignore file found, using default patterns.");
     }
 
-    let glob_set = builder
-        .build()
-        .map_err(|e| BakerError::BakerIgnoreError(format!(".bakerignore loading failed: {}", e)))?;
+    let glob_set = builder.build().map_err(|e| {
+        BakerError::BakerIgnoreError(format!("failed to build ignore patterns: {}", e))
+    })?;
 
     Ok(glob_set)
 }
