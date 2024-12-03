@@ -39,6 +39,12 @@ pub struct Question {
     /// Available option for string questions
     #[serde(default)]
     pub multiselect: bool,
+    /// Whether the string is a secret
+    #[serde(default)]
+    pub secret: bool,
+    /// Whether the secret should have confirmation
+    #[serde(default)]
+    pub secret_confirmation: bool,
 }
 
 /// Main configuration structure holding all questions

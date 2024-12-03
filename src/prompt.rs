@@ -5,7 +5,7 @@
 use crate::config::{Question, QuestionType};
 use crate::error::{BakerError, BakerResult};
 use crate::template::TemplateEngine;
-use dialoguer::{Confirm, Input, MultiSelect, Select};
+use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
 use indexmap::IndexMap;
 
 fn prompt_multi_selection(
@@ -65,6 +65,8 @@ fn prompt_string(
     engine: &Box<dyn TemplateEngine>,
     default: Option<serde_json::Value>,
     current_context: serde_json::Value,
+    is_secret: bool,
+    is_secret_confirmation: bool,
 ) -> BakerResult<(String, serde_json::Value)> {
     let default_value = if let Some(default_value) = default {
         if let Some(s) = default_value.as_str() {
@@ -75,11 +77,23 @@ fn prompt_string(
     } else {
         String::new()
     };
-    let input = Input::new()
-        .with_prompt(prompt)
-        .default(default_value)
-        .interact_text()
-        .map_err(|e| BakerError::ConfigError(format!("failed to get user input: {}", e)))?;
+    let input = if is_secret {
+        let mut password = Password::new().with_prompt(&prompt);
+
+        if is_secret_confirmation {
+            password = password.with_confirmation(format!("{} (confirm)", &prompt), "Mistmatch");
+        }
+
+        password
+            .interact()
+            .map_err(|e| BakerError::ConfigError(format!("failed to get user input: {}", e)))?
+    } else {
+        Input::new()
+            .with_prompt(&prompt)
+            .default(default_value)
+            .interact_text()
+            .map_err(|e| BakerError::ConfigError(format!("failed to get user input: {}", e)))?
+    };
 
     Ok((key, serde_json::Value::String(input)))
 }
@@ -156,7 +170,15 @@ pub fn prompt_questions(
                         prompt_selection(prompt, key, question)?
                     }
                 } else {
-                    prompt_string(prompt, key, engine, question.default, current_context)?
+                    prompt_string(
+                        prompt,
+                        key,
+                        engine,
+                        question.default,
+                        current_context,
+                        question.secret,
+                        question.secret_confirmation,
+                    )?
                 };
                 context.insert(key, value);
             }

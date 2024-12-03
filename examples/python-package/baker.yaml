@@ -12,6 +12,11 @@ generate_tests:
   type: bool
   help: "Should I generate tests?"
   default: false
+project_password:
+  type: str
+  help: "What is the password?"
+  secret: true
+  secret_confirmation: true
 requirements:
   type: str
   help: Select requirements
