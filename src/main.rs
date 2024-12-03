@@ -2,6 +2,7 @@
 //! Handles command-line argument parsing, template processing flow,
 //! and coordinates interactions between different modules.
 
+use ansi_term::Colour::Red;
 use baker::{
     cli::{get_args, Args},
     config::{load_config, Config, CONFIG_FILES},
@@ -70,10 +71,11 @@ fn run(args: Args) -> BakerResult<()> {
             execute_hooks = prompt_confirm_hooks_execution(
                 args.skip_hooks_check,
                 format!(
-                    "WARNING: This template contains the following hooks that will execute commands on your system:\n{}{}{}",
+                    "{} This template contains the following hooks that will execute commands on your system:\n{}{}{}",
+                    Red.paint("WARNING:").to_string(),
                     get_path_if_exists(&post_hook),
                     get_path_if_exists(&pre_hook),
-                    "Do you want to run these hooks?\n",
+                    "Do you want to run these hooks?",
                 ),
             )?;
         }
