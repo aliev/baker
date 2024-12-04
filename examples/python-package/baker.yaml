@@ -24,6 +24,7 @@ requirements:
   choices:
     - django
     - fastapi
+    - pydantic
 project_license:
   type: str
   help: "Please select the licence"

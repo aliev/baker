@@ -8,6 +8,18 @@ use crate::template::TemplateEngine;
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
 use indexmap::IndexMap;
 
+/// Prompts the user for multiple selections from a list of choices.
+///
+/// # Arguments
+/// * `prompt` - The prompt text to display to the user
+/// * `key` - The key to associate with the selected values
+/// * `question` - The question configuration containing available choices
+///
+/// # Returns
+/// * `BakerResult<(String, serde_json::Value)>` - The key and array of selected values
+///
+/// # Errors
+/// * Returns `BakerError::ConfigError` if user interaction fails
 fn prompt_multi_selection(
     prompt: String,
     key: String,
@@ -27,6 +39,18 @@ fn prompt_multi_selection(
     Ok((key, serde_json::Value::Array(selected)))
 }
 
+/// Prompts the user to select a single item from a list of choices.
+///
+/// # Arguments
+/// * `prompt` - The prompt text to display to the user
+/// * `key` - The key to associate with the selected value
+/// * `question` - The question configuration containing available choices and default value
+///
+/// # Returns
+/// * `BakerResult<(String, serde_json::Value)>` - The key and selected value
+///
+/// # Errors
+/// * Returns `BakerError::ConfigError` if user interaction fails
 fn prompt_selection(
     prompt: String,
     key: String,
@@ -59,6 +83,22 @@ fn prompt_selection(
     ))
 }
 
+/// Prompts the user for a string input with optional default value and secret handling.
+///
+/// # Arguments
+/// * `prompt` - The prompt text to display to the user
+/// * `key` - The key to associate with the input value
+/// * `engine` - Template engine for rendering default values
+/// * `default` - Optional default value that may contain template variables
+/// * `current_context` - Current context for template variable interpolation
+/// * `is_secret` - Whether to handle the input as a password/secret
+/// * `is_secret_confirmation` - Whether to require confirmation for secret input
+///
+/// # Returns
+/// * `BakerResult<(String, serde_json::Value)>` - The key and input value
+///
+/// # Errors
+/// * Returns `BakerError::ConfigError` if user interaction fails
 fn prompt_string(
     prompt: String,
     key: String,
@@ -98,6 +138,18 @@ fn prompt_string(
     Ok((key, serde_json::Value::String(input)))
 }
 
+/// Prompts the user for a boolean (yes/no) response.
+///
+/// # Arguments
+/// * `prompt` - The prompt text to display to the user
+/// * `key` - The key to associate with the boolean value
+/// * `question` - The question configuration containing the default value
+///
+/// # Returns
+/// * `BakerResult<(String, serde_json::Value)>` - The key and boolean value
+///
+/// # Errors
+/// * Returns `BakerError::ConfigError` if user interaction fails
 fn prompt_bool(
     prompt: String,
     key: String,
