@@ -1,0 +1,15 @@
+
+# Maximum width of each line
+max_width = 90
+# Spaces between items
+blank_lines_upper_bound = 1
+# Remove nested blocks indentation
+use_small_heuristics = "Max"
+# Wrap comments at max_width
+wrap_comments = true
+# Import items indentation style
+imports_indent = "Block"
+# Group imports by type
+imports_layout = "HorizontalVertical"
+# Merge all imports into a single import block
+imports_granularity = "Preserve"

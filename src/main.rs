@@ -12,7 +12,8 @@ use baker::{
     processor::{ensure_output_dir, process_entry},
     prompt::{prompt_confirm_hooks_execution, prompt_questions},
     template::{
-        GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader, TemplateSource,
+        GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader,
+        TemplateSource,
     },
 };
 use walkdir::WalkDir;
@@ -72,7 +73,7 @@ fn run(args: Args) -> BakerResult<()> {
                 args.skip_hooks_check,
                 format!(
                     "{} This template contains the following hooks that will execute commands on your system:\n{}{}{}",
-                    Red.paint("WARNING:").to_string(),
+                    Red.paint("WARNING:"),
                     get_path_if_exists(&post_hook),
                     get_path_if_exists(&pre_hook),
                     "Do you want to run these hooks?",
@@ -86,14 +87,14 @@ fn run(args: Args) -> BakerResult<()> {
         let config: Config = serde_yaml::from_str(&config_content).unwrap();
 
         let context = if args.context.is_empty() {
-            prompt_questions(config.questions, &engine)?
+            prompt_questions(config.questions, &*engine)?
         } else {
             // TODO: map_err
             serde_json::from_str(&args.context).unwrap()
         };
 
         // Process ignore patterns
-        let ignored_set = parse_bakerignore_file(&template_dir.join(IGNORE_FILE))?;
+        let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;
 
         // Execute pre-generation hook
         if execute_hooks && pre_hook.exists() {

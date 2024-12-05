@@ -21,7 +21,10 @@ use crate::template::TemplateEngine;
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if directory exists and force is false
-pub fn ensure_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> BakerResult<PathBuf> {
+pub fn ensure_output_dir<P: AsRef<Path>>(
+    output_dir: P,
+    force: bool,
+) -> BakerResult<PathBuf> {
     let output_dir = output_dir.as_ref();
     if output_dir.exists() && !force {
         return Err(BakerError::ConfigError(format!(
@@ -61,11 +64,8 @@ fn read_file<P: AsRef<Path>>(path: P) -> BakerResult<String> {
 fn write_file<P: AsRef<Path>>(path: P, content: &str) -> BakerResult<()> {
     let path = path.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
-    let abs_path = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        base_path.join(path)
-    };
+    let abs_path =
+        if path.is_absolute() { path.to_path_buf() } else { base_path.join(path) };
 
     if let Some(parent) = abs_path.parent() {
         fs::create_dir_all(parent).map_err(BakerError::IoError)?;
@@ -83,11 +83,8 @@ fn write_file<P: AsRef<Path>>(path: P, content: &str) -> BakerResult<()> {
 fn create_dir_all<P: AsRef<Path>>(path: P) -> BakerResult<()> {
     let path = path.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
-    let abs_path = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        base_path.join(path)
-    };
+    let abs_path =
+        if path.is_absolute() { path.to_path_buf() } else { base_path.join(path) };
     fs::create_dir_all(abs_path).map_err(BakerError::IoError)
 }
 
@@ -105,18 +102,13 @@ fn create_dir_all<P: AsRef<Path>>(path: P) -> BakerResult<()> {
 fn copy_file<P: AsRef<Path>>(source: P, dest: P) -> BakerResult<()> {
     let dest = dest.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
-    let abs_dest = if dest.is_absolute() {
-        dest.to_path_buf()
-    } else {
-        base_path.join(dest)
-    };
+    let abs_dest =
+        if dest.is_absolute() { dest.to_path_buf() } else { base_path.join(dest) };
 
     if let Some(parent) = abs_dest.parent() {
         fs::create_dir_all(parent).map_err(BakerError::IoError)?;
     }
-    fs::copy(source, abs_dest)
-        .map(|_| ())
-        .map_err(BakerError::IoError)
+    fs::copy(source, abs_dest).map(|_| ()).map_err(BakerError::IoError)
 }
 
 /// Checks if a file is a Jinja2 template based on its extension.
@@ -136,11 +128,7 @@ fn copy_file<P: AsRef<Path>>(source: P, dest: P) -> BakerResult<()> {
 /// ```
 pub fn is_jinja_template(filename: &str) -> bool {
     let parts: Vec<&str> = filename.split('.').collect();
-    if parts.len() > 2 && parts.last() == Some(&"j2") {
-        true
-    } else {
-        false
-    }
+    parts.len() > 2 && parts.last() == Some(&"j2")
 }
 
 /// Resolves the target path for a template file and determines if it needs processing.
@@ -167,7 +155,10 @@ pub fn is_jinja_template(filename: &str) -> bool {
 /// assert_eq!(path, PathBuf::from("output/templates/index.html"));
 /// assert!(should_process);
 /// ```
-pub fn resolve_target_path<P: AsRef<Path>>(source_path: P, target_dir: P) -> (PathBuf, bool) {
+pub fn resolve_target_path<P: AsRef<Path>>(
+    source_path: P,
+    target_dir: P,
+) -> (PathBuf, bool) {
     let target_dir = target_dir.as_ref();
     let source_path = source_path.as_ref();
 
@@ -186,11 +177,7 @@ pub fn resolve_target_path<P: AsRef<Path>>(source_path: P, target_dir: P) -> (Pa
     let new_name = filename.strip_suffix(".j2").unwrap();
     let target_path = target_dir.join(source_path.with_file_name(new_name));
 
-    debug!(
-        "Template file detected: {} -> {}",
-        filename,
-        target_path.display()
-    );
+    debug!("Template file detected: {} -> {}", filename, target_path.display());
     (target_path, true)
 }
 
@@ -199,10 +186,8 @@ pub fn is_rendered_path_valid(rendered_path: &str) -> bool {
     // Split the path by "/" and collect non-empty segments.
     let path_parts = rendered_path.split('/');
 
-    let empty_parts: Vec<&str> = path_parts
-        .clone()
-        .filter(|part| part.trim().is_empty())
-        .collect();
+    let empty_parts: Vec<&str> =
+        path_parts.clone().filter(|part| part.trim().is_empty()).collect();
 
     // If any segment is empty after trimming, return an error.
     empty_parts.is_empty()
@@ -284,9 +269,9 @@ pub fn process_entry(
     let path = entry.path();
 
     // Get path relative to template directory
-    let relative_to_template = path
-        .strip_prefix(template_dir)
-        .map_err(|e| BakerError::TemplateError(format!("Failed to strip prefix: {}", e)))?;
+    let relative_to_template = path.strip_prefix(template_dir).map_err(|e| {
+        BakerError::TemplateError(format!("Failed to strip prefix: {}", e))
+    })?;
 
     // Check if file should be ignored
     if ignored_set.is_match(relative_to_template) {
@@ -296,9 +281,9 @@ pub fn process_entry(
         )));
     }
 
-    let path_str = path
-        .to_str()
-        .ok_or_else(|| BakerError::TemplateError(format!("Invalid path '{}'.", path.display())))?;
+    let path_str = path.to_str().ok_or_else(|| {
+        BakerError::TemplateError(format!("Invalid path '{}'.", path.display()))
+    })?;
 
     let rendered_path_str = engine.render(path_str, context).map_err(|e| {
         BakerError::TemplateError(format!("Failed to render path '{}': {}.", path_str, e))
@@ -327,14 +312,7 @@ pub fn process_entry(
     if path.is_dir() {
         create_dir_all(&target_path)?
     } else {
-        process_file(
-            path,
-            &target_path,
-            needs_processing,
-            context,
-            engine,
-            overwrite,
-        )?
+        process_file(path, &target_path, needs_processing, context, engine, overwrite)?
     }
 
     Ok(())

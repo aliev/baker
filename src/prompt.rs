@@ -29,7 +29,9 @@ fn prompt_multi_selection(
         .with_prompt(prompt)
         .items(&question.choices)
         .interact()
-        .map_err(|e| BakerError::ConfigError(format!("failed to get user selection: {}", e)))?;
+        .map_err(|e| {
+            BakerError::ConfigError(format!("failed to get user selection: {}", e))
+        })?;
 
     let selected: Vec<serde_json::Value> = indices
         .iter()
@@ -58,11 +60,7 @@ fn prompt_selection(
 ) -> BakerResult<(String, serde_json::Value)> {
     let default_value = if let Some(default_value) = question.default {
         if let Some(default_str) = default_value.as_str() {
-            question
-                .choices
-                .iter()
-                .position(|choice| choice == default_str)
-                .unwrap_or(0)
+            question.choices.iter().position(|choice| choice == default_str).unwrap_or(0)
         } else {
             0
         }
@@ -75,12 +73,11 @@ fn prompt_selection(
         .default(default_value)
         .items(&question.choices)
         .interact()
-        .map_err(|e| BakerError::ConfigError(format!("failed to get user selection: {}", e)))?;
+        .map_err(|e| {
+            BakerError::ConfigError(format!("failed to get user selection: {}", e))
+        })?;
 
-    Ok((
-        key,
-        serde_json::Value::String(question.choices[selection].clone()),
-    ))
+    Ok((key, serde_json::Value::String(question.choices[selection].clone())))
 }
 
 /// Prompts the user for a string input with optional default value and secret handling.
@@ -102,7 +99,7 @@ fn prompt_selection(
 fn prompt_string(
     prompt: String,
     key: String,
-    engine: &Box<dyn TemplateEngine>,
+    engine: &dyn TemplateEngine,
     default: Option<serde_json::Value>,
     current_context: serde_json::Value,
     is_secret: bool,
@@ -121,18 +118,17 @@ fn prompt_string(
         let mut password = Password::new().with_prompt(&prompt);
 
         if is_secret_confirmation {
-            password = password.with_confirmation(format!("{} (confirm)", &prompt), "Mistmatch");
+            password =
+                password.with_confirmation(format!("{} (confirm)", &prompt), "Mistmatch");
         }
 
-        password
-            .interact()
-            .map_err(|e| BakerError::ConfigError(format!("failed to get user input: {}", e)))?
+        password.interact().map_err(|e| {
+            BakerError::ConfigError(format!("failed to get user input: {}", e))
+        })?
     } else {
-        Input::new()
-            .with_prompt(&prompt)
-            .default(default_value)
-            .interact_text()
-            .map_err(|e| BakerError::ConfigError(format!("failed to get user input: {}", e)))?
+        Input::new().with_prompt(&prompt).default(default_value).interact_text().map_err(
+            |e| BakerError::ConfigError(format!("failed to get user input: {}", e)),
+        )?
     };
 
     Ok((key, serde_json::Value::String(input)))
@@ -157,11 +153,12 @@ fn prompt_bool(
 ) -> BakerResult<(String, serde_json::Value)> {
     let default_value = question.default.and_then(|v| v.as_bool()).unwrap_or(false);
 
-    let result = Confirm::new()
-        .with_prompt(prompt)
-        .default(default_value)
-        .interact()
-        .map_err(|e| BakerError::ConfigError(format!("failed to get user confirmation: {}", e)))?;
+    let result =
+        Confirm::new().with_prompt(prompt).default(default_value).interact().map_err(
+            |e| {
+                BakerError::ConfigError(format!("failed to get user confirmation: {}", e))
+            },
+        )?;
 
     Ok((key, serde_json::Value::Bool(result)))
 }
@@ -183,11 +180,9 @@ pub fn prompt_confirm_hooks_execution<S: Into<String>>(
     if skip_hooks_check {
         return Ok(true);
     }
-    Ok(Confirm::new()
-        .with_prompt(prompt)
-        .default(false)
-        .interact()
-        .map_err(|e| BakerError::HookError(format!("failed to get hooks confirmation: {}", e)))?)
+    Confirm::new().with_prompt(prompt).default(false).interact().map_err(|e| {
+        BakerError::HookError(format!("failed to get hooks confirmation: {}", e))
+    })
 }
 
 /// Prompts the user for answers to all configured questions
@@ -203,7 +198,7 @@ pub fn prompt_confirm_hooks_execution<S: Into<String>>(
 /// * `BakerError::ConfigError` if there's an error during user interaction
 pub fn prompt_questions(
     questions: IndexMap<String, Question>,
-    engine: &Box<dyn TemplateEngine>,
+    engine: &dyn TemplateEngine,
 ) -> BakerResult<serde_json::Value> {
     let mut context = serde_json::Map::new();
 

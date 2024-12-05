@@ -31,10 +31,10 @@ pub struct Output<'a> {
 pub fn get_path_if_exists<P: AsRef<Path>>(path: P) -> String {
     let path = path.as_ref();
     if path.exists() {
-        return format!("{}\n", path.to_string_lossy());
+        format!("{}\n", path.to_string_lossy())
     } else {
-        return "".into();
-    };
+        "".into()
+    }
 }
 
 /// Gets paths to pre and post generation hook scripts.
@@ -48,10 +48,7 @@ pub fn get_hooks<P: AsRef<Path>>(template_dir: P) -> (PathBuf, PathBuf) {
     let template_dir = template_dir.as_ref();
     let hooks_dir = template_dir.join("hooks");
 
-    (
-        hooks_dir.join("pre_gen_project"),
-        hooks_dir.join("post_gen_project"),
-    )
+    (hooks_dir.join("pre_gen_project"), hooks_dir.join("post_gen_project"))
 }
 
 /// Executes a hook script with the provided context.
@@ -98,13 +95,11 @@ pub fn run_hook<P: AsRef<Path>>(
 
     // Write context to stdin
     if let Some(mut stdin) = child.stdin.take() {
-        stdin
-            .write_all(&output_data)
-            .map_err(|e| BakerError::IoError(e))?;
+        stdin.write_all(&output_data).map_err(BakerError::IoError)?;
     }
 
     // Wait for the process to complete
-    let status = child.wait().map_err(|e| BakerError::IoError(e))?;
+    let status = child.wait().map_err(BakerError::IoError)?;
 
     if !status.success() {
         return Err(BakerError::HookError(format!(

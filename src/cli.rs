@@ -67,7 +67,7 @@ pub struct Args {
 /// * With status code 1 if required arguments are missing
 /// * With clap's default error handling for other argument errors
 pub fn get_args() -> Args {
-    let args = match Args::try_parse() {
+    match Args::try_parse() {
         Ok(args) => args,
         Err(e) => {
             if e.kind() == ErrorKind::MissingRequiredArgument {
@@ -87,7 +87,5 @@ pub fn get_args() -> Args {
                 e.exit();
             }
         }
-    };
-
-    args
+    }
 }

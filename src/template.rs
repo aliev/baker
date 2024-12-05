@@ -131,6 +131,12 @@ impl GitLoader {
     }
 }
 
+impl Default for GitLoader {
+    fn default() -> Self {
+        GitLoader::new()
+    }
+}
+
 impl TemplateLoader for GitLoader {
     /// Loads a template by cloning a git repository.
     ///
@@ -150,11 +156,8 @@ impl TemplateLoader for GitLoader {
 
         debug!("Cloning repository '{}'.", repo_url);
 
-        let repo_name = repo_url
-            .split('/')
-            .last()
-            .unwrap_or("template")
-            .trim_end_matches(".git");
+        let repo_name =
+            repo_url.split('/').last().unwrap_or("template").trim_end_matches(".git");
         let clone_path = PathBuf::from(repo_name);
 
         if clone_path.exists() {
@@ -188,7 +191,10 @@ impl TemplateLoader for GitLoader {
             git2::Cred::ssh_key(
                 username_from_url.unwrap_or("git"),
                 None,
-                std::path::Path::new(&format!("{}/.ssh/id_rsa", std::env::var("HOME").unwrap())),
+                std::path::Path::new(&format!(
+                    "{}/.ssh/id_rsa",
+                    std::env::var("HOME").unwrap()
+                )),
                 None,
             )
         });
@@ -219,6 +225,12 @@ impl MiniJinjaEngine {
     }
 }
 
+impl Default for MiniJinjaEngine {
+    fn default() -> Self {
+        MiniJinjaEngine::new()
+    }
+}
+
 impl TemplateEngine for MiniJinjaEngine {
     /// Renders a template string using MiniJinja.
     ///
@@ -243,7 +255,6 @@ impl TemplateEngine for MiniJinjaEngine {
             .get_template("temp")
             .map_err(|e| BakerError::TemplateError(e.to_string()))?;
 
-        tmpl.render(context)
-            .map_err(|e| BakerError::TemplateError(e.to_string()))
+        tmpl.render(context).map_err(|e| BakerError::TemplateError(e.to_string()))
     }
 }
