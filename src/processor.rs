@@ -207,7 +207,7 @@ fn process_template_file<P: AsRef<Path>>(
     path: P,
     target_path: P,
     context: &serde_json::Value,
-    engine: &Box<dyn TemplateEngine>,
+    engine: &dyn TemplateEngine,
 ) -> BakerResult<()> {
     let content = read_file(&path)?;
     let final_content = engine.render(&content, context)?;
@@ -221,7 +221,7 @@ fn process_file<P: AsRef<Path>>(
     target: P,
     needs_processing: bool,
     context: &serde_json::Value,
-    engine: &Box<dyn TemplateEngine>,
+    engine: &dyn TemplateEngine,
     overwrite: Option<bool>,
 ) -> BakerResult<()> {
     let source = source.as_ref();
@@ -261,7 +261,7 @@ pub fn process_entry(
     template_dir: &Path,
     output_dir: &Path,
     context: &serde_json::Value,
-    engine: &Box<dyn TemplateEngine>,
+    engine: &dyn TemplateEngine,
     ignored_set: &GlobSet,
     overwrite: Option<bool>,
 ) -> BakerResult<()> {

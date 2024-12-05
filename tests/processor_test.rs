@@ -12,7 +12,7 @@ fn test_ensure_output_dir() {
 
     // Test non-existent directory
     let new_dir = path.join("new_dir");
-    assert!(ensure_output_dir(&new_dir, false).is_ok());
+    assert!(ensure_output_dir(new_dir, false).is_ok());
 
     // Test existing directory without force
     assert!(ensure_output_dir(path, false).is_err());

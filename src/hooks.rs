@@ -91,7 +91,7 @@ pub fn run_hook<P: AsRef<Path>>(
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()
-        .map_err(|e| BakerError::IoError(e))?;
+        .map_err(BakerError::IoError)?;
 
     // Write context to stdin
     if let Some(mut stdin) = child.stdin.take() {

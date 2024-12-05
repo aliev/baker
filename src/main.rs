@@ -108,7 +108,7 @@ fn run(args: Args) -> BakerResult<()> {
                 &template_dir,
                 &output_dir,
                 &context,
-                &engine,
+                &*engine,
                 &ignored_set,
                 args.overwrite,
             ) {

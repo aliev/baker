@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 fn make_args(args: &[&str]) -> Vec<OsString> {
     let mut res = vec![OsString::from("baker")];
-    res.extend(args.iter().map(|s| OsString::from(s)));
+    res.extend(args.iter().map(OsString::from));
     res
 }
 

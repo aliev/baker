@@ -89,6 +89,12 @@ pub struct MiniJinjaEngine {
     env: Environment<'static>,
 }
 
+impl Default for LocalLoader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LocalLoader {
     /// Creates a new LocalLoader instance.
     pub fn new() -> Self {
