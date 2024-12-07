@@ -2,11 +2,12 @@
 //! This module provides functionality for loading and processing template configuration files
 //! with support for variable interpolation.
 
-use crate::config::{Question, QuestionType};
+use crate::config::{ConfigItem, ConfigItemType};
 use crate::error::{BakerError, BakerResult};
 use crate::template::TemplateEngine;
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
 use indexmap::IndexMap;
+use serde_json::json;
 
 /// Prompts the user for multiple selections from a list of choices.
 ///
@@ -20,10 +21,10 @@ use indexmap::IndexMap;
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
-pub fn prompt_multi_selection(
+pub fn prompt_multiple_choice(
     prompt: String,
     key: String,
-    question: Question,
+    question: ConfigItem,
 ) -> BakerResult<(String, serde_json::Value)> {
     let indices = MultiSelect::new()
         .with_prompt(prompt)
@@ -53,12 +54,13 @@ pub fn prompt_multi_selection(
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
-pub fn prompt_selection(
+pub fn prompt_single_choice(
     prompt: String,
     key: String,
-    question: Question,
-    default_value: usize,
+    question: ConfigItem,
+    default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
+    let default_value: usize = default_value.as_u64().unwrap() as usize;
     let selection = Select::new()
         .with_prompt(prompt)
         .default(default_value)
@@ -90,9 +92,10 @@ pub fn prompt_selection(
 pub fn prompt_string(
     prompt: String,
     key: String,
-    question: Question,
-    default_value: String,
+    question: ConfigItem,
+    default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
+    let default_value: String = default_value.to_string();
     let input = if question.secret {
         let mut password = Password::new().with_prompt(&prompt);
 
@@ -124,11 +127,12 @@ pub fn prompt_string(
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
-pub fn prompt_bool(
+pub fn prompt_boolean(
     prompt: String,
     key: String,
-    default_value: bool,
+    default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
+    let default_value = default_value.as_bool().unwrap();
     let result =
         Confirm::new().with_prompt(prompt).default(default_value).interact().map_err(
             |e| {
@@ -161,51 +165,11 @@ pub fn prompt_confirm_hooks_execution<S: Into<String>>(
     })
 }
 
-pub enum DefaultValueType {
-    Str(String),
-    Bool(bool),
-    Num(usize),
-    None,
-}
-
-impl TryFrom<DefaultValueType> for String {
-    type Error = BakerError;
-
-    fn try_from(value: DefaultValueType) -> BakerResult<Self> {
-        match value {
-            DefaultValueType::Str(s) => Ok(s),
-            _ => Err(BakerError::ValidationError("Expected a String".to_string())),
-        }
-    }
-}
-
-impl TryFrom<DefaultValueType> for bool {
-    type Error = BakerError;
-
-    fn try_from(value: DefaultValueType) -> BakerResult<Self> {
-        match value {
-            DefaultValueType::Bool(b) => Ok(b),
-            _ => Err(BakerError::ValidationError("Expected a Bool".to_string())),
-        }
-    }
-}
-
-impl TryFrom<DefaultValueType> for usize {
-    type Error = BakerError;
-
-    fn try_from(value: DefaultValueType) -> BakerResult<Self> {
-        match value {
-            DefaultValueType::Num(n) => Ok(n),
-            _ => Err(BakerError::ValidationError("Expected a Num".to_string())),
-        }
-    }
-}
-
-pub enum ParsedQuestionType {
-    MultiSelect,
-    SingleSelect,
-    String,
-    Boolean,
+pub enum QuestionType {
+    MultipleChoice,
+    SingleChoice,
+    Text,
+    YesNo,
 }
 
 /// Parses answers from user's questions
@@ -219,44 +183,42 @@ pub enum ParsedQuestionType {
 ///
 /// # Errors
 /// * `BakerError::ConfigError` if there's an error during user interaction
-pub fn parse_answers(
-    questions: IndexMap<String, Question>,
+pub fn parse_questions(
+    config_items: IndexMap<String, ConfigItem>,
     engine: &dyn TemplateEngine,
     callback: impl Fn(
         String,
         String,
-        Question,
-        DefaultValueType,
-        ParsedQuestionType,
+        ConfigItem,
+        serde_json::Value,
+        QuestionType,
     ) -> BakerResult<(String, serde_json::Value)>,
 ) -> BakerResult<serde_json::Value> {
     let mut answers = serde_json::Map::new();
 
-    for (key, question) in questions {
+    for (key, item) in config_items {
         let current_context = serde_json::Value::Object(answers.clone());
-        // Sometimes the question can contain the template strings
-        // we want to render them as well.
-        let prompt_rendered = engine
-            .render(&question.help, &current_context)
-            .unwrap_or(question.help.clone());
+        // Sometimes "help" contain the value with the template strings.
+        // This function renders it and returns rendered value.
+        let help_rendered =
+            engine.render(&item.help, &current_context).unwrap_or(item.help.clone());
 
-        match question.question_type {
-            QuestionType::Str => {
-                let (key, value) = if !question.choices.is_empty() {
-                    if question.multiselect {
+        match item.item_type {
+            ConfigItemType::Str => {
+                let (key, value) = if !item.choices.is_empty() {
+                    let default_value: Option<String> = None;
+                    if item.multiselect {
                         callback(
-                            prompt_rendered,
+                            help_rendered,
                             key,
-                            question,
-                            DefaultValueType::None,
-                            ParsedQuestionType::MultiSelect,
+                            item,
+                            json!(default_value),
+                            QuestionType::MultipleChoice,
                         )?
                     } else {
-                        let default_value = if let Some(default_value) = &question.default
-                        {
+                        let default_value = if let Some(default_value) = &item.default {
                             if let Some(default_str) = default_value.as_str() {
-                                question
-                                    .choices
+                                item.choices
                                     .iter()
                                     .position(|choice| choice == default_str)
                                     .unwrap_or(0)
@@ -267,15 +229,15 @@ pub fn parse_answers(
                             0
                         };
                         callback(
-                            prompt_rendered,
+                            help_rendered,
                             key,
-                            question,
-                            DefaultValueType::Num(default_value),
-                            ParsedQuestionType::SingleSelect,
+                            item,
+                            json!(default_value),
+                            QuestionType::SingleChoice,
                         )?
                     }
                 } else {
-                    let default_value = if let Some(default_value) = &question.default {
+                    let default_value = if let Some(default_value) = &item.default {
                         if let Some(s) = default_value.as_str() {
                             engine.render(s, &current_context).unwrap_or_default()
                         } else {
@@ -285,23 +247,23 @@ pub fn parse_answers(
                         String::new()
                     };
                     callback(
-                        prompt_rendered,
+                        help_rendered,
                         key,
-                        question,
-                        DefaultValueType::Str(default_value),
-                        ParsedQuestionType::String,
+                        item,
+                        json!(default_value),
+                        QuestionType::Text,
                     )?
                 };
                 answers.insert(key, value);
             }
-            QuestionType::Bool => {
+            ConfigItemType::Bool => {
                 let default_value = false;
                 let (key, value) = callback(
-                    prompt_rendered,
+                    help_rendered,
                     key,
-                    question,
-                    DefaultValueType::Bool(default_value),
-                    ParsedQuestionType::Boolean,
+                    item,
+                    json!(default_value),
+                    QuestionType::YesNo,
                 )?;
 
                 answers.insert(key, value);

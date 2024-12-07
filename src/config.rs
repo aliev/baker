@@ -14,7 +14,7 @@ pub const CONFIG_FILES: [&str; 3] = ["baker.json", "baker.yml", "baker.yaml"];
 /// Type of question to be presented to the user
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum QuestionType {
+pub enum ConfigItemType {
     /// String input question type
     Str,
     /// Boolean (yes/no) question type
@@ -23,13 +23,13 @@ pub enum QuestionType {
 
 /// Represents a single question in the configuration
 #[derive(Debug, Deserialize)]
-pub struct Question {
+pub struct ConfigItem {
     /// Help text/prompt to display to the user
     #[serde(default)]
     pub help: String,
     /// Type of the question (string or boolean)
     #[serde(rename = "type")]
-    pub question_type: QuestionType,
+    pub item_type: ConfigItemType,
     /// Optional default value for the question
     #[serde(default)]
     pub default: Option<serde_json::Value>,
@@ -52,7 +52,7 @@ pub struct Question {
 pub struct Config {
     /// Map of question identifiers to their configurations
     #[serde(flatten)]
-    pub questions: IndexMap<String, Question>,
+    pub items: IndexMap<String, ConfigItem>,
 }
 
 /// Loads configuration from a template directory, trying multiple file formats.

@@ -10,16 +10,14 @@ use baker::{
     ignore::{parse_bakerignore_file, IGNORE_FILE},
     processor::{ensure_output_dir, process_entry},
     prompt::{
-        parse_answers, prompt_bool, prompt_confirm_hooks_execution,
-        prompt_multi_selection, prompt_selection, prompt_string, DefaultValueType,
-        ParsedQuestionType,
+        parse_questions, prompt_boolean, prompt_confirm_hooks_execution,
+        prompt_multiple_choice, prompt_single_choice, prompt_string, QuestionType,
     },
     template::{
         GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader,
         TemplateSource,
     },
 };
-use minijinja::value;
 use walkdir::WalkDir;
 
 /// Main application entry point.
@@ -38,6 +36,27 @@ fn main() {
     if let Err(err) = run(args) {
         default_error_handler(err);
     }
+}
+
+fn parse_default_context(
+    key: String,
+    default_value: serde_json::Value,
+    context: &String,
+) -> BakerResult<(String, serde_json::Value)> {
+    let parsed: serde_json::Value = serde_json::from_str(context).map_err(|e| {
+        BakerError::TemplateError(format!("Failed to parse context as JSON: {}", e))
+    })?;
+
+    let value = parsed.get(&key);
+    let result_value = if value.is_some() {
+        value.cloned().unwrap_or(serde_json::Value::Null)
+    } else if !default_value.is_null() {
+        default_value.clone()
+    } else {
+        serde_json::Value::Null
+    };
+
+    Ok((key, result_value))
 }
 
 /// Main application logic execution.
@@ -89,35 +108,59 @@ fn run(args: Args) -> BakerResult<()> {
         // TODO: map_err
         let config: Config = serde_yaml::from_str(&config_content).unwrap();
 
-        let context = if args.context.is_empty() {
-            parse_answers(
-                config.questions,
-                &*engine,
-                |prompt_rendered, key, question, default_value, question_type| {
-                    match question_type {
-                        ParsedQuestionType::MultiSelect => {
-                            prompt_multi_selection(prompt_rendered, key, question)
-                        }
-                        ParsedQuestionType::Boolean => {
-                            let df: bool = default_value.try_into()?;
-                            prompt_bool(prompt_rendered, key, df)
-                        }
-                        ParsedQuestionType::String => {
-                            let df: String = default_value.try_into()?;
-                            prompt_string(prompt_rendered, key, question, df)
-                        }
-                        ParsedQuestionType::SingleSelect => {
-                            let df: usize = default_value.try_into()?;
-                            prompt_selection(prompt_rendered, key, question, df)
+        let context = parse_questions(
+            config.items,
+            &*engine,
+            |prompt_rendered, key, question, default_value, question_type| {
+                match question_type {
+                    QuestionType::MultipleChoice => {
+                        // when
+                        // type: str
+                        // choices: ...
+                        // multiselect: true
+                        if args.context.is_empty() {
+                            prompt_multiple_choice(prompt_rendered, key, question)
+                        } else {
+                            parse_default_context(key, default_value, &args.context)
                         }
                     }
-                },
-            )?
-        } else {
-            // TODO: map_err
-            serde_json::from_str(&args.context).unwrap()
-        };
-
+                    QuestionType::SingleChoice => {
+                        // when
+                        // type: str
+                        // choices: ...
+                        // multiselect: false
+                        if args.context.is_empty() {
+                            prompt_single_choice(
+                                prompt_rendered,
+                                key,
+                                question,
+                                default_value,
+                            )
+                        } else {
+                            parse_default_context(key, default_value, &args.context)
+                        }
+                    }
+                    QuestionType::YesNo => {
+                        // when
+                        // type: bool
+                        if args.context.is_empty() {
+                            prompt_boolean(prompt_rendered, key, default_value)
+                        } else {
+                            parse_default_context(key, default_value, &args.context)
+                        }
+                    }
+                    QuestionType::Text => {
+                        // when
+                        // type: str
+                        if args.context.is_empty() {
+                            prompt_string(prompt_rendered, key, question, default_value)
+                        } else {
+                            parse_default_context(key, default_value, &args.context)
+                        }
+                    }
+                }
+            },
+        )?;
         // Process ignore patterns
         let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;
 
