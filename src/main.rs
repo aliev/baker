@@ -9,12 +9,17 @@ use baker::{
     hooks::{get_hooks, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
     processor::{ensure_output_dir, process_entry},
-    prompt::{parse_answers, prompt_confirm_hooks_execution},
+    prompt::{
+        parse_answers, prompt_bool, prompt_confirm_hooks_execution,
+        prompt_multi_selection, prompt_selection, prompt_string, DefaultValueType,
+        ParsedQuestionType,
+    },
     template::{
         GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader,
         TemplateSource,
     },
 };
+use minijinja::value;
 use walkdir::WalkDir;
 
 /// Main application entry point.
@@ -85,7 +90,29 @@ fn run(args: Args) -> BakerResult<()> {
         let config: Config = serde_yaml::from_str(&config_content).unwrap();
 
         let context = if args.context.is_empty() {
-            parse_answers(config.questions, &*engine)?
+            parse_answers(
+                config.questions,
+                &*engine,
+                |prompt_rendered, key, question, default_value, question_type| {
+                    match question_type {
+                        ParsedQuestionType::MultiSelect => {
+                            prompt_multi_selection(prompt_rendered, key, question)
+                        }
+                        ParsedQuestionType::Boolean => {
+                            let df: bool = default_value.try_into()?;
+                            prompt_bool(prompt_rendered, key, df)
+                        }
+                        ParsedQuestionType::String => {
+                            let df: String = default_value.try_into()?;
+                            prompt_string(prompt_rendered, key, question, df)
+                        }
+                        ParsedQuestionType::SingleSelect => {
+                            let df: usize = default_value.try_into()?;
+                            prompt_selection(prompt_rendered, key, question, df)
+                        }
+                    }
+                },
+            )?
         } else {
             // TODO: map_err
             serde_json::from_str(&args.context).unwrap()

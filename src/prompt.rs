@@ -20,7 +20,7 @@ use indexmap::IndexMap;
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
-fn prompt_multi_selection(
+pub fn prompt_multi_selection(
     prompt: String,
     key: String,
     question: Question,
@@ -53,7 +53,7 @@ fn prompt_multi_selection(
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
-fn prompt_selection(
+pub fn prompt_selection(
     prompt: String,
     key: String,
     question: Question,
@@ -87,7 +87,7 @@ fn prompt_selection(
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
-fn prompt_string(
+pub fn prompt_string(
     prompt: String,
     key: String,
     question: Question,
@@ -124,7 +124,7 @@ fn prompt_string(
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
-fn prompt_bool(
+pub fn prompt_bool(
     prompt: String,
     key: String,
     default_value: bool,
@@ -161,6 +161,53 @@ pub fn prompt_confirm_hooks_execution<S: Into<String>>(
     })
 }
 
+pub enum DefaultValueType {
+    Str(String),
+    Bool(bool),
+    Num(usize),
+    None,
+}
+
+impl TryFrom<DefaultValueType> for String {
+    type Error = BakerError;
+
+    fn try_from(value: DefaultValueType) -> BakerResult<Self> {
+        match value {
+            DefaultValueType::Str(s) => Ok(s),
+            _ => Err(BakerError::ValidationError("Expected a String".to_string())),
+        }
+    }
+}
+
+impl TryFrom<DefaultValueType> for bool {
+    type Error = BakerError;
+
+    fn try_from(value: DefaultValueType) -> BakerResult<Self> {
+        match value {
+            DefaultValueType::Bool(b) => Ok(b),
+            _ => Err(BakerError::ValidationError("Expected a Bool".to_string())),
+        }
+    }
+}
+
+impl TryFrom<DefaultValueType> for usize {
+    type Error = BakerError;
+
+    fn try_from(value: DefaultValueType) -> BakerResult<Self> {
+        match value {
+            DefaultValueType::Num(n) => Ok(n),
+            _ => Err(BakerError::ValidationError("Expected a Num".to_string())),
+        }
+    }
+}
+
+pub enum ParsedQuestionType {
+    MultiSelect,
+    SingleSelect,
+    String,
+    Boolean,
+}
+
 /// Parses answers from user's questions
 ///
 /// # Arguments
@@ -175,6 +222,13 @@ pub fn prompt_confirm_hooks_execution<S: Into<String>>(
 pub fn parse_answers(
     questions: IndexMap<String, Question>,
     engine: &dyn TemplateEngine,
+    callback: impl Fn(
+        String,
+        String,
+        Question,
+        DefaultValueType,
+        ParsedQuestionType,
+    ) -> BakerResult<(String, serde_json::Value)>,
 ) -> BakerResult<serde_json::Value> {
     let mut answers = serde_json::Map::new();
 
@@ -190,7 +244,13 @@ pub fn parse_answers(
             QuestionType::Str => {
                 let (key, value) = if !question.choices.is_empty() {
                     if question.multiselect {
-                        prompt_multi_selection(prompt_rendered, key, question)?
+                        callback(
+                            prompt_rendered,
+                            key,
+                            question,
+                            DefaultValueType::None,
+                            ParsedQuestionType::MultiSelect,
+                        )?
                     } else {
                         let default_value = if let Some(default_value) = &question.default
                         {
@@ -206,7 +266,13 @@ pub fn parse_answers(
                         } else {
                             0
                         };
-                        prompt_selection(prompt_rendered, key, question, default_value)?
+                        callback(
+                            prompt_rendered,
+                            key,
+                            question,
+                            DefaultValueType::Num(default_value),
+                            ParsedQuestionType::SingleSelect,
+                        )?
                     }
                 } else {
                     let default_value = if let Some(default_value) = &question.default {
@@ -218,14 +284,25 @@ pub fn parse_answers(
                     } else {
                         String::new()
                     };
-                    prompt_string(prompt_rendered, key, question, default_value)?
+                    callback(
+                        prompt_rendered,
+                        key,
+                        question,
+                        DefaultValueType::Str(default_value),
+                        ParsedQuestionType::String,
+                    )?
                 };
                 answers.insert(key, value);
             }
             QuestionType::Bool => {
-                let default_value =
-                    question.default.and_then(|v| v.as_bool()).unwrap_or(false);
-                let (key, value) = prompt_bool(prompt_rendered, key, default_value)?;
+                let default_value = false;
+                let (key, value) = callback(
+                    prompt_rendered,
+                    key,
+                    question,
+                    DefaultValueType::Bool(default_value),
+                    ParsedQuestionType::Boolean,
+                )?;
 
                 answers.insert(key, value);
             }
