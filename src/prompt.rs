@@ -57,17 +57,8 @@ fn prompt_selection(
     prompt: String,
     key: String,
     question: Question,
+    default_value: usize,
 ) -> BakerResult<(String, serde_json::Value)> {
-    let default_value = if let Some(default_value) = question.default {
-        if let Some(default_str) = default_value.as_str() {
-            question.choices.iter().position(|choice| choice == default_str).unwrap_or(0)
-        } else {
-            0
-        }
-    } else {
-        0
-    };
-
     let selection = Select::new()
         .with_prompt(prompt)
         .default(default_value)
@@ -99,21 +90,10 @@ fn prompt_selection(
 fn prompt_string(
     prompt: String,
     key: String,
-    engine: &dyn TemplateEngine,
-    default: Option<serde_json::Value>,
-    current_context: serde_json::Value,
+    default_value: String,
     is_secret: bool,
     is_secret_confirmation: bool,
 ) -> BakerResult<(String, serde_json::Value)> {
-    let default_value = if let Some(default_value) = default {
-        if let Some(s) = default_value.as_str() {
-            engine.render(s, &current_context).unwrap_or_default()
-        } else {
-            String::new()
-        }
-    } else {
-        String::new()
-    };
     let input = if is_secret {
         let mut password = Password::new().with_prompt(&prompt);
 
@@ -139,7 +119,6 @@ fn prompt_string(
 /// # Arguments
 /// * `prompt` - The prompt text to display to the user
 /// * `key` - The key to associate with the boolean value
-/// * `question` - The question configuration containing the default value
 ///
 /// # Returns
 /// * `BakerResult<(String, serde_json::Value)>` - The key and boolean value
@@ -149,10 +128,8 @@ fn prompt_string(
 fn prompt_bool(
     prompt: String,
     key: String,
-    question: Question,
+    default_value: bool,
 ) -> BakerResult<(String, serde_json::Value)> {
-    let default_value = question.default.and_then(|v| v.as_bool()).unwrap_or(false);
-
     let result =
         Confirm::new().with_prompt(prompt).default(default_value).interact().map_err(
             |e| {
@@ -185,7 +162,7 @@ pub fn prompt_confirm_hooks_execution<S: Into<String>>(
     })
 }
 
-/// Prompts the user for answers to all configured questions
+/// Parses answers from user's questions
 ///
 /// # Arguments
 /// * `questions` - Map of questions to ask
@@ -196,15 +173,17 @@ pub fn prompt_confirm_hooks_execution<S: Into<String>>(
 ///
 /// # Errors
 /// * `BakerError::ConfigError` if there's an error during user interaction
-pub fn prompt_questions(
+pub fn parse_answers(
     questions: IndexMap<String, Question>,
     engine: &dyn TemplateEngine,
 ) -> BakerResult<serde_json::Value> {
-    let mut context = serde_json::Map::new();
+    let mut answers = serde_json::Map::new();
 
     for (key, question) in questions {
-        let current_context = serde_json::Value::Object(context.clone());
-        let prompt = engine
+        let current_context = serde_json::Value::Object(answers.clone());
+        // Sometimes the question can contain the template strings
+        // we want to render them as well.
+        let prompt_rendered = engine
             .render(&question.help, &current_context)
             .unwrap_or(question.help.clone());
 
@@ -212,30 +191,53 @@ pub fn prompt_questions(
             QuestionType::Str => {
                 let (key, value) = if !question.choices.is_empty() {
                     if question.multiselect {
-                        prompt_multi_selection(prompt, key, question)?
+                        prompt_multi_selection(prompt_rendered, key, question)?
                     } else {
-                        prompt_selection(prompt, key, question)?
+                        let default_value = if let Some(default_value) = &question.default
+                        {
+                            if let Some(default_str) = default_value.as_str() {
+                                question
+                                    .choices
+                                    .iter()
+                                    .position(|choice| choice == default_str)
+                                    .unwrap_or(0)
+                            } else {
+                                0
+                            }
+                        } else {
+                            0
+                        };
+                        prompt_selection(prompt_rendered, key, question, default_value)?
                     }
                 } else {
+                    let default_value = if let Some(default_value) = question.default {
+                        if let Some(s) = default_value.as_str() {
+                            engine.render(s, &current_context).unwrap_or_default()
+                        } else {
+                            String::new()
+                        }
+                    } else {
+                        String::new()
+                    };
                     prompt_string(
-                        prompt,
+                        prompt_rendered,
                         key,
-                        engine,
-                        question.default,
-                        current_context,
+                        default_value,
                         question.secret,
                         question.secret_confirmation,
                     )?
                 };
-                context.insert(key, value);
+                answers.insert(key, value);
             }
             QuestionType::Bool => {
-                let (key, value) = prompt_bool(prompt, key, question)?;
+                let default_value =
+                    question.default.and_then(|v| v.as_bool()).unwrap_or(false);
+                let (key, value) = prompt_bool(prompt_rendered, key, default_value)?;
 
-                context.insert(key, value);
+                answers.insert(key, value);
             }
         };
     }
 
-    Ok(serde_json::Value::Object(context))
+    Ok(serde_json::Value::Object(answers))
 }

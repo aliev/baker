@@ -9,7 +9,7 @@ use baker::{
     hooks::{get_hooks, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
     processor::{ensure_output_dir, process_entry},
-    prompt::{prompt_confirm_hooks_execution, prompt_questions},
+    prompt::{parse_answers, prompt_confirm_hooks_execution},
     template::{
         GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader,
         TemplateSource,
@@ -85,7 +85,7 @@ fn run(args: Args) -> BakerResult<()> {
         let config: Config = serde_yaml::from_str(&config_content).unwrap();
 
         let context = if args.context.is_empty() {
-            prompt_questions(config.questions, &*engine)?
+            parse_answers(config.questions, &*engine)?
         } else {
             // TODO: map_err
             serde_json::from_str(&args.context).unwrap()
