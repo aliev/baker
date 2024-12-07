@@ -90,14 +90,13 @@ fn prompt_selection(
 fn prompt_string(
     prompt: String,
     key: String,
+    question: Question,
     default_value: String,
-    is_secret: bool,
-    is_secret_confirmation: bool,
 ) -> BakerResult<(String, serde_json::Value)> {
-    let input = if is_secret {
+    let input = if question.secret {
         let mut password = Password::new().with_prompt(&prompt);
 
-        if is_secret_confirmation {
+        if question.secret_confirmation {
             password =
                 password.with_confirmation(format!("{} (confirm)", &prompt), "Mistmatch");
         }
@@ -210,7 +209,7 @@ pub fn parse_answers(
                         prompt_selection(prompt_rendered, key, question, default_value)?
                     }
                 } else {
-                    let default_value = if let Some(default_value) = question.default {
+                    let default_value = if let Some(default_value) = &question.default {
                         if let Some(s) = default_value.as_str() {
                             engine.render(s, &current_context).unwrap_or_default()
                         } else {
@@ -219,13 +218,7 @@ pub fn parse_answers(
                     } else {
                         String::new()
                     };
-                    prompt_string(
-                        prompt_rendered,
-                        key,
-                        default_value,
-                        question.secret,
-                        question.secret_confirmation,
-                    )?
+                    prompt_string(prompt_rendered, key, question, default_value)?
                 };
                 answers.insert(key, value);
             }
