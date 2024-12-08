@@ -8,7 +8,7 @@ use baker::{
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{get_hooks, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
-    parser::{parse_default_context, parse_questions, QuestionType},
+    parser::{get_context_value, get_value_or_default, parse_questions, QuestionType},
     processor::{ensure_output_dir, process_entry},
     prompt::{
         prompt_boolean, prompt_confirm_hooks_execution, prompt_multiple_choice,
@@ -90,16 +90,7 @@ fn run(args: Args) -> BakerResult<()> {
 
         // Trying to local context from --context
         // If it fails it returns null Value.
-        let parsed = if args.context.is_empty() {
-            Ok(serde_json::Value::Null)
-        } else {
-            serde_json::from_str(&args.context).map_err(|e| {
-                BakerError::TemplateError(format!(
-                    "Failed to parse context as JSON: {}",
-                    e
-                ))
-            })
-        }?;
+        let parsed = get_context_value(args.context)?;
 
         let context = parse_questions(
             config.items,
@@ -138,7 +129,7 @@ fn run(args: Args) -> BakerResult<()> {
                         }
                     }
                 } else {
-                    parse_default_context(key, parsed.clone(), default_value)
+                    get_value_or_default(key, parsed.clone(), default_value)
                 }
             },
         )?;

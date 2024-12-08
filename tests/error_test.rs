@@ -16,8 +16,8 @@ fn test_error_conversion() {
 #[test]
 fn test_error_display() {
     let err = BakerError::ConfigError("invalid config".to_string());
-    assert_eq!(err.to_string(), "Configuration error: invalid config");
+    assert_eq!(err.to_string(), "Configuration error: invalid config.");
 
     let err = BakerError::TemplateError("rendering failed".to_string());
-    assert_eq!(err.to_string(), "Template error: rendering failed");
+    assert_eq!(err.to_string(), "Template error: rendering failed.");
 }
