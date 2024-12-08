@@ -38,15 +38,21 @@ fn main() {
     }
 }
 
+fn load_context(context: String) -> BakerResult<serde_json::Value> {
+    if context.is_empty() {
+        Ok(serde_json::Value::Null)
+    } else {
+        serde_json::from_str(&context).map_err(|e| {
+            BakerError::TemplateError(format!("Failed to parse context as JSON: {}", e))
+        })
+    }
+}
+
 fn parse_default_context(
     key: String,
+    parsed: serde_json::Value,
     default_value: serde_json::Value,
-    context: &String,
 ) -> BakerResult<(String, serde_json::Value)> {
-    let parsed: serde_json::Value = serde_json::from_str(context).map_err(|e| {
-        BakerError::TemplateError(format!("Failed to parse context as JSON: {}", e))
-    })?;
-
     let value = parsed.get(&key);
     let result_value = if value.is_some() {
         value.cloned().unwrap_or(serde_json::Value::Null)
@@ -107,57 +113,46 @@ fn run(args: Args) -> BakerResult<()> {
         let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
         // TODO: map_err
         let config: Config = serde_yaml::from_str(&config_content).unwrap();
+        let parsed = load_context(args.context)?;
 
         let context = parse_questions(
             config.items,
             &*engine,
             |prompt_rendered, key, question, default_value, question_type| {
-                match question_type {
-                    QuestionType::MultipleChoice => {
-                        // when
-                        // type: str
-                        // choices: ...
-                        // multiselect: true
-                        if args.context.is_empty() {
+                if parsed.is_null() {
+                    match question_type {
+                        QuestionType::MultipleChoice => {
+                            // when
+                            // type: str
+                            // choices: ...
+                            // multiselect: true
                             prompt_multiple_choice(prompt_rendered, key, question)
-                        } else {
-                            parse_default_context(key, default_value, &args.context)
                         }
-                    }
-                    QuestionType::SingleChoice => {
-                        // when
-                        // type: str
-                        // choices: ...
-                        // multiselect: false
-                        if args.context.is_empty() {
+                        QuestionType::SingleChoice => {
+                            // when
+                            // type: str
+                            // choices: ...
+                            // multiselect: false
                             prompt_single_choice(
                                 prompt_rendered,
                                 key,
                                 question,
                                 default_value,
                             )
-                        } else {
-                            parse_default_context(key, default_value, &args.context)
                         }
-                    }
-                    QuestionType::YesNo => {
-                        // when
-                        // type: bool
-                        if args.context.is_empty() {
+                        QuestionType::YesNo => {
+                            // when
+                            // type: bool
                             prompt_boolean(prompt_rendered, key, default_value)
-                        } else {
-                            parse_default_context(key, default_value, &args.context)
                         }
-                    }
-                    QuestionType::Text => {
-                        // when
-                        // type: str
-                        if args.context.is_empty() {
+                        QuestionType::Text => {
+                            // when
+                            // type: str
                             prompt_string(prompt_rendered, key, question, default_value)
-                        } else {
-                            parse_default_context(key, default_value, &args.context)
                         }
                     }
+                } else {
+                    parse_default_context(key, parsed.clone(), default_value)
                 }
             },
         )?;

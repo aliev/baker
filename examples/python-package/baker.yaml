@@ -29,16 +29,16 @@ project_license:
   type: str
   help: "Please select the licence"
   choices:
-  - MIT
-  - BSD
-  - GPLv3
-  - Apache Software License 2.0
-  - Not open source
+    - MIT
+    - BSD
+    - GPLv3
+    - Apache Software License 2.0
+    - Not open source
 copyright_holder:
   type: str
   help: "The project's {{project_name}} copyright"
   # when: "{%if project_license == 'Not open source'%}true{%endif%}"
   default: |-
-      {% if project_license == 'Not open source' -%}
-          {{ author_name }}
-      {%- endif %}
+    {% if project_license == 'Not open source' -%}
+        {{ author_name }}
+    {%- endif %}
