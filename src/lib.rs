@@ -56,3 +56,5 @@ pub mod template;
 /// - Handles different input types (strings, booleans, selections)
 /// - Provides error handling via BakerResult
 pub mod prompt;
+
+pub mod parser;

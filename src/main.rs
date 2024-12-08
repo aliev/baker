@@ -8,10 +8,11 @@ use baker::{
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{get_hooks, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
+    parser::{parse_default_context, parse_questions, QuestionType},
     processor::{ensure_output_dir, process_entry},
     prompt::{
-        parse_questions, prompt_boolean, prompt_confirm_hooks_execution,
-        prompt_multiple_choice, prompt_single_choice, prompt_string, QuestionType,
+        prompt_boolean, prompt_confirm_hooks_execution, prompt_multiple_choice,
+        prompt_single_choice, prompt_string,
     },
     template::{
         GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader,
@@ -36,33 +37,6 @@ fn main() {
     if let Err(err) = run(args) {
         default_error_handler(err);
     }
-}
-
-fn load_context(context: String) -> BakerResult<serde_json::Value> {
-    if context.is_empty() {
-        Ok(serde_json::Value::Null)
-    } else {
-        serde_json::from_str(&context).map_err(|e| {
-            BakerError::TemplateError(format!("Failed to parse context as JSON: {}", e))
-        })
-    }
-}
-
-fn parse_default_context(
-    key: String,
-    parsed: serde_json::Value,
-    default_value: serde_json::Value,
-) -> BakerResult<(String, serde_json::Value)> {
-    let value = parsed.get(&key);
-    let result_value = if value.is_some() {
-        value.cloned().unwrap_or(serde_json::Value::Null)
-    } else if !default_value.is_null() {
-        default_value.clone()
-    } else {
-        serde_json::Value::Null
-    };
-
-    Ok((key, result_value))
 }
 
 /// Main application logic execution.
@@ -116,7 +90,16 @@ fn run(args: Args) -> BakerResult<()> {
 
         // Trying to local context from --context
         // If it fails it returns null Value.
-        let parsed = load_context(args.context)?;
+        let parsed = if args.context.is_empty() {
+            Ok(serde_json::Value::Null)
+        } else {
+            serde_json::from_str(&args.context).map_err(|e| {
+                BakerError::TemplateError(format!(
+                    "Failed to parse context as JSON: {}",
+                    e
+                ))
+            })
+        }?;
 
         let context = parse_questions(
             config.items,
