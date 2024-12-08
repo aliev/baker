@@ -113,6 +113,9 @@ fn run(args: Args) -> BakerResult<()> {
         let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
         // TODO: map_err
         let config: Config = serde_yaml::from_str(&config_content).unwrap();
+
+        // Trying to local context from --context
+        // If it fails it returns null Value.
         let parsed = load_context(args.context)?;
 
         let context = parse_questions(
@@ -156,6 +159,7 @@ fn run(args: Args) -> BakerResult<()> {
                 }
             },
         )?;
+
         // Process ignore patterns
         let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;
 

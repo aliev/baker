@@ -7,7 +7,6 @@ use crate::error::{BakerError, BakerResult};
 use crate::template::TemplateEngine;
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
 use indexmap::IndexMap;
-use serde_json::json;
 
 /// Prompts the user for multiple selections from a list of choices.
 ///
@@ -95,7 +94,12 @@ pub fn prompt_string(
     question: ConfigItem,
     default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
-    let default_value: String = default_value.to_string();
+    let default_str = match default_value {
+        serde_json::Value::String(s) => s,
+        serde_json::Value::Null => String::new(),
+        _ => default_value.to_string(),
+    };
+
     let input = if question.secret {
         let mut password = Password::new().with_prompt(&prompt);
 
@@ -108,7 +112,7 @@ pub fn prompt_string(
             BakerError::ConfigError(format!("failed to get user input: {}", e))
         })?
     } else {
-        Input::new().with_prompt(&prompt).default(default_value).interact_text().map_err(
+        Input::new().with_prompt(&prompt).default(default_str).interact_text().map_err(
             |e| BakerError::ConfigError(format!("failed to get user input: {}", e)),
         )?
     };
@@ -206,13 +210,12 @@ pub fn parse_questions(
         match item.item_type {
             ConfigItemType::Str => {
                 let (key, value) = if !item.choices.is_empty() {
-                    let default_value: Option<String> = None;
                     if item.multiselect {
                         callback(
                             help_rendered,
                             key,
                             item,
-                            json!(default_value),
+                            serde_json::Value::Null,
                             QuestionType::MultipleChoice,
                         )?
                     } else {
@@ -232,7 +235,7 @@ pub fn parse_questions(
                             help_rendered,
                             key,
                             item,
-                            json!(default_value),
+                            serde_json::Value::Number(default_value.into()),
                             QuestionType::SingleChoice,
                         )?
                     }
@@ -250,19 +253,23 @@ pub fn parse_questions(
                         help_rendered,
                         key,
                         item,
-                        json!(default_value),
+                        serde_json::Value::String(default_value),
                         QuestionType::Text,
                     )?
                 };
                 answers.insert(key, value);
             }
             ConfigItemType::Bool => {
-                let default_value = false;
+                let default_value = if let Some(default_value) = &item.default {
+                    default_value.as_bool().unwrap_or(false)
+                } else {
+                    false
+                };
                 let (key, value) = callback(
                     help_rendered,
                     key,
                     item,
-                    json!(default_value),
+                    serde_json::Value::Bool(default_value),
                     QuestionType::YesNo,
                 )?;
 
