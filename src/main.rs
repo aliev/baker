@@ -4,16 +4,13 @@
 
 use baker::{
     cli::{get_args, Args},
-    config::{load_config, Config, CONFIG_FILES},
+    config::{load_config, Config, ConfigItemType, CONFIG_FILES},
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{get_hooks, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
-    parser::{get_context_value, get_value_or_default, parse_questions, QuestionType},
+    parser::{get_context_value, get_question_value, QuestionType},
     processor::{ensure_output_dir, process_entry},
-    prompt::{
-        prompt_boolean, prompt_confirm_hooks_execution, prompt_multiple_choice,
-        prompt_single_choice, prompt_string,
-    },
+    prompt::prompt_confirm_hooks_execution,
     template::{
         GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader,
         TemplateSource,
@@ -92,47 +89,93 @@ fn run(args: Args) -> BakerResult<()> {
         // If it fails it returns null Value.
         let parsed = get_context_value(args.context)?;
 
-        let context = parse_questions(
-            config.items,
-            &*engine,
-            |prompt_rendered, key, question, default_value, question_type| {
-                if parsed.is_null() {
-                    match question_type {
-                        QuestionType::MultipleChoice => {
-                            // when
-                            // type: str
-                            // choices: ...
-                            // multiselect: true
-                            prompt_multiple_choice(prompt_rendered, key, question)
-                        }
-                        QuestionType::SingleChoice => {
-                            // when
-                            // type: str
-                            // choices: ...
-                            // multiselect: false
-                            prompt_single_choice(
-                                prompt_rendered,
+        let mut answers = serde_json::Map::new();
+
+        for (key, item) in config.items {
+            let current_context = serde_json::Value::Object(answers.clone());
+
+            // Sometimes "help" contain the value with the template strings.
+            // This function renders it and returns rendered value.
+            let help_rendered =
+                engine.render(&item.help, &current_context).unwrap_or(item.help.clone());
+
+            match item.item_type {
+                ConfigItemType::Str => {
+                    let (key, value) = if !item.choices.is_empty() {
+                        if item.multiselect {
+                            get_question_value(
+                                help_rendered,
                                 key,
-                                question,
-                                default_value,
-                            )
+                                item,
+                                serde_json::Value::Null,
+                                QuestionType::MultipleChoice,
+                                &parsed,
+                            )?
+                        } else {
+                            let default_value = if let Some(default_value) = &item.default
+                            {
+                                if let Some(default_str) = default_value.as_str() {
+                                    item.choices
+                                        .iter()
+                                        .position(|choice| choice == default_str)
+                                        .unwrap_or(0)
+                                } else {
+                                    0
+                                }
+                            } else {
+                                0
+                            };
+                            get_question_value(
+                                help_rendered,
+                                key,
+                                item,
+                                serde_json::Value::Number(default_value.into()),
+                                QuestionType::SingleChoice,
+                                &parsed,
+                            )?
                         }
-                        QuestionType::YesNo => {
-                            // when
-                            // type: bool
-                            prompt_boolean(prompt_rendered, key, default_value)
-                        }
-                        QuestionType::Text => {
-                            // when
-                            // type: str
-                            prompt_string(prompt_rendered, key, question, default_value)
-                        }
-                    }
-                } else {
-                    get_value_or_default(key, parsed.clone(), default_value)
+                    } else {
+                        let default_value = if let Some(default_value) = &item.default {
+                            if let Some(s) = default_value.as_str() {
+                                engine.render(s, &current_context).unwrap_or_default()
+                            } else {
+                                String::new()
+                            }
+                        } else {
+                            String::new()
+                        };
+                        get_question_value(
+                            help_rendered,
+                            key,
+                            item,
+                            serde_json::Value::String(default_value),
+                            QuestionType::Text,
+                            &parsed,
+                        )?
+                    };
+                    answers.insert(key, value);
                 }
-            },
-        )?;
+                ConfigItemType::Bool => {
+                    let default_value = if let Some(default_value) = &item.default {
+                        default_value.as_bool().unwrap_or(false)
+                    } else {
+                        false
+                    };
+                    let (key, value) = get_question_value(
+                        help_rendered,
+                        key,
+                        item,
+                        serde_json::Value::Bool(default_value),
+                        QuestionType::YesNo,
+                        &parsed,
+                    )?;
+
+                    answers.insert(key, value);
+                }
+            };
+        }
+
+        let context = serde_json::Value::Object(answers);
 
         // Process ignore patterns
         let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;
