@@ -8,7 +8,10 @@ use baker::{
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{get_hooks, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
-    parser::{get_context_value, get_question_value, QuestionType},
+    parser::{
+        get_context, get_context_value, get_question_value, get_single_choice_default,
+        get_text_default, get_yes_no_default, QuestionType,
+    },
     processor::{ensure_output_dir, process_entry},
     prompt::prompt_confirm_hooks_execution,
     template::{
@@ -16,6 +19,7 @@ use baker::{
         TemplateSource,
     },
 };
+use serde_json::json;
 use walkdir::WalkDir;
 
 /// Main application entry point.
@@ -89,93 +93,7 @@ fn run(args: Args) -> BakerResult<()> {
         // If it fails it returns null Value.
         let parsed = get_context_value(args.context)?;
 
-        let mut answers = serde_json::Map::new();
-
-        for (key, item) in config.items {
-            let current_context = serde_json::Value::Object(answers.clone());
-
-            // Sometimes "help" contain the value with the template strings.
-            // This function renders it and returns rendered value.
-            let help_rendered =
-                engine.render(&item.help, &current_context).unwrap_or(item.help.clone());
-
-            match item.item_type {
-                ConfigItemType::Str => {
-                    let (key, value) = if !item.choices.is_empty() {
-                        if item.multiselect {
-                            get_question_value(
-                                help_rendered,
-                                key,
-                                item,
-                                serde_json::Value::Null,
-                                QuestionType::MultipleChoice,
-                                &parsed,
-                            )?
-                        } else {
-                            let default_value = if let Some(default_value) = &item.default
-                            {
-                                if let Some(default_str) = default_value.as_str() {
-                                    item.choices
-                                        .iter()
-                                        .position(|choice| choice == default_str)
-                                        .unwrap_or(0)
-                                } else {
-                                    0
-                                }
-                            } else {
-                                0
-                            };
-                            get_question_value(
-                                help_rendered,
-                                key,
-                                item,
-                                serde_json::Value::Number(default_value.into()),
-                                QuestionType::SingleChoice,
-                                &parsed,
-                            )?
-                        }
-                    } else {
-                        let default_value = if let Some(default_value) = &item.default {
-                            if let Some(s) = default_value.as_str() {
-                                engine.render(s, &current_context).unwrap_or_default()
-                            } else {
-                                String::new()
-                            }
-                        } else {
-                            String::new()
-                        };
-                        get_question_value(
-                            help_rendered,
-                            key,
-                            item,
-                            serde_json::Value::String(default_value),
-                            QuestionType::Text,
-                            &parsed,
-                        )?
-                    };
-                    answers.insert(key, value);
-                }
-                ConfigItemType::Bool => {
-                    let default_value = if let Some(default_value) = &item.default {
-                        default_value.as_bool().unwrap_or(false)
-                    } else {
-                        false
-                    };
-                    let (key, value) = get_question_value(
-                        help_rendered,
-                        key,
-                        item,
-                        serde_json::Value::Bool(default_value),
-                        QuestionType::YesNo,
-                        &parsed,
-                    )?;
-
-                    answers.insert(key, value);
-                }
-            };
-        }
-
-        let context = serde_json::Value::Object(answers);
+        let context = get_context(&*engine, config, parsed)?;
 
         // Process ignore patterns
         let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;

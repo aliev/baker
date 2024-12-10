@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from typing import Literal, TypedDict
+from typing import Any, Literal, TypedDict
 import pathlib
 from venv import create
 import sys
@@ -15,7 +15,7 @@ class Context(TypedDict):
 
 
 class Input(TypedDict):
-    context: Context
+    context: dict[str, Any]
     template_dir: str
     output_dir: str
 
