@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="artwork/logo.ai.png" alt="" width=320>
+  <img src="assets/logo.ai.png" alt="" width=320>
   <p><strong>baker: a fast project scaffolding tool written in Rust that generates projects from minijinja templates.</strong></p>
 </div>
 
@@ -119,3 +119,9 @@ baker examples/python-package baker-example --context '{"generate_main": true, "
 ```
 
 This command allows skipping the interactive prompts by providing all required values.
+
+### Hooks flow
+
+<div align="center">
+  <img src="assets/hooks.png" alt="" width=520>
+</div>
