@@ -107,14 +107,6 @@ pub fn get_yes_no_default(question: &Question) -> serde_json::Value {
     serde_json::Value::Bool(default_value)
 }
 
-/// Returns the question value and its key
-pub fn get_answer(
-    question_type: QuestionType,
-    default_value: serde_json::Value,
-) -> BakerResult<(String, serde_json::Value)> {
-    todo!();
-}
-
 pub fn get_answers(
     engine: &dyn TemplateEngine,
     config: Config,
@@ -158,7 +150,8 @@ pub fn get_answers(
                 .unwrap_or(question.help.clone());
             prompt_answer(key, question_type, default_value, help_rendered, question)?
         } else {
-            get_answer(question_type, default_value)?
+            // Return the default answer
+            (key, default_answer.unwrap().to_owned())
         };
         answers.insert(key, value);
     }
