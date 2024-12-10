@@ -4,6 +4,7 @@
 
 use crate::config::Question;
 use crate::error::{BakerError, BakerResult};
+use crate::parser::QuestionType;
 
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
 
@@ -20,8 +21,8 @@ use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
 pub fn prompt_multiple_choice(
-    prompt: String,
     key: String,
+    prompt: String,
     question: Question,
 ) -> BakerResult<(String, serde_json::Value)> {
     let indices = MultiSelect::new()
@@ -53,8 +54,8 @@ pub fn prompt_multiple_choice(
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
 pub fn prompt_single_choice(
-    prompt: String,
     key: String,
+    prompt: String,
     question: Question,
     default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
@@ -88,8 +89,8 @@ pub fn prompt_single_choice(
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
 pub fn prompt_string(
-    prompt: String,
     key: String,
+    prompt: String,
     question: Question,
     default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
@@ -131,8 +132,8 @@ pub fn prompt_string(
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
 pub fn prompt_boolean(
-    prompt: String,
     key: String,
+    prompt: String,
     default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
     let default_value = default_value.as_bool().unwrap();
@@ -166,4 +167,21 @@ pub fn prompt_confirm_hooks_execution<S: Into<String>>(
     Confirm::new().with_prompt(prompt).default(false).interact().map_err(|e| {
         BakerError::HookError(format!("failed to get hooks confirmation: {}", e))
     })
+}
+
+pub fn prompt_answer(
+    key: String,
+    question_type: QuestionType,
+    default_value: serde_json::Value,
+    prompt: String,
+    question: Question,
+) -> BakerResult<(String, serde_json::Value)> {
+    match question_type {
+        QuestionType::MultipleChoice => prompt_multiple_choice(key, prompt, question),
+        QuestionType::SingleChoice => {
+            prompt_single_choice(key, prompt, question, default_value)
+        }
+        QuestionType::YesNo => prompt_boolean(key, prompt, default_value),
+        QuestionType::Text => prompt_string(key, prompt, question, default_value),
+    }
 }

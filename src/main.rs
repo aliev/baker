@@ -8,7 +8,7 @@ use baker::{
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{get_hooks, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
-    parser::{get_context, get_context_value},
+    parser::{get_answers, get_context_value},
     processor::{ensure_output_dir, process_entry},
     prompt::prompt_confirm_hooks_execution,
     template::{
@@ -87,16 +87,16 @@ fn run(args: Args) -> BakerResult<()> {
 
         // Trying to local context from --context
         // If it fails it returns null Value.
-        let parsed = get_context_value(args.context)?;
+        let context_answers = get_context_value(args.context)?;
 
-        let context = get_context(&*engine, config, parsed)?;
+        let answers = get_answers(&*engine, config, context_answers)?;
 
         // Process ignore patterns
         let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;
 
         // Execute pre-generation hook
         if execute_hooks && pre_hook.exists() {
-            run_hook(&template_dir, &output_dir, &pre_hook, &context)?;
+            run_hook(&template_dir, &output_dir, &pre_hook, &answers)?;
         }
 
         // Process template files
@@ -105,7 +105,7 @@ fn run(args: Args) -> BakerResult<()> {
                 entry,
                 &template_dir,
                 &output_dir,
-                &context,
+                &answers,
                 &*engine,
                 &ignored_set,
                 args.overwrite,
@@ -122,7 +122,7 @@ fn run(args: Args) -> BakerResult<()> {
 
         // Execute post-generation hook
         if execute_hooks && post_hook.exists() {
-            run_hook(&template_dir, &output_dir, &post_hook, &context)?;
+            run_hook(&template_dir, &output_dir, &post_hook, &answers)?;
         }
 
         println!(

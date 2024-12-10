@@ -3,7 +3,8 @@ project_name:
   help: "Please enter the project name"
 author_name:
   type: str
-  help: "Please enter the author name"
+  help: "Please enter the author name for {{project_name}}"
+  default: "{{project_name}}"
 project_slug:
   type: str
   help: "Pleasse enter the project slug"

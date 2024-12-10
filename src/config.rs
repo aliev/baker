@@ -14,7 +14,7 @@ pub const CONFIG_FILES: [&str; 3] = ["baker.json", "baker.yml", "baker.yaml"];
 /// Type of question to be presented to the user
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum ConfigItemType {
+pub enum ValueType {
     /// String input question type
     Str,
     /// Boolean (yes/no) question type
@@ -29,7 +29,7 @@ pub struct Question {
     pub help: String,
     /// Type of the question (string or boolean)
     #[serde(rename = "type")]
-    pub item_type: ConfigItemType,
+    pub value_type: ValueType,
     /// Optional default value for the question
     #[serde(default)]
     pub default: Option<serde_json::Value>,
