@@ -1,8 +1,6 @@
-use crate::config::{Config, ConfigItemType, Question};
+use crate::config::{Config, Question, ValueType};
 use crate::error::{BakerError, BakerResult};
-use crate::prompt::{
-    prompt_boolean, prompt_multiple_choice, prompt_single_choice, prompt_string,
-};
+use crate::prompt::prompt_answer;
 use crate::template::TemplateEngine;
 
 pub enum QuestionType {
@@ -81,7 +79,7 @@ pub fn get_single_choice_default(questions: &Question) -> serde_json::Value {
 
 pub fn get_text_default(
     question: &Question,
-    current_context: serde_json::Value,
+    current_context: &serde_json::Value,
     engine: &dyn TemplateEngine,
 ) -> serde_json::Value {
     let default_value = if let Some(default_value) = &question.default {
@@ -108,120 +106,60 @@ pub fn get_yes_no_default(question: &Question) -> serde_json::Value {
 }
 
 /// Returns the question value and its key
-pub fn get_question_value(
-    help_rendered: String,
-    key: String,
-    config_item: Question,
-    default_value: serde_json::Value,
+pub fn get_answer(
     question_type: QuestionType,
-    parsed: &serde_json::Value,
+    default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
-    if parsed.is_null() {
-        match question_type {
-            QuestionType::MultipleChoice => {
-                // when
-                // type: str
-                // choices: ...
-                // multiselect: true
-                prompt_multiple_choice(help_rendered, key, config_item)
-            }
-            QuestionType::SingleChoice => {
-                // when
-                // type: str
-                // choices: ...
-                // multiselect: false
-                prompt_single_choice(help_rendered, key, config_item, default_value)
-            }
-            QuestionType::YesNo => {
-                // when
-                // type: bool
-                prompt_boolean(help_rendered, key, default_value)
-            }
-            QuestionType::Text => {
-                // when
-                // type: str
-                prompt_string(help_rendered, key, config_item, default_value)
-            }
-        }
-    } else {
-        get_value_or_default(key, parsed.clone(), default_value)
-    }
+    todo!();
 }
 
-pub fn get_context(
+pub fn get_answers(
     engine: &dyn TemplateEngine,
     config: Config,
-    parsed: serde_json::Value,
+    context_answers: serde_json::Value,
 ) -> BakerResult<serde_json::Value> {
     let mut answers = serde_json::Map::new();
 
     for (key, question) in config.questions {
         let current_context = serde_json::Value::Object(answers.clone());
 
-        // Sometimes "help" contain the value with the template strings.
-        // This function renders it and returns rendered value.
-        let help_rendered = engine
-            .render(&question.help, &current_context)
-            .unwrap_or(question.help.clone());
+        let answer = context_answers.get(&key);
 
-        match question.item_type {
-            ConfigItemType::Str => {
-                let (key, value) = if !question.choices.is_empty() {
+        let (question_type, default_value) = match question.value_type {
+            ValueType::Str => {
+                if !question.choices.is_empty() {
                     if question.multiselect {
-                        get_question_value(
-                            help_rendered,
-                            key,
-                            question,
-                            serde_json::Value::Null,
-                            QuestionType::MultipleChoice,
-                            &parsed,
-                        )?
+                        (QuestionType::MultipleChoice, serde_json::Value::Null)
                     } else {
                         // Extracts the default value from config.default (baker.yaml)
                         // if the value contains the template string it renders it.
                         let default_value = get_single_choice_default(&question);
-
-                        // This function decides from where to get the value
-                        // from user's input or from the defaults.
-                        get_question_value(
-                            help_rendered,
-                            key,
-                            question,
-                            default_value,
-                            QuestionType::SingleChoice,
-                            &parsed,
-                        )?
+                        (QuestionType::SingleChoice, default_value)
                     }
                 } else {
                     let default_value =
-                        get_text_default(&question, current_context, &*engine);
-                    get_question_value(
-                        help_rendered,
-                        key,
-                        question,
-                        default_value,
-                        QuestionType::Text,
-                        &parsed,
-                    )?
-                };
-                answers.insert(key, value);
+                        get_text_default(&question, &current_context, &*engine);
+                    (QuestionType::Text, default_value)
+                }
             }
-            ConfigItemType::Bool => {
+            ValueType::Bool => {
                 let default_value = get_yes_no_default(&question);
-                let (key, value) = get_question_value(
-                    help_rendered,
-                    key,
-                    question,
-                    default_value,
-                    QuestionType::YesNo,
-                    &parsed,
-                )?;
-
-                answers.insert(key, value);
+                (QuestionType::YesNo, default_value)
             }
         };
+
+        let (key, value) = if answer.is_none() {
+            // Sometimes "help" contain the value with the template strings.
+            // This function renders it and returns rendered value.
+            let help_rendered = engine
+                .render(&question.help, &current_context)
+                .unwrap_or(question.help.clone());
+            prompt_answer(key, question_type, default_value, help_rendered, question)?
+        } else {
+            get_answer(question_type, default_value)?
+        };
+        answers.insert(key, value);
     }
 
-    let context = serde_json::Value::Object(answers);
-    Ok(context)
+    Ok(serde_json::Value::Object(answers))
 }

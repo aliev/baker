@@ -198,7 +198,7 @@ pub fn is_rendered_path_valid(rendered_path: &str) -> bool {
 /// # Arguments
 /// * `path` - Path to the template file
 /// * `target_path` - Target output path
-/// * `context` - Template context
+/// * `answers` - Template context
 /// * `engine` - Template rendering engine
 ///
 /// # Returns
@@ -206,11 +206,11 @@ pub fn is_rendered_path_valid(rendered_path: &str) -> bool {
 fn process_template_file<P: AsRef<Path>>(
     path: P,
     target_path: P,
-    context: &serde_json::Value,
+    answers: &serde_json::Value,
     engine: &dyn TemplateEngine,
 ) -> BakerResult<()> {
     let content = read_file(&path)?;
-    let final_content = engine.render(&content, context)?;
+    let final_content = engine.render(&content, answers)?;
     write_file(&target_path, &final_content)?;
     Ok(())
 }
@@ -220,7 +220,7 @@ fn process_file<P: AsRef<Path>>(
     source: P,
     target: P,
     needs_processing: bool,
-    context: &serde_json::Value,
+    answers: &serde_json::Value,
     engine: &dyn TemplateEngine,
     overwrite: Option<bool>,
 ) -> BakerResult<()> {
@@ -248,7 +248,7 @@ fn process_file<P: AsRef<Path>>(
         println!("Creating: '{}'.", target.display());
     }
     if needs_processing {
-        process_template_file(source, target, context, engine)?
+        process_template_file(source, target, answers, engine)?
     } else {
         copy_file(source, target)?
     }
@@ -260,7 +260,7 @@ pub fn process_entry(
     entry: Result<walkdir::DirEntry, walkdir::Error>,
     template_dir: &Path,
     output_dir: &Path,
-    context: &serde_json::Value,
+    answers: &serde_json::Value,
     engine: &dyn TemplateEngine,
     ignored_set: &GlobSet,
     overwrite: Option<bool>,
@@ -285,7 +285,7 @@ pub fn process_entry(
         BakerError::TemplateError(format!("Invalid path '{}'.", path.display()))
     })?;
 
-    let rendered_path_str = engine.render(path_str, context).map_err(|e| {
+    let rendered_path_str = engine.render(path_str, answers).map_err(|e| {
         BakerError::TemplateError(format!("Failed to render path '{}': {}.", path_str, e))
     })?;
 
@@ -312,7 +312,7 @@ pub fn process_entry(
     if path.is_dir() {
         create_dir_all(&target_path)?
     } else {
-        process_file(path, &target_path, needs_processing, context, engine, overwrite)?
+        process_file(path, &target_path, needs_processing, answers, engine, overwrite)?
     }
 
     Ok(())
