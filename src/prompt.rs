@@ -2,7 +2,7 @@
 //! This module provides functionality for loading and processing template configuration files
 //! with support for variable interpolation.
 
-use crate::config::ConfigItem;
+use crate::config::Question;
 use crate::error::{BakerError, BakerResult};
 
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
@@ -22,7 +22,7 @@ use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
 pub fn prompt_multiple_choice(
     prompt: String,
     key: String,
-    question: ConfigItem,
+    question: Question,
 ) -> BakerResult<(String, serde_json::Value)> {
     let indices = MultiSelect::new()
         .with_prompt(prompt)
@@ -55,7 +55,7 @@ pub fn prompt_multiple_choice(
 pub fn prompt_single_choice(
     prompt: String,
     key: String,
-    question: ConfigItem,
+    question: Question,
     default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
     let default_value: usize = default_value.as_u64().unwrap() as usize;
@@ -90,7 +90,7 @@ pub fn prompt_single_choice(
 pub fn prompt_string(
     prompt: String,
     key: String,
-    question: ConfigItem,
+    question: Question,
     default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
     let default_str = match default_value {

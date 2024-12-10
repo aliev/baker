@@ -23,7 +23,7 @@ pub enum ConfigItemType {
 
 /// Represents a single question in the configuration
 #[derive(Debug, Deserialize)]
-pub struct ConfigItem {
+pub struct Question {
     /// Help text/prompt to display to the user
     #[serde(default)]
     pub help: String,
@@ -52,7 +52,7 @@ pub struct ConfigItem {
 pub struct Config {
     /// Map of question identifiers to their configurations
     #[serde(flatten)]
-    pub items: IndexMap<String, ConfigItem>,
+    pub questions: IndexMap<String, Question>,
 }
 
 /// Loads configuration from a template directory, trying multiple file formats.

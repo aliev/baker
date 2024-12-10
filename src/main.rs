@@ -4,14 +4,11 @@
 
 use baker::{
     cli::{get_args, Args},
-    config::{load_config, Config, ConfigItemType, CONFIG_FILES},
+    config::{load_config, Config, CONFIG_FILES},
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{get_hooks, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
-    parser::{
-        get_context, get_context_value, get_question_value, get_single_choice_default,
-        get_text_default, get_yes_no_default, QuestionType,
-    },
+    parser::{get_context, get_context_value},
     processor::{ensure_output_dir, process_entry},
     prompt::prompt_confirm_hooks_execution,
     template::{
@@ -19,7 +16,6 @@ use baker::{
         TemplateSource,
     },
 };
-use serde_json::json;
 use walkdir::WalkDir;
 
 /// Main application entry point.
