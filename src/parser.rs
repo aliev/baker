@@ -51,7 +51,9 @@ pub fn get_value_or_default<S: Into<String>>(
 /// # Returns
 /// - `Ok(serde_json::Value)` if the input string is valid JSON or empty.
 /// - `Err(BakerError)` if the input string is not valid JSON.
-pub fn get_context_value<S: Into<String>>(context: S) -> BakerResult<serde_json::Value> {
+pub fn get_default_answers<S: Into<String>>(
+    context: S,
+) -> BakerResult<serde_json::Value> {
     let context: String = context.into();
     if context.is_empty() {
         return Ok(serde_json::Value::Null);
@@ -116,14 +118,14 @@ pub fn get_answer(
 pub fn get_answers(
     engine: &dyn TemplateEngine,
     config: Config,
-    context_answers: serde_json::Value,
+    default_answers: serde_json::Value,
 ) -> BakerResult<serde_json::Value> {
     let mut answers = serde_json::Map::new();
 
     for (key, question) in config.questions {
         let current_context = serde_json::Value::Object(answers.clone());
 
-        let answer = context_answers.get(&key);
+        let default_answer = default_answers.get(&key);
 
         let (question_type, default_value) = match question.value_type {
             ValueType::Str => {
@@ -148,7 +150,7 @@ pub fn get_answers(
             }
         };
 
-        let (key, value) = if answer.is_none() {
+        let (key, value) = if default_answer.is_none() {
             // Sometimes "help" contain the value with the template strings.
             // This function renders it and returns rendered value.
             let help_rendered = engine

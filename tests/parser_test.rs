@@ -1,6 +1,6 @@
 use baker::{
     error::BakerError,
-    parser::{get_context_value, get_value_or_default},
+    parser::{get_default_answers, get_value_or_default},
 };
 use serde_json::json;
 
@@ -63,21 +63,21 @@ fn test_value_is_null_in_parsed_context() {
 #[test]
 fn test_empty_context() {
     let context = "";
-    let result = get_context_value(context).unwrap();
+    let result = get_default_answers(context).unwrap();
     assert_eq!(result, serde_json::Value::Null);
 }
 
 #[test]
 fn test_valid_json_context() {
     let context = r#"{"key": "value"}"#;
-    let result = get_context_value(context).unwrap();
+    let result = get_default_answers(context).unwrap();
     assert_eq!(result, json!({"key": "value"}));
 }
 
 #[test]
 fn test_invalid_json_context() {
     let context = r#"{"key": "value""#; // Missing closing brace
-    let result = get_context_value(context);
+    let result = get_default_answers(context);
     assert!(result.is_err());
     if let Err(BakerError::TemplateError(err_msg)) = result {
         assert!(err_msg.contains("Failed to parse context as JSON"));
@@ -89,7 +89,7 @@ fn test_invalid_json_context() {
 #[test]
 fn test_context_with_whitespace() {
     let context = " ";
-    let result = get_context_value(context);
+    let result = get_default_answers(context);
     assert!(result.is_err());
     if let Err(BakerError::TemplateError(err_msg)) = result {
         assert!(err_msg.contains("Failed to parse context as JSON"));
@@ -101,6 +101,6 @@ fn test_context_with_whitespace() {
 #[test]
 fn test_numeric_json_context() {
     let context = "42";
-    let result = get_context_value(context).unwrap();
+    let result = get_default_answers(context).unwrap();
     assert_eq!(result, json!(42));
 }
