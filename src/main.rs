@@ -8,7 +8,7 @@ use baker::{
     error::{default_error_handler, BakerError, BakerResult},
     hooks::{get_hooks, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
-    parser::{get_answers, get_context_value},
+    parser::{get_answers, get_default_answers},
     processor::{ensure_output_dir, process_entry},
     prompt::prompt_confirm_hooks_execution,
     template::{
@@ -87,9 +87,9 @@ fn run(args: Args) -> BakerResult<()> {
 
         // Trying to local context from --context
         // If it fails it returns null Value.
-        let context_answers = get_context_value(args.context)?;
+        let default_answers = get_default_answers(args.context)?;
 
-        let answers = get_answers(&*engine, config, context_answers)?;
+        let answers = get_answers(&*engine, config, default_answers)?;
 
         // Process ignore patterns
         let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;
