@@ -51,7 +51,7 @@ pub struct Args {
 
     /// Get context from argument not from the questions
     #[arg(short, long, default_value = "")]
-    pub context: String,
+    pub answers: String,
 
     /// Overwrite files that already exist, without asking.
     #[arg(short, long)]
