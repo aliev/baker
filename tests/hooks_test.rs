@@ -26,7 +26,7 @@ fn test_output_serialization() {
     let output = Output {
         template_dir: "/path/to/template",
         output_dir: "/path/to/output",
-        answers: &serde_json::json!({"key": "value"}),
+        answers: Some(&serde_json::json!({"key": "value"})),
     };
 
     let serialized = serde_json::to_string(&output).unwrap();

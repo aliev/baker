@@ -20,9 +20,9 @@ use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
-pub fn prompt_multiple_choice(
-    key: String,
-    prompt: String,
+pub fn prompt_multiple_choice<S: Into<String>>(
+    key: S,
+    prompt: S,
     question: Question,
     default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
@@ -47,7 +47,7 @@ pub fn prompt_multiple_choice(
         .map(|&i| serde_json::Value::String(question.choices[i].clone()))
         .collect();
 
-    Ok((key, serde_json::Value::Array(selected)))
+    Ok((key.into(), serde_json::Value::Array(selected)))
 }
 
 /// Prompts the user to select a single item from a list of choices.
@@ -62,9 +62,9 @@ pub fn prompt_multiple_choice(
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
-pub fn prompt_single_choice(
-    key: String,
-    prompt: String,
+pub fn prompt_single_choice<S: Into<String>>(
+    key: S,
+    prompt: S,
     question: Question,
     default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
@@ -78,7 +78,7 @@ pub fn prompt_single_choice(
             BakerError::ConfigError(format!("failed to get user selection: {}", e))
         })?;
 
-    Ok((key, serde_json::Value::String(question.choices[selection].clone())))
+    Ok((key.into(), serde_json::Value::String(question.choices[selection].clone())))
 }
 
 /// Prompts the user for a string input with optional default value and secret handling.
@@ -97,9 +97,9 @@ pub fn prompt_single_choice(
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
-pub fn prompt_string(
-    key: String,
-    prompt: String,
+pub fn prompt_string<S: Into<String>>(
+    key: S,
+    prompt: S,
     question: Question,
     default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
@@ -108,6 +108,8 @@ pub fn prompt_string(
         serde_json::Value::Null => String::new(),
         _ => default_value.to_string(),
     };
+
+    let prompt = prompt.into();
 
     let input = if question.secret {
         let mut password = Password::new().with_prompt(&prompt);
@@ -126,7 +128,7 @@ pub fn prompt_string(
         )?
     };
 
-    Ok((key, serde_json::Value::String(input)))
+    Ok((key.into(), serde_json::Value::String(input)))
 }
 
 /// Prompts the user for a boolean (yes/no) response.
@@ -140,9 +142,9 @@ pub fn prompt_string(
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if user interaction fails
-pub fn prompt_boolean(
-    key: String,
-    prompt: String,
+pub fn prompt_boolean<S: Into<String>>(
+    key: S,
+    prompt: S,
     default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
     let default_value = default_value.as_bool().unwrap();
@@ -153,7 +155,7 @@ pub fn prompt_boolean(
             },
         )?;
 
-    Ok((key, serde_json::Value::Bool(result)))
+    Ok((key.into(), serde_json::Value::Bool(result)))
 }
 
 /// Prompts for confirmation before executing hooks.
@@ -178,11 +180,11 @@ pub fn prompt_confirm_hooks_execution<S: Into<String>>(
     })
 }
 
-pub fn prompt_answer(
-    key: String,
+pub fn prompt_answer<S: Into<String>>(
+    key: S,
     question_type: QuestionType,
     default_value: serde_json::Value,
-    prompt: String,
+    prompt: S,
     question: Question,
 ) -> BakerResult<(String, serde_json::Value)> {
     match question_type {

@@ -2,6 +2,8 @@
 //! Handles command-line argument parsing, template processing flow,
 //! and coordinates interactions between different modules.
 
+use std::io::Read;
+
 use baker::{
     cli::{get_args, Args},
     config::{load_config, Config, CONFIG_FILES},
@@ -54,20 +56,28 @@ fn main() {
 /// 7. Processes template files
 /// 8. Executes post-generation hooks
 fn run(args: Args) -> BakerResult<()> {
-    if let Some(source) = TemplateSource::from_string(&args.template) {
-        let output_dir = ensure_output_dir(args.output_dir, args.force)?;
-        let loader: Box<dyn TemplateLoader> = match source {
-            TemplateSource::Git(_) => Box::new(GitLoader::new()),
-            TemplateSource::FileSystem(_) => Box::new(LocalLoader::new()),
-        };
-        let template_dir = loader.load(&source)?;
-        // Load and parse configuration
-        let config_content = load_config(&template_dir, &CONFIG_FILES)?;
+    let source = if let Some(source) = TemplateSource::from_string(&args.template) {
+        source
+    } else {
+        return Err(BakerError::TemplateError(format!(
+            "invalid template source: {}",
+            args.template
+        )));
+    };
 
-        let (pre_hook_dir, post_hook_dir) = get_hooks_dirs(&template_dir);
+    let output_dir = ensure_output_dir(args.output_dir, args.force)?;
+    let loader: Box<dyn TemplateLoader> = match source {
+        TemplateSource::Git(_) => Box::new(GitLoader::new()),
+        TemplateSource::FileSystem(_) => Box::new(LocalLoader::new()),
+    };
+    let template_dir = loader.load(&source)?;
+    // Load and parse configuration
+    let config_content = load_config(&template_dir, &CONFIG_FILES)?;
 
-        let execute_hooks = if pre_hook_dir.exists() || post_hook_dir.exists() {
-            prompt_confirm_hooks_execution(
+    let (pre_hook_dir, post_hook_dir) = get_hooks_dirs(&template_dir);
+
+    let execute_hooks = if pre_hook_dir.exists() || post_hook_dir.exists() {
+        prompt_confirm_hooks_execution(
                 args.skip_hooks_check,
                 format!(
                     "WARNING: This template contains the following hooks that will execute commands on your system:\n{}{}{}",
@@ -76,72 +86,65 @@ fn run(args: Args) -> BakerResult<()> {
                     "Do you want to run these hooks?",
                 ),
             )?
-        } else {
-            false
-        };
+    } else {
+        false
+    };
 
-        // Template processor initialization
-        let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
-        // TODO: map_err
-        let config: Config = serde_yaml::from_str(&config_content).unwrap();
+    // Template processor initialization
+    let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
+    // TODO: map_err
+    let config: Config = serde_yaml::from_str(&config_content).unwrap();
 
-        // Gets the answers from --answers
-        let default_answers = if args.answers.is_empty() {
-            serde_json::Value::Null
-        } else {
-            serde_json::from_str(&args.answers).map_err(|e| {
-                BakerError::TemplateError(format!(
-                    "Failed to parse context as JSON: {}",
-                    e
-                ))
-            })?
-        };
+    // Execute pre-generation hook
+    let output = if execute_hooks && pre_hook_dir.exists() {
+        run_hook(&template_dir, &output_dir, &pre_hook_dir, None, true)?
+    } else {
+        None
+    };
 
-        let answers = get_answers(&*engine, config, default_answers)?;
+    let default_answers = if !args.answers.is_empty() {
+        serde_json::from_str(&args.answers).unwrap_or_else(|_| serde_json::Value::Null)
+    } else if let Some(mut stdout) = output {
+        let mut buf = String::new();
+        stdout.read_to_string(&mut buf).expect("Failed to read stdout");
+        serde_json::from_str(&buf).unwrap_or_else(|_| serde_json::Value::Null)
+    } else {
+        serde_json::Value::Null
+    };
 
-        // Process ignore patterns
-        let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;
+    dbg!(&default_answers);
 
-        // Execute pre-generation hook
-        if execute_hooks && pre_hook_dir.exists() {
-            run_hook(&template_dir, &output_dir, &pre_hook_dir, &answers)?;
-        }
+    let answers = get_answers(&*engine, config, default_answers)?;
 
-        // Process template files
-        for entry in WalkDir::new(&template_dir) {
-            if let Err(e) = process_entry(
-                entry,
-                &template_dir,
-                &output_dir,
-                &answers,
-                &*engine,
-                &ignored_set,
-                args.overwrite,
-            ) {
-                match e {
-                    BakerError::TemplateError(msg) => {
-                        log::warn!("Template processing failed: {}", msg)
-                    }
-                    BakerError::IoError(e) => log::error!("IO operation failed: {}", e),
-                    _ => log::error!("Operation failed: {}", e),
+    // Process ignore patterns
+    let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;
+
+    // Process template files
+    for entry in WalkDir::new(&template_dir) {
+        if let Err(e) = process_entry(
+            entry,
+            &template_dir,
+            &output_dir,
+            &answers,
+            &*engine,
+            &ignored_set,
+            args.overwrite,
+        ) {
+            match e {
+                BakerError::TemplateError(msg) => {
+                    log::warn!("Template processing failed: {}", msg)
                 }
+                BakerError::IoError(e) => log::error!("IO operation failed: {}", e),
+                _ => log::error!("Operation failed: {}", e),
             }
         }
-
-        // Execute post-generation hook
-        if execute_hooks && post_hook_dir.exists() {
-            run_hook(&template_dir, &output_dir, &post_hook_dir, &answers)?;
-        }
-
-        println!(
-            "Template generation completed successfully in {}.",
-            output_dir.display()
-        );
-    } else {
-        return Err(BakerError::TemplateError(format!(
-            "invalid template source: {}",
-            args.template
-        )));
     }
+
+    // Execute post-generation hook
+    if execute_hooks && post_hook_dir.exists() {
+        run_hook(&template_dir, &output_dir, &post_hook_dir, Some(&answers), false)?;
+    }
+
+    println!("Template generation completed successfully in {}.", output_dir.display());
     Ok(())
 }

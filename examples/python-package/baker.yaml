@@ -1,6 +1,20 @@
+user_os:
+  type: str
+username:
+  type: str
+now:
+  type: str
+
+
 project_name:
   type: str
-  help: "Please enter the project name"
+  help: "Hello {{username}}. Please enter the project name"
+
+cronjob_schedule:
+  type: str
+  help: "Enter the date when to schedule the cronjob"
+  default: "{{now}}"
+
 author_name:
   type: str
   help: "Please enter the author name for {{project_name}}"
