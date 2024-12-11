@@ -1,0 +1,22 @@
+#!/usr/bin/env python
+
+import json
+import sys
+import getpass
+import datetime
+
+
+def main():
+    context = json.load(sys.stdin)
+    template_dir = context["template_dir"]
+
+    res = {
+        "user_os": sys.platform,
+        "username": getpass.getuser(),
+        "now": datetime.datetime.now().isoformat()
+    }
+
+    print(json.dumps(res), file=sys.stdout)
+
+if __name__ == "__main__":
+    main()

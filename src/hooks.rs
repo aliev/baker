@@ -3,9 +3,9 @@
 //! to execute custom scripts during project generation.
 
 use serde::Serialize;
-use std::io::Write;
+use std::io::{Stdout, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{ChildStdout, Command, Stdio};
 
 use crate::error::{BakerError, BakerResult};
 
@@ -19,7 +19,7 @@ pub struct Output<'a> {
     /// Absolute path to the output directory
     pub output_dir: &'a str,
     /// Context data for template rendering
-    pub answers: &'a serde_json::Value,
+    pub answers: Option<&'a serde_json::Value>,
 }
 
 /// Returns the file path as a string if the file exists; otherwise, returns an empty string.
@@ -70,8 +70,9 @@ pub fn run_hook<P: AsRef<Path>>(
     template_dir: P,
     output_dir: P,
     script_path: P,
-    answers: &serde_json::Value,
-) -> BakerResult<()> {
+    answers: Option<&serde_json::Value>,
+    is_piped_stdout: bool,
+) -> BakerResult<Option<ChildStdout>> {
     let script_path = script_path.as_ref();
 
     let output = Output {
@@ -83,12 +84,12 @@ pub fn run_hook<P: AsRef<Path>>(
     let output_data = serde_json::to_vec(&output).unwrap();
 
     if !script_path.exists() {
-        return Ok(());
+        return Ok(None);
     }
 
     let mut child = Command::new(script_path)
         .stdin(Stdio::piped())
-        .stdout(Stdio::inherit())
+        .stdout(if is_piped_stdout { Stdio::piped() } else { Stdio::inherit() })
         .stderr(Stdio::inherit())
         .spawn()
         .map_err(BakerError::IoError)?;
@@ -108,5 +109,5 @@ pub fn run_hook<P: AsRef<Path>>(
         )));
     }
 
-    Ok(())
+    Ok(child.stdout)
 }
