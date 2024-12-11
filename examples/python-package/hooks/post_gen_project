@@ -7,7 +7,7 @@ import sys
 import json
 
 
-class Context(TypedDict):
+class AnswersType(TypedDict):
     create_tests: bool
     project_license: Literal["MIT", "BSD", "GPLv3", "Apache Software License 2.0", "Not open source"]
     project_name: str
@@ -15,7 +15,7 @@ class Context(TypedDict):
 
 
 class Input(TypedDict):
-    context: dict[str, Any]
+    answers: AnswersType
     template_dir: str
     output_dir: str
 
@@ -26,8 +26,8 @@ def main():
     output_dir_path = path / context["output_dir"]
     template_dir_path = path / context["template_dir"]
 
-    if context["context"]["project_license"] != "Not open source":
-        with open(template_dir_path / "licences" / context["context"]["project_license"], "r") as f:
+    if context["answers"]["project_license"] != "Not open source":
+        with open(template_dir_path / "licences" / context["answers"]["project_license"], "r") as f:
             licence_content = f.read()
 
         with open(output_dir_path / "LICENSE", "w") as f:

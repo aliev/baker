@@ -22,6 +22,9 @@ requirements:
   type: str
   help: Select requirements
   multiselect: true
+  default:
+    - django
+    - pydantic
   choices:
     - django
     - fastapi

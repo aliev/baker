@@ -19,7 +19,7 @@ pub struct Output<'a> {
     /// Absolute path to the output directory
     pub output_dir: &'a str,
     /// Context data for template rendering
-    pub context: &'a serde_json::Value,
+    pub answers: &'a serde_json::Value,
 }
 
 /// Returns the file path as a string if the file exists; otherwise, returns an empty string.
@@ -44,7 +44,7 @@ pub fn get_path_if_exists<P: AsRef<Path>>(path: P) -> String {
 ///
 /// # Returns
 /// * `(PathBuf, PathBuf)` - Tuple containing paths to pre and post hook scripts
-pub fn get_hooks<P: AsRef<Path>>(template_dir: P) -> (PathBuf, PathBuf) {
+pub fn get_hooks_dirs<P: AsRef<Path>>(template_dir: P) -> (PathBuf, PathBuf) {
     let template_dir = template_dir.as_ref();
     let hooks_dir = template_dir.join("hooks");
 
@@ -70,14 +70,14 @@ pub fn run_hook<P: AsRef<Path>>(
     template_dir: P,
     output_dir: P,
     script_path: P,
-    context: &serde_json::Value,
+    answers: &serde_json::Value,
 ) -> BakerResult<()> {
     let script_path = script_path.as_ref();
 
     let output = Output {
         template_dir: template_dir.as_ref().to_str().unwrap(),
         output_dir: output_dir.as_ref().to_str().unwrap(),
-        context,
+        answers,
     };
 
     let output_data = serde_json::to_vec(&output).unwrap();
