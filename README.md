@@ -16,7 +16,7 @@
 
 - **Interactive Prompt**: Asks for template variables interactively.
 - **Git Repository Support**: Generate templates directly from Git repositories.
-- **Hooks Support**: Execute pre and post-generation hooks.
+- **Language Independent Hooks:** Hooks can be written in any language.
 - **File Exclusion**: `.bakerignore` to specify files/directories to exclude.
 - **File Interpolation**: Template variable interpolation in filenames.
 - **Configurable**: Uses `baker.json`, `baker.yaml`, or `baker.yml` for configuration.

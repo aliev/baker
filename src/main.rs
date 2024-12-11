@@ -2,8 +2,6 @@
 //! Handles command-line argument parsing, template processing flow,
 //! and coordinates interactions between different modules.
 
-use std::io;
-
 use baker::{
     cli::{get_args, Args},
     config::{load_config, Config, CONFIG_FILES},

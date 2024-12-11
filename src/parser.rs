@@ -1,5 +1,3 @@
-use std::io;
-
 use crate::config::{Config, Question, ValueType};
 use crate::error::{BakerError, BakerResult};
 use crate::prompt::prompt_answer;
