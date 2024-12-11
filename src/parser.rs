@@ -1,3 +1,5 @@
+use std::io;
+
 use crate::config::{Config, Question, ValueType};
 use crate::error::{BakerError, BakerResult};
 use crate::prompt::prompt_answer;
@@ -142,16 +144,16 @@ pub fn get_answers(
             }
         };
 
-        let (key, value) = if default_answer.is_none() {
+        let (key, value) = if let Some(default_value) = default_answer {
+            // Return the default answer
+            (key, default_value.clone())
+        } else {
             // Sometimes "help" contain the value with the template strings.
             // This function renders it and returns rendered value.
             let help_rendered = engine
                 .render(&question.help, &current_context)
                 .unwrap_or(question.help.clone());
             prompt_answer(key, question_type, default_value, help_rendered, question)?
-        } else {
-            // Return the default answer
-            (key, default_answer.unwrap().to_owned())
         };
         answers.insert(key, value);
     }

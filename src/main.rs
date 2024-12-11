@@ -2,6 +2,8 @@
 //! Handles command-line argument parsing, template processing flow,
 //! and coordinates interactions between different modules.
 
+use std::io;
+
 use baker::{
     cli::{get_args, Args},
     config::{load_config, Config, CONFIG_FILES},
@@ -64,6 +66,10 @@ fn run(args: Args) -> BakerResult<()> {
         // Load and parse configuration
         let config_content = load_config(&template_dir, &CONFIG_FILES)?;
 
+        // Trying to local context from --context
+        // If it fails it returns null Value.
+        let default_answers = get_default_answers(&args.answers)?;
+
         let mut execute_hooks = false;
 
         let (pre_hook, post_hook) = get_hooks(&template_dir);
@@ -84,10 +90,6 @@ fn run(args: Args) -> BakerResult<()> {
         let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
         // TODO: map_err
         let config: Config = serde_yaml::from_str(&config_content).unwrap();
-
-        // Trying to local context from --context
-        // If it fails it returns null Value.
-        let default_answers = get_default_answers(args.context)?;
 
         let answers = get_answers(&*engine, config, default_answers)?;
 
