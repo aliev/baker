@@ -6,9 +6,9 @@ use baker::{
     cli::{get_args, Args},
     config::{load_config, Config, CONFIG_FILES},
     error::{default_error_handler, BakerError, BakerResult},
-    hooks::{get_hooks, get_path_if_exists, run_hook},
+    hooks::{get_hooks_dirs, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
-    parser::{get_answers, get_default_answers},
+    parser::get_answers,
     processor::{ensure_output_dir, process_entry},
     prompt::prompt_confirm_hooks_execution,
     template::{
@@ -64,30 +64,38 @@ fn run(args: Args) -> BakerResult<()> {
         // Load and parse configuration
         let config_content = load_config(&template_dir, &CONFIG_FILES)?;
 
-        // Trying to local context from --context
-        // If it fails it returns null Value.
-        let default_answers = get_default_answers(&args.answers)?;
+        let (pre_hook_dir, post_hook_dir) = get_hooks_dirs(&template_dir);
 
-        let mut execute_hooks = false;
-
-        let (pre_hook, post_hook) = get_hooks(&template_dir);
-
-        if pre_hook.exists() || post_hook.exists() {
-            execute_hooks = prompt_confirm_hooks_execution(
+        let execute_hooks = if pre_hook_dir.exists() || post_hook_dir.exists() {
+            prompt_confirm_hooks_execution(
                 args.skip_hooks_check,
                 format!(
                     "WARNING: This template contains the following hooks that will execute commands on your system:\n{}{}{}",
-                    get_path_if_exists(&post_hook),
-                    get_path_if_exists(&pre_hook),
+                    get_path_if_exists(&post_hook_dir),
+                    get_path_if_exists(&pre_hook_dir),
                     "Do you want to run these hooks?",
                 ),
-            )?;
-        }
+            )?
+        } else {
+            false
+        };
 
         // Template processor initialization
         let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
         // TODO: map_err
         let config: Config = serde_yaml::from_str(&config_content).unwrap();
+
+        // Gets the answers from --answers
+        let default_answers = if args.answers.is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::from_str(&args.answers).map_err(|e| {
+                BakerError::TemplateError(format!(
+                    "Failed to parse context as JSON: {}",
+                    e
+                ))
+            })?
+        };
 
         let answers = get_answers(&*engine, config, default_answers)?;
 
@@ -95,8 +103,8 @@ fn run(args: Args) -> BakerResult<()> {
         let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;
 
         // Execute pre-generation hook
-        if execute_hooks && pre_hook.exists() {
-            run_hook(&template_dir, &output_dir, &pre_hook, &answers)?;
+        if execute_hooks && pre_hook_dir.exists() {
+            run_hook(&template_dir, &output_dir, &pre_hook_dir, &answers)?;
         }
 
         // Process template files
@@ -121,8 +129,8 @@ fn run(args: Args) -> BakerResult<()> {
         }
 
         // Execute post-generation hook
-        if execute_hooks && post_hook.exists() {
-            run_hook(&template_dir, &output_dir, &post_hook, &answers)?;
+        if execute_hooks && post_hook_dir.exists() {
+            run_hook(&template_dir, &output_dir, &post_hook_dir, &answers)?;
         }
 
         println!(

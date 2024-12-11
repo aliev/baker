@@ -24,10 +24,19 @@ pub fn prompt_multiple_choice(
     key: String,
     prompt: String,
     question: Question,
+    default_value: serde_json::Value,
 ) -> BakerResult<(String, serde_json::Value)> {
+    let defaults = default_value
+        .as_array()
+        .map(|arr| {
+            arr.iter().map(|v| v.as_bool().unwrap_or(false)).collect::<Vec<bool>>()
+        })
+        .unwrap_or_default();
+
     let indices = MultiSelect::new()
         .with_prompt(prompt)
         .items(&question.choices)
+        .defaults(&defaults)
         .interact()
         .map_err(|e| {
             BakerError::ConfigError(format!("failed to get user selection: {}", e))
@@ -177,7 +186,9 @@ pub fn prompt_answer(
     question: Question,
 ) -> BakerResult<(String, serde_json::Value)> {
     match question_type {
-        QuestionType::MultipleChoice => prompt_multiple_choice(key, prompt, question),
+        QuestionType::MultipleChoice => {
+            prompt_multiple_choice(key, prompt, question, default_value)
+        }
         QuestionType::SingleChoice => {
             prompt_single_choice(key, prompt, question, default_value)
         }

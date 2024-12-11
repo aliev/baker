@@ -1,8 +1,0 @@
-#!/usr/bin/env python
-
-
-def main():
-    print('{"project_name": "TESTIUNG", "author_name": "Ali", "project_slug": "Ali"}')
-
-if __name__ == "__main__":
-    main()

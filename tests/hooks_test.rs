@@ -1,5 +1,5 @@
 use baker::{
-    hooks::{get_hooks, Output},
+    hooks::{get_hooks_dirs, Output},
     prompt::prompt_confirm_hooks_execution,
 };
 use tempfile::TempDir;
@@ -7,7 +7,7 @@ use tempfile::TempDir;
 #[test]
 fn test_get_hooks() {
     let temp_dir = TempDir::new().unwrap();
-    let (pre_hook, post_hook) = get_hooks(temp_dir.path());
+    let (pre_hook, post_hook) = get_hooks_dirs(temp_dir.path());
 
     assert_eq!(pre_hook, temp_dir.path().join("hooks/pre_gen_project"));
     assert_eq!(post_hook, temp_dir.path().join("hooks/post_gen_project"));
@@ -26,7 +26,7 @@ fn test_output_serialization() {
     let output = Output {
         template_dir: "/path/to/template",
         output_dir: "/path/to/output",
-        context: &serde_json::json!({"key": "value"}),
+        answers: &serde_json::json!({"key": "value"}),
     };
 
     let serialized = serde_json::to_string(&output).unwrap();
