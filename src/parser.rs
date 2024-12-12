@@ -1,4 +1,6 @@
-use crate::config::{Config, Question, ValueType};
+use indexmap::IndexMap;
+
+use crate::config::{Question, ValueType};
 use crate::error::Result;
 use crate::prompt::prompt_answer;
 use crate::template::TemplateEngine;
@@ -87,12 +89,12 @@ pub fn get_yes_no_default(question: &Question) -> serde_json::Value {
 
 pub fn get_answers(
     engine: &dyn TemplateEngine,
-    config: Config,
+    questions: IndexMap<String, Question>,
     default_answers: serde_json::Value,
 ) -> Result<serde_json::Value> {
     let mut answers = serde_json::Map::new();
 
-    for (key, question) in config.questions {
+    for (key, question) in questions {
         let current_context = serde_json::Value::Object(answers.clone());
 
         let default_answer = default_answers.get(&key);

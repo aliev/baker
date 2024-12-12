@@ -37,6 +37,7 @@ def main():
     print("Creating virtual environment in", output_dir_path)
     create(output_dir_path / ".venv")
     print("Virtual environment created")
+    print("HERE IS A CONTEXT", context)
 
 if __name__ == "__main__":
     main()

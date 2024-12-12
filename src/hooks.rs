@@ -97,6 +97,7 @@ pub fn run_hook<P: AsRef<Path>>(
     // Write context to stdin
     if let Some(mut stdin) = child.stdin.take() {
         stdin.write_all(&output_data).map_err(Error::IoError)?;
+        stdin.write_all(b"\n")?;
     }
 
     // Wait for the process to complete

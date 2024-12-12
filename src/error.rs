@@ -37,7 +37,7 @@ pub enum Error {
     #[error("BakerIgnore error: {0}.")]
     BakerIgnoreError(String),
 
-    #[error("Failed to parse globset patter. Original error: {e}")]
+    #[error("Failed to parse .bakerignore file. Original error: {e}")]
     GlobSetParseError { e: globset::Error },
 
     #[error("Failed to display confirmation prompt. Original error: {e}")]
@@ -50,6 +50,10 @@ pub enum Error {
 impl Error {
     pub fn from_dialoguer_error(e: dialoguer::Error) -> Self {
         Error::PromptError { e }
+    }
+
+    pub fn from_glob_set_error(e: globset::Error) -> Self {
+        Error::GlobSetParseError { e }
     }
 }
 
