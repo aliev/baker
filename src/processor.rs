@@ -7,7 +7,7 @@ use log::debug;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::error::{BakerError, BakerResult};
+use crate::error::{Error, Result};
 use crate::template::TemplateEngine;
 
 /// Ensures the output directory exists and is safe to write to.
@@ -21,16 +21,12 @@ use crate::template::TemplateEngine;
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if directory exists and force is false
-pub fn ensure_output_dir<P: AsRef<Path>>(
-    output_dir: P,
-    force: bool,
-) -> BakerResult<PathBuf> {
+pub fn ensure_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> Result<PathBuf> {
     let output_dir = output_dir.as_ref();
     if output_dir.exists() && !force {
-        return Err(BakerError::ConfigError(format!(
-            "Output directory '{}' already exists. Use --force to overwrite.",
-            output_dir.display()
-        )));
+        return Err(Error::OutputDirectoryExistsError {
+            output_dir: output_dir.display().to_string(),
+        });
     }
     Ok(output_dir.to_path_buf())
 }
@@ -45,8 +41,8 @@ pub fn ensure_output_dir<P: AsRef<Path>>(
 ///
 /// # Errors
 /// * Returns `BakerError::IoError` if file cannot be read
-fn read_file<P: AsRef<Path>>(path: P) -> BakerResult<String> {
-    fs::read_to_string(path).map_err(BakerError::IoError)
+fn read_file<P: AsRef<Path>>(path: P) -> Result<String> {
+    fs::read_to_string(path).map_err(Error::IoError)
 }
 
 /// Writes content to a file, creating parent directories if needed.
@@ -61,16 +57,16 @@ fn read_file<P: AsRef<Path>>(path: P) -> BakerResult<String> {
 /// # Notes
 /// - Converts relative paths to absolute using current working directory
 /// - Creates parent directories automatically
-fn write_file<P: AsRef<Path>>(path: P, content: &str) -> BakerResult<()> {
+fn write_file<P: AsRef<Path>>(path: P, content: &str) -> Result<()> {
     let path = path.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
     let abs_path =
         if path.is_absolute() { path.to_path_buf() } else { base_path.join(path) };
 
     if let Some(parent) = abs_path.parent() {
-        fs::create_dir_all(parent).map_err(BakerError::IoError)?;
+        fs::create_dir_all(parent).map_err(Error::IoError)?;
     }
-    fs::write(abs_path, content).map_err(BakerError::IoError)
+    fs::write(abs_path, content).map_err(Error::IoError)
 }
 
 /// Creates a directory and all its parent directories.
@@ -80,12 +76,12 @@ fn write_file<P: AsRef<Path>>(path: P, content: &str) -> BakerResult<()> {
 ///
 /// # Returns
 /// * `BakerResult<()>` - Success or error status
-fn create_dir_all<P: AsRef<Path>>(path: P) -> BakerResult<()> {
+fn create_dir_all<P: AsRef<Path>>(path: P) -> Result<()> {
     let path = path.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
     let abs_path =
         if path.is_absolute() { path.to_path_buf() } else { base_path.join(path) };
-    fs::create_dir_all(abs_path).map_err(BakerError::IoError)
+    fs::create_dir_all(abs_path).map_err(Error::IoError)
 }
 
 /// Copies a file from source to destination.
@@ -99,16 +95,16 @@ fn create_dir_all<P: AsRef<Path>>(path: P) -> BakerResult<()> {
 ///
 /// # Notes
 /// - Creates parent directories automatically
-fn copy_file<P: AsRef<Path>>(source: P, dest: P) -> BakerResult<()> {
+fn copy_file<P: AsRef<Path>>(source: P, dest: P) -> Result<()> {
     let dest = dest.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
     let abs_dest =
         if dest.is_absolute() { dest.to_path_buf() } else { base_path.join(dest) };
 
     if let Some(parent) = abs_dest.parent() {
-        fs::create_dir_all(parent).map_err(BakerError::IoError)?;
+        fs::create_dir_all(parent).map_err(Error::IoError)?;
     }
-    fs::copy(source, abs_dest).map(|_| ()).map_err(BakerError::IoError)
+    fs::copy(source, abs_dest).map(|_| ()).map_err(Error::IoError)
 }
 
 /// Checks if a file is a Jinja2 template based on its extension.
@@ -182,7 +178,8 @@ pub fn resolve_target_path<P: AsRef<Path>>(
 }
 
 /// Validates whether the rendered path is valid.
-pub fn is_rendered_path_valid(rendered_path: &str) -> bool {
+pub fn is_rendered_path_valid<S: Into<String>>(rendered_path: S) -> bool {
+    let rendered_path = rendered_path.into();
     // Split the path by "/" and collect non-empty segments.
     let path_parts = rendered_path.split('/');
 
@@ -208,7 +205,7 @@ fn process_template_file<P: AsRef<Path>>(
     target_path: P,
     answers: &serde_json::Value,
     engine: &dyn TemplateEngine,
-) -> BakerResult<()> {
+) -> Result<()> {
     let content = read_file(&path)?;
     let final_content = engine.render(&content, answers)?;
     write_file(&target_path, &final_content)?;
@@ -223,7 +220,7 @@ fn process_file<P: AsRef<Path>>(
     answers: &serde_json::Value,
     engine: &dyn TemplateEngine,
     overwrite: Option<bool>,
-) -> BakerResult<()> {
+) -> Result<()> {
     let source = source.as_ref();
     let target = target.as_ref();
     if target.exists() {
@@ -233,7 +230,7 @@ fn process_file<P: AsRef<Path>>(
                 .with_prompt(format!("Overwrite '{}'?", target.display()))
                 .default(false)
                 .interact()
-                .map_err(|e| BakerError::ConfigError(e.to_string()))?,
+                .map_err(Error::from_dialoguer_error)?,
         };
 
         if !confirm {
@@ -256,42 +253,44 @@ fn process_file<P: AsRef<Path>>(
 }
 
 /// Processes a single entry in the template directory
-pub fn process_entry(
-    entry: Result<walkdir::DirEntry, walkdir::Error>,
-    template_dir: &Path,
-    output_dir: &Path,
+pub fn process_entry<P: AsRef<Path>>(
+    entry: std::result::Result<walkdir::DirEntry, walkdir::Error>,
+    template_dir: P,
+    output_dir: P,
     answers: &serde_json::Value,
     engine: &dyn TemplateEngine,
     ignored_set: &GlobSet,
     overwrite: Option<bool>,
-) -> BakerResult<()> {
-    let entry = entry.map_err(|e| BakerError::TemplateError(e.to_string()))?;
+) -> Result<()> {
+    let template_dir = template_dir.as_ref();
+    let output_dir = output_dir.as_ref();
+    let entry = entry.map_err(|e| Error::TemplateError(e.to_string()))?;
     let path = entry.path();
 
     // Get path relative to template directory
-    let relative_to_template = path.strip_prefix(template_dir).map_err(|e| {
-        BakerError::TemplateError(format!("Failed to strip prefix: {}", e))
-    })?;
+    let relative_to_template = path
+        .strip_prefix(template_dir)
+        .map_err(|e| Error::TemplateError(format!("Failed to strip prefix: {}", e)))?;
 
     // Check if file should be ignored
     if ignored_set.is_match(relative_to_template) {
-        return Err(BakerError::TemplateError(format!(
+        return Err(Error::TemplateError(format!(
             "Skipping ignored file '{}'.",
             relative_to_template.display()
         )));
     }
 
     let path_str = path.to_str().ok_or_else(|| {
-        BakerError::TemplateError(format!("Invalid path '{}'.", path.display()))
+        Error::TemplateError(format!("Invalid path '{}'.", path.display()))
     })?;
 
     let rendered_path_str = engine.render(path_str, answers).map_err(|e| {
-        BakerError::TemplateError(format!("Failed to render path '{}': {}.", path_str, e))
+        Error::TemplateError(format!("Failed to render path '{}': {}.", path_str, e))
     })?;
 
     // Validate rendered path
     if !is_rendered_path_valid(&rendered_path_str) {
-        return Err(BakerError::TemplateError(format!(
+        return Err(Error::TemplateError(format!(
             "Invalid rendered path '{}'.",
             rendered_path_str
         )));
@@ -303,7 +302,7 @@ pub fn process_entry(
     // Removes template_dir prefix from rendered_path
     let relative_path = rendered_path
         .strip_prefix(template_dir)
-        .map_err(|e| BakerError::TemplateError(e.to_string()))?;
+        .map_err(|e| Error::TemplateError(e.to_string()))?;
 
     // Resolve final target path
     let (target_path, needs_processing) = resolve_target_path(relative_path, output_dir);

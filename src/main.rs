@@ -7,7 +7,7 @@ use std::io::Read;
 use baker::{
     cli::{get_args, Args},
     config::{load_config, Config, CONFIG_FILES},
-    error::{default_error_handler, BakerError, BakerResult},
+    error::{default_error_handler, Error, Result},
     hooks::{get_hooks_dirs, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
     parser::get_answers,
@@ -55,11 +55,11 @@ fn main() {
 /// 6. Executes pre-generation hooks
 /// 7. Processes template files
 /// 8. Executes post-generation hooks
-fn run(args: Args) -> BakerResult<()> {
+fn run(args: Args) -> Result<()> {
     let source = if let Some(source) = TemplateSource::from_string(&args.template) {
         source
     } else {
-        return Err(BakerError::TemplateError(format!(
+        return Err(Error::TemplateError(format!(
             "invalid template source: {}",
             args.template
         )));
@@ -103,11 +103,11 @@ fn run(args: Args) -> BakerResult<()> {
     };
 
     let default_answers = if !args.answers.is_empty() {
-        serde_json::from_str(&args.answers).unwrap_or_else(|_| serde_json::Value::Null)
+        serde_json::from_str(&args.answers).unwrap_or(serde_json::Value::Null)
     } else if let Some(mut stdout) = output {
         let mut buf = String::new();
         stdout.read_to_string(&mut buf).expect("Failed to read stdout");
-        serde_json::from_str(&buf).unwrap_or_else(|_| serde_json::Value::Null)
+        serde_json::from_str(&buf).unwrap_or(serde_json::Value::Null)
     } else {
         serde_json::Value::Null
     };
@@ -131,10 +131,10 @@ fn run(args: Args) -> BakerResult<()> {
             args.overwrite,
         ) {
             match e {
-                BakerError::TemplateError(msg) => {
+                Error::TemplateError(msg) => {
                     log::warn!("Template processing failed: {}", msg)
                 }
-                BakerError::IoError(e) => log::error!("IO operation failed: {}", e),
+                Error::IoError(e) => log::error!("IO operation failed: {}", e),
                 _ => log::error!("Operation failed: {}", e),
             }
         }
