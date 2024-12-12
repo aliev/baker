@@ -2,7 +2,7 @@
 //! This module provides functionality for loading and processing template configuration files
 //! with support for variable interpolation.
 
-use crate::error::{BakerError, BakerResult};
+use crate::error::{Error, Result};
 use indexmap::IndexMap;
 use log::debug;
 use serde::Deserialize;
@@ -70,18 +70,17 @@ pub struct Config {
 pub fn load_config<P: AsRef<Path>>(
     template_dir: P,
     config_files: &[&str],
-) -> BakerResult<String> {
+) -> Result<String> {
     for file in config_files {
         let config_path = template_dir.as_ref().join(file);
         if config_path.exists() {
             debug!("Loading configuration from '{}'.", config_path.display());
-            return std::fs::read_to_string(&config_path).map_err(BakerError::IoError);
+            return std::fs::read_to_string(&config_path).map_err(Error::IoError);
         }
     }
 
-    Err(BakerError::ConfigError(format!(
-        "No configuration file found in '{}'. Tried: {}.",
-        template_dir.as_ref().display(),
-        config_files.join(", ")
-    )))
+    Err(Error::ConfigError {
+        template_dir: template_dir.as_ref().display().to_string(),
+        config_files: config_files.join(", "),
+    })
 }

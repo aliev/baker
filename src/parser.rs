@@ -1,5 +1,5 @@
 use crate::config::{Config, Question, ValueType};
-use crate::error::BakerResult;
+use crate::error::Result;
 use crate::prompt::prompt_answer;
 use crate::template::TemplateEngine;
 
@@ -89,7 +89,7 @@ pub fn get_answers(
     engine: &dyn TemplateEngine,
     config: Config,
     default_answers: serde_json::Value,
-) -> BakerResult<serde_json::Value> {
+) -> Result<serde_json::Value> {
     let mut answers = serde_json::Map::new();
 
     for (key, question) in config.questions {

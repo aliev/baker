@@ -1,7 +1,7 @@
 //! Template loading and rendering functionality for Baker.
 //! Handles both local filesystem and git repository templates with support
 //! for MiniJinja template processing.
-use crate::error::{BakerError, BakerResult};
+use crate::error::{Error, Result};
 use dialoguer::Confirm;
 use git2;
 use log::debug;
@@ -62,7 +62,7 @@ pub trait TemplateLoader {
     ///
     /// # Returns
     /// * `BakerResult<PathBuf>` - Path to the loaded template
-    fn load(&self, source: &TemplateSource) -> BakerResult<PathBuf>; // was process
+    fn load(&self, source: &TemplateSource) -> Result<PathBuf>; // was process
 }
 
 /// Trait for template rendering engines.
@@ -75,7 +75,7 @@ pub trait TemplateEngine {
     ///
     /// # Returns
     /// * `BakerResult<String>` - Rendered template string
-    fn render(&self, template: &str, context: &serde_json::Value) -> BakerResult<String>;
+    fn render(&self, template: &str, context: &serde_json::Value) -> Result<String>;
 }
 
 /// Loader for templates from the local filesystem.
@@ -114,13 +114,13 @@ impl TemplateLoader for LocalLoader {
     /// # Errors
     /// * `BakerError::TemplateError` if path doesn't exist
     /// * Panics if source is not FileSystem variant
-    fn load(&self, source: &TemplateSource) -> BakerResult<PathBuf> {
+    fn load(&self, source: &TemplateSource) -> Result<PathBuf> {
         let path = match source {
             TemplateSource::FileSystem(path) => path,
             _ => panic!("Expected LocalPath variant."),
         };
         if !path.exists() {
-            return Err(BakerError::TemplateError(format!(
+            return Err(Error::TemplateError(format!(
                 "Template path '{}' does not exist.",
                 path.display()
             )));
@@ -154,10 +154,10 @@ impl TemplateLoader for GitLoader {
     ///
     /// # Errors
     /// * `BakerError::TemplateError` if clone fails
-    fn load(&self, source: &TemplateSource) -> BakerResult<PathBuf> {
+    fn load(&self, source: &TemplateSource) -> Result<PathBuf> {
         let repo_url = match source {
             TemplateSource::Git(url) => url,
-            _ => return Err(BakerError::TemplateError("Expected Git URL.".to_string())),
+            _ => return Err(Error::TemplateError("Expected Git URL.".to_string())),
         };
 
         debug!("Cloning repository '{}'.", repo_url);
@@ -174,10 +174,10 @@ impl TemplateLoader for GitLoader {
                 ))
                 .default(false)
                 .interact()
-                .map_err(|e| BakerError::HookError(e.to_string()))?;
+                .map_err(|e| Error::HookError(e.to_string()))?;
             if response {
                 fs::remove_dir_all(&clone_path).map_err(|e| {
-                    BakerError::TemplateError(format!(
+                    Error::TemplateError(format!(
                         "Failed to remove existing directory '{}': {}.",
                         clone_path.display(),
                         e
@@ -215,7 +215,7 @@ impl TemplateLoader for GitLoader {
 
         match builder.clone(repo_url, &clone_path) {
             Ok(_) => Ok(clone_path),
-            Err(e) => Err(BakerError::TemplateError(format!(
+            Err(e) => Err(Error::TemplateError(format!(
                 "Failed to clone repository '{}': {}.",
                 repo_url, e
             ))),
@@ -252,15 +252,14 @@ impl TemplateEngine for MiniJinjaEngine {
     ///   - Template addition fails
     ///   - Template retrieval fails
     ///   - Template rendering fails
-    fn render(&self, template: &str, context: &serde_json::Value) -> BakerResult<String> {
+    fn render(&self, template: &str, context: &serde_json::Value) -> Result<String> {
         let mut env = self.env.clone();
         env.add_template("temp", template)
-            .map_err(|e| BakerError::TemplateError(e.to_string()))?;
+            .map_err(|e| Error::TemplateError(e.to_string()))?;
 
-        let tmpl = env
-            .get_template("temp")
-            .map_err(|e| BakerError::TemplateError(e.to_string()))?;
+        let tmpl =
+            env.get_template("temp").map_err(|e| Error::TemplateError(e.to_string()))?;
 
-        tmpl.render(context).map_err(|e| BakerError::TemplateError(e.to_string()))
+        tmpl.render(context).map_err(|e| Error::TemplateError(e.to_string()))
     }
 }

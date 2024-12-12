@@ -3,7 +3,7 @@
 //! with support for variable interpolation.
 
 use crate::config::Question;
-use crate::error::{BakerError, BakerResult};
+use crate::error::{Error, Result};
 use crate::parser::QuestionType;
 
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
@@ -25,7 +25,7 @@ pub fn prompt_multiple_choice<S: Into<String>>(
     prompt: S,
     question: Question,
     default_value: serde_json::Value,
-) -> BakerResult<(String, serde_json::Value)> {
+) -> Result<(String, serde_json::Value)> {
     let defaults = default_value
         .as_array()
         .map(|arr| {
@@ -38,9 +38,7 @@ pub fn prompt_multiple_choice<S: Into<String>>(
         .items(&question.choices)
         .defaults(&defaults)
         .interact()
-        .map_err(|e| {
-            BakerError::ConfigError(format!("failed to get user selection: {}", e))
-        })?;
+        .map_err(Error::from_dialoguer_error)?;
 
     let selected: Vec<serde_json::Value> = indices
         .iter()
@@ -67,16 +65,14 @@ pub fn prompt_single_choice<S: Into<String>>(
     prompt: S,
     question: Question,
     default_value: serde_json::Value,
-) -> BakerResult<(String, serde_json::Value)> {
+) -> Result<(String, serde_json::Value)> {
     let default_value: usize = default_value.as_u64().unwrap() as usize;
     let selection = Select::new()
         .with_prompt(prompt)
         .default(default_value)
         .items(&question.choices)
         .interact()
-        .map_err(|e| {
-            BakerError::ConfigError(format!("failed to get user selection: {}", e))
-        })?;
+        .map_err(Error::from_dialoguer_error)?;
 
     Ok((key.into(), serde_json::Value::String(question.choices[selection].clone())))
 }
@@ -102,7 +98,7 @@ pub fn prompt_string<S: Into<String>>(
     prompt: S,
     question: Question,
     default_value: serde_json::Value,
-) -> BakerResult<(String, serde_json::Value)> {
+) -> Result<(String, serde_json::Value)> {
     let default_str = match default_value {
         serde_json::Value::String(s) => s,
         serde_json::Value::Null => String::new(),
@@ -119,13 +115,13 @@ pub fn prompt_string<S: Into<String>>(
                 password.with_confirmation(format!("{} (confirm)", &prompt), "Mistmatch");
         }
 
-        password.interact().map_err(|e| {
-            BakerError::ConfigError(format!("failed to get user input: {}", e))
-        })?
+        password.interact().map_err(Error::from_dialoguer_error)?
     } else {
-        Input::new().with_prompt(&prompt).default(default_str).interact_text().map_err(
-            |e| BakerError::ConfigError(format!("failed to get user input: {}", e)),
-        )?
+        Input::new()
+            .with_prompt(&prompt)
+            .default(default_str)
+            .interact_text()
+            .map_err(Error::from_dialoguer_error)?
     };
 
     Ok((key.into(), serde_json::Value::String(input)))
@@ -146,14 +142,13 @@ pub fn prompt_boolean<S: Into<String>>(
     key: S,
     prompt: S,
     default_value: serde_json::Value,
-) -> BakerResult<(String, serde_json::Value)> {
+) -> Result<(String, serde_json::Value)> {
     let default_value = default_value.as_bool().unwrap();
-    let result =
-        Confirm::new().with_prompt(prompt).default(default_value).interact().map_err(
-            |e| {
-                BakerError::ConfigError(format!("failed to get user confirmation: {}", e))
-            },
-        )?;
+    let result = Confirm::new()
+        .with_prompt(prompt)
+        .default(default_value)
+        .interact()
+        .map_err(Error::from_dialoguer_error)?;
 
     Ok((key.into(), serde_json::Value::Bool(result)))
 }
@@ -171,13 +166,15 @@ pub fn prompt_boolean<S: Into<String>>(
 pub fn prompt_confirm_hooks_execution<S: Into<String>>(
     skip_hooks_check: bool,
     prompt: S,
-) -> BakerResult<bool> {
+) -> Result<bool> {
     if skip_hooks_check {
         return Ok(true);
     }
-    Confirm::new().with_prompt(prompt).default(false).interact().map_err(|e| {
-        BakerError::HookError(format!("failed to get hooks confirmation: {}", e))
-    })
+    Confirm::new()
+        .with_prompt(prompt)
+        .default(false)
+        .interact()
+        .map_err(Error::from_dialoguer_error)
 }
 
 pub fn prompt_answer<S: Into<String>>(
@@ -186,7 +183,7 @@ pub fn prompt_answer<S: Into<String>>(
     default_value: serde_json::Value,
     prompt: S,
     question: Question,
-) -> BakerResult<(String, serde_json::Value)> {
+) -> Result<(String, serde_json::Value)> {
     match question_type {
         QuestionType::MultipleChoice => {
             prompt_multiple_choice(key, prompt, question, default_value)

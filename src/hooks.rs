@@ -3,11 +3,11 @@
 //! to execute custom scripts during project generation.
 
 use serde::Serialize;
-use std::io::{Stdout, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{ChildStdout, Command, Stdio};
 
-use crate::error::{BakerError, BakerResult};
+use crate::error::{Error, Result};
 
 /// Structure representing data passed to hook scripts.
 ///
@@ -72,7 +72,7 @@ pub fn run_hook<P: AsRef<Path>>(
     script_path: P,
     answers: Option<&serde_json::Value>,
     is_piped_stdout: bool,
-) -> BakerResult<Option<ChildStdout>> {
+) -> Result<Option<ChildStdout>> {
     let script_path = script_path.as_ref();
 
     let output = Output {
@@ -92,21 +92,18 @@ pub fn run_hook<P: AsRef<Path>>(
         .stdout(if is_piped_stdout { Stdio::piped() } else { Stdio::inherit() })
         .stderr(Stdio::inherit())
         .spawn()
-        .map_err(BakerError::IoError)?;
+        .map_err(Error::IoError)?;
 
     // Write context to stdin
     if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(&output_data).map_err(BakerError::IoError)?;
+        stdin.write_all(&output_data).map_err(Error::IoError)?;
     }
 
     // Wait for the process to complete
-    let status = child.wait().map_err(BakerError::IoError)?;
+    let status = child.wait().map_err(Error::IoError)?;
 
     if !status.success() {
-        return Err(BakerError::HookError(format!(
-            "hook execution failed with status: {}",
-            status
-        )));
+        return Err(Error::HookExecutionError { status });
     }
 
     Ok(child.stdout)
