@@ -39,14 +39,12 @@ pub const IGNORE_FILE: &str = ".bakerignore";
 /// - If the ignore file doesn't exist, returns an empty GlobSet
 /// - Each line in the file is treated as a separate glob pattern
 /// - Invalid patterns will result in a BakerIgnoreError
-pub fn parse_bakerignore_file<P: AsRef<Path>>(
-    bakerignore_path: P,
-) -> Result<GlobSet> {
+pub fn parse_bakerignore_file<P: AsRef<Path>>(bakerignore_path: P) -> Result<GlobSet> {
     let mut builder = GlobSetBuilder::new();
 
     // Add default patterns first
     for pattern in DEFAULT_IGNORE_PATTERNS {
-        builder.add(Glob::new(pattern).map_err(|e| Error::GlobSetParseError { e })?);
+        builder.add(Glob::new(pattern).map_err(Error::from_glob_set_error)?);
     }
 
     // Then add patterns from .bakerignore if it exists
@@ -54,18 +52,12 @@ pub fn parse_bakerignore_file<P: AsRef<Path>>(
         for line in contents.lines() {
             let line = line.trim();
             if !line.is_empty() && !line.starts_with('#') {
-                builder.add(
-                    Glob::new(line).map_err(|e| Error::GlobSetParseError { e })?,
-                );
+                builder.add(Glob::new(line).map_err(Error::from_glob_set_error)?);
             }
         }
     } else {
         debug!("No .bakerignore file found, using default patterns.");
     }
 
-    let glob_set = builder.build().map_err(|e| {
-        Error::BakerIgnoreError(format!("failed to build ignore patterns: {}", e))
-    })?;
-
-    Ok(glob_set)
+    Ok(builder.build().map_err(Error::from_glob_set_error)?)
 }

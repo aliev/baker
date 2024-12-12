@@ -254,7 +254,7 @@ fn process_file<P: AsRef<Path>>(
 
 /// Processes a single entry in the template directory
 pub fn process_entry<P: AsRef<Path>>(
-    entry: std::result::Result<walkdir::DirEntry, walkdir::Error>,
+    source_path: P,
     template_dir: P,
     output_dir: P,
     answers: &serde_json::Value,
@@ -264,11 +264,10 @@ pub fn process_entry<P: AsRef<Path>>(
 ) -> Result<()> {
     let template_dir = template_dir.as_ref();
     let output_dir = output_dir.as_ref();
-    let entry = entry.map_err(|e| Error::TemplateError(e.to_string()))?;
-    let path = entry.path();
+    let source_path = source_path.as_ref();
 
     // Get path relative to template directory
-    let relative_to_template = path
+    let relative_to_template = source_path
         .strip_prefix(template_dir)
         .map_err(|e| Error::TemplateError(format!("Failed to strip prefix: {}", e)))?;
 
@@ -280,8 +279,8 @@ pub fn process_entry<P: AsRef<Path>>(
         )));
     }
 
-    let path_str = path.to_str().ok_or_else(|| {
-        Error::TemplateError(format!("Invalid path '{}'.", path.display()))
+    let path_str = source_path.to_str().ok_or_else(|| {
+        Error::TemplateError(format!("Invalid path '{}'.", source_path.display()))
     })?;
 
     let rendered_path_str = engine.render(path_str, answers).map_err(|e| {
@@ -308,10 +307,17 @@ pub fn process_entry<P: AsRef<Path>>(
     let (target_path, needs_processing) = resolve_target_path(relative_path, output_dir);
 
     // Process directory or file
-    if path.is_dir() {
+    if target_path.is_dir() {
         create_dir_all(&target_path)?
     } else {
-        process_file(path, &target_path, needs_processing, answers, engine, overwrite)?
+        process_file(
+            source_path,
+            &target_path,
+            needs_processing,
+            answers,
+            engine,
+            overwrite,
+        )?
     }
 
     Ok(())

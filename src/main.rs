@@ -112,17 +112,17 @@ fn run(args: Args) -> Result<()> {
         serde_json::Value::Null
     };
 
-    dbg!(&default_answers);
-
-    let answers = get_answers(&*engine, config, default_answers)?;
+    let answers = get_answers(&*engine, config.questions, default_answers)?;
 
     // Process ignore patterns
     let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;
 
     // Process template files
     for entry in WalkDir::new(&template_dir) {
+        let entry = entry.map_err(|e| Error::TemplateError(e.to_string()))?;
+        let path = entry.path();
         if let Err(e) = process_entry(
-            entry,
+            path,
             &template_dir,
             &output_dir,
             &answers,
