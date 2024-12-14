@@ -49,9 +49,11 @@ pub struct Args {
     #[arg(long)]
     pub skip_hooks_check: bool,
 
-    /// Get context from argument not from the questions
-    #[arg(short, long, default_value = "")]
-    pub answers: String,
+    /// Get answers from stding
+    /// For example:
+    /// $ echo '{"question_key": "answer"}' | baker template out
+    #[arg(short, long)]
+    pub stdin: bool,
 
     /// Overwrite files that already exist, without asking.
     #[arg(short, long)]

@@ -2,21 +2,18 @@
 //! Handles command-line argument parsing, template processing flow,
 //! and coordinates interactions between different modules.
 
-use std::io::Read;
-
 use baker::{
     cli::{get_args, Args},
-    config::{load_config, Config, CONFIG_FILES},
+    config::get_config,
     error::{default_error_handler, Error, Result},
     hooks::{get_hooks_dirs, get_path_if_exists, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
-    parser::get_answers,
-    processor::{ensure_output_dir, process_entry},
-    prompt::prompt_confirm_hooks_execution,
-    template::{
-        GitLoader, LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader,
-        TemplateSource,
+    parser::{
+        get_answers, get_answers_from, load_from_hook, load_from_stdin, AnswerSource,
     },
+    processor::{ensure_output_dir, process_directory},
+    prompt::prompt_confirm_hooks_execution,
+    template::{get_template_dir, MiniJinjaEngine, TemplateEngine},
 };
 use walkdir::WalkDir;
 
@@ -56,24 +53,15 @@ fn main() {
 /// 7. Processes template files
 /// 8. Executes post-generation hooks
 fn run(args: Args) -> Result<()> {
-    let source = if let Some(source) = TemplateSource::from_string(&args.template) {
-        source
-    } else {
-        return Err(Error::TemplateError(format!(
-            "invalid template source: {}",
-            args.template
-        )));
-    };
-
     let output_dir = ensure_output_dir(args.output_dir, args.force)?;
-    let loader: Box<dyn TemplateLoader> = match source {
-        TemplateSource::Git(_) => Box::new(GitLoader::new()),
-        TemplateSource::FileSystem(_) => Box::new(LocalLoader::new()),
-    };
-    let template_dir = loader.load(&source)?;
-    // Load and parse configuration
-    let config_content = load_config(&template_dir, &CONFIG_FILES)?;
 
+    // TEMPLATE PART
+    let template_dir = get_template_dir(args.template)?;
+
+    // Load and parse configuration
+    let config = get_config(&template_dir)?;
+
+    // HOOKS PART
     let (pre_hook_dir, post_hook_dir) = get_hooks_dirs(&template_dir);
 
     let execute_hooks = if pre_hook_dir.exists() || post_hook_dir.exists() {
@@ -90,29 +78,25 @@ fn run(args: Args) -> Result<()> {
         false
     };
 
-    // Template processor initialization
-    let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
-    // TODO: map_err
-    let config: Config = serde_yaml::from_str(&config_content).unwrap();
-
     // Execute pre-generation hook
-    let output = if execute_hooks && pre_hook_dir.exists() {
+    let pre_hook_stdout = if execute_hooks && pre_hook_dir.exists() {
         run_hook(&template_dir, &output_dir, &pre_hook_dir, None, true)?
     } else {
         None
     };
 
-    let default_answers = if !args.answers.is_empty() {
-        serde_json::from_str(&args.answers).unwrap_or(serde_json::Value::Null)
-    } else if let Some(mut stdout) = output {
-        let mut buf = String::new();
-        stdout.read_to_string(&mut buf).expect("Failed to read stdout");
-        serde_json::from_str(&buf).unwrap_or(serde_json::Value::Null)
-    } else {
-        serde_json::Value::Null
-    };
+    // HOOKS PART END
 
-    let answers = get_answers(&*engine, config.questions, default_answers)?;
+    let answers_source = get_answers_from(args.stdin, pre_hook_stdout)?;
+
+    let preloaded_answers = match answers_source {
+        AnswerSource::Stdin => load_from_stdin(),
+        AnswerSource::PreHookStdout(stdout) => load_from_hook(stdout),
+        AnswerSource::None => Ok(serde_json::Value::Null),
+    }?;
+
+    let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
+    let answers = get_answers(&*engine, config.questions, preloaded_answers)?;
 
     // Process ignore patterns
     let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;
@@ -121,7 +105,7 @@ fn run(args: Args) -> Result<()> {
     for entry in WalkDir::new(&template_dir) {
         let entry = entry.map_err(|e| Error::TemplateError(e.to_string()))?;
         let path = entry.path();
-        if let Err(e) = process_entry(
+        if let Err(e) = process_directory(
             path,
             &template_dir,
             &output_dir,
@@ -131,11 +115,10 @@ fn run(args: Args) -> Result<()> {
             args.overwrite,
         ) {
             match e {
-                Error::TemplateError(msg) => {
-                    log::warn!("Template processing failed: {}", msg)
+                Error::ProcessError { .. } => {
+                    log::warn!("{}", e)
                 }
-                Error::IoError(e) => log::error!("IO operation failed: {}", e),
-                _ => log::error!("Operation failed: {}", e),
+                _ => log::error!("{}", e),
             }
         }
     }

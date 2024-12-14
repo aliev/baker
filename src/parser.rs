@@ -1,9 +1,10 @@
-use indexmap::IndexMap;
-
 use crate::config::{Question, ValueType};
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::prompt::prompt_answer;
 use crate::template::TemplateEngine;
+use indexmap::IndexMap;
+use std::io::Read;
+use std::process::ChildStdout;
 
 pub enum QuestionType {
     MultipleChoice,
@@ -87,17 +88,52 @@ pub fn get_yes_no_default(question: &Question) -> serde_json::Value {
     serde_json::Value::Bool(default_value)
 }
 
+fn read_stdin() -> Result<String> {
+    let mut buffer = String::new();
+    std::io::stdin().read_to_string(&mut buffer)?;
+    Ok(buffer.trim().to_string())
+}
+
+#[derive(Debug)]
+pub enum AnswerSource {
+    Stdin,
+    PreHookStdout(ChildStdout),
+    None,
+}
+
+pub fn load_from_stdin() -> Result<serde_json::Value> {
+    let out = read_stdin()?;
+    Ok(serde_json::from_str(&out).unwrap_or(serde_json::Value::Null))
+}
+
+pub fn load_from_hook(mut stdout: ChildStdout) -> Result<serde_json::Value> {
+    let mut buf = String::new();
+    stdout.read_to_string(&mut buf).map_err(Error::IoError)?;
+    Ok(serde_json::from_str(&buf).unwrap_or(serde_json::Value::Null))
+}
+
+pub fn get_answers_from(
+    take_from_stdin: bool,
+    pre_hook_stdout: Option<ChildStdout>,
+) -> Result<AnswerSource> {
+    match (take_from_stdin, pre_hook_stdout) {
+        (true, _) => Ok(AnswerSource::Stdin),
+        (false, Some(stdout)) => Ok(AnswerSource::PreHookStdout(stdout)),
+        (false, None) => Ok(AnswerSource::None),
+    }
+}
+
 pub fn get_answers(
     engine: &dyn TemplateEngine,
     questions: IndexMap<String, Question>,
-    default_answers: serde_json::Value,
+    preloaded_answers: serde_json::Value,
 ) -> Result<serde_json::Value> {
     let mut answers = serde_json::Map::new();
 
     for (key, question) in questions {
         let current_context = serde_json::Value::Object(answers.clone());
 
-        let default_answer = default_answers.get(&key);
+        let preloaded_answer = preloaded_answers.get(&key);
 
         let (question_type, default_value) = match question.value_type {
             ValueType::Str => {
@@ -123,7 +159,7 @@ pub fn get_answers(
             }
         };
 
-        let (key, value) = if let Some(default_answer_value) = default_answer {
+        let (key, value) = if let Some(default_answer_value) = preloaded_answer {
             // Return the default answer
             (key, default_answer_value.clone())
         } else {

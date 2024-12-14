@@ -38,7 +38,7 @@ pub fn prompt_multiple_choice<S: Into<String>>(
         .items(&question.choices)
         .defaults(&defaults)
         .interact()
-        .map_err(Error::from_dialoguer_error)?;
+        .map_err(Error::PromptError)?;
 
     let selected: Vec<serde_json::Value> = indices
         .iter()
@@ -72,7 +72,7 @@ pub fn prompt_single_choice<S: Into<String>>(
         .default(default_value)
         .items(&question.choices)
         .interact()
-        .map_err(Error::from_dialoguer_error)?;
+        .map_err(Error::PromptError)?;
 
     Ok((key.into(), serde_json::Value::String(question.choices[selection].clone())))
 }
@@ -115,13 +115,13 @@ pub fn prompt_string<S: Into<String>>(
                 password.with_confirmation(format!("{} (confirm)", &prompt), "Mistmatch");
         }
 
-        password.interact().map_err(Error::from_dialoguer_error)?
+        password.interact().map_err(Error::PromptError)?
     } else {
         Input::new()
             .with_prompt(&prompt)
             .default(default_str)
             .interact_text()
-            .map_err(Error::from_dialoguer_error)?
+            .map_err(Error::PromptError)?
     };
 
     Ok((key.into(), serde_json::Value::String(input)))
@@ -148,7 +148,7 @@ pub fn prompt_boolean<S: Into<String>>(
         .with_prompt(prompt)
         .default(default_value)
         .interact()
-        .map_err(Error::from_dialoguer_error)?;
+        .map_err(Error::PromptError)?;
 
     Ok((key.into(), serde_json::Value::Bool(result)))
 }
@@ -174,7 +174,7 @@ pub fn prompt_confirm_hooks_execution<S: Into<String>>(
         .with_prompt(prompt)
         .default(false)
         .interact()
-        .map_err(Error::from_dialoguer_error)
+        .map_err(Error::PromptError)
 }
 
 pub fn prompt_answer<S: Into<String>>(
