@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use baker::processor::{
-    get_output_dir, is_jinja_template, is_rendered_path_valid, resolve_target_path,
+    get_output_dir, is_rendered_path_valid, is_template_file, resolve_target_path,
 };
 use tempfile::TempDir;
 
@@ -23,10 +23,10 @@ fn test_ensure_output_dir() {
 
 #[test]
 fn test_is_jinja_template() {
-    assert!(is_jinja_template("template.html.j2"));
-    assert!(is_jinja_template("file.txt.j2"));
-    assert!(!is_jinja_template("regular.html"));
-    assert!(!is_jinja_template("file.j2txt"));
+    assert!(is_template_file("template.html.j2"));
+    assert!(is_template_file("file.txt.j2"));
+    assert!(!is_template_file("regular.html"));
+    assert!(!is_template_file("file.j2txt"));
 }
 
 #[test]

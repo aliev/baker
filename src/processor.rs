@@ -31,20 +31,6 @@ pub fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> Result<Path
     Ok(output_dir.to_path_buf())
 }
 
-/// Reads a file's contents into a string.
-///
-/// # Arguments
-/// * `path` - Path to the file to read
-///
-/// # Returns
-/// * `BakerResult<String>` - File contents
-///
-/// # Errors
-/// * Returns `BakerError::IoError` if file cannot be read
-fn read_file<P: AsRef<Path>>(path: P) -> Result<String> {
-    fs::read_to_string(path).map_err(Error::IoError)
-}
-
 /// Writes content to a file, creating parent directories if needed.
 ///
 /// # Arguments
@@ -117,12 +103,12 @@ fn copy_file<P: AsRef<Path>>(source: P, dest: P) -> Result<()> {
 ///
 /// # Examples
 /// ```
-/// use baker::processor::is_jinja_template;
-/// assert!(is_jinja_template("template.html.j2"));
-/// assert!(!is_jinja_template("regular.html"));
-/// assert!(!is_jinja_template("regular.j2"));
+/// use baker::processor::is_template_file;
+/// assert!(is_template_file("template.html.j2"));
+/// assert!(!is_template_file("regular.html"));
+/// assert!(!is_template_file("regular.j2"));
 /// ```
-pub fn is_jinja_template(filename: &str) -> bool {
+pub fn is_template_file(filename: &str) -> bool {
     let parts: Vec<&str> = filename.split('.').collect();
     parts.len() > 2 && parts.last() == Some(&"j2")
 }
@@ -165,7 +151,7 @@ pub fn resolve_target_path<P: AsRef<Path>>(
     };
 
     // Check if file is a template
-    if !is_jinja_template(filename) {
+    if !is_template_file(filename) {
         return (target_dir.join(source_path), false);
     }
 
@@ -190,33 +176,10 @@ pub fn is_rendered_path_valid<S: Into<String>>(rendered_path: S) -> bool {
     empty_parts.is_empty()
 }
 
-/// Processes a single template file.
-///
-/// # Arguments
-/// * `path` - Path to the template file
-/// * `target_path` - Target output path
-/// * `answers` - Template context
-/// * `engine` - Template rendering engine
-///
-/// # Returns
-/// * `BakerResult<()>` - Success or error status
-fn process_template_file<P: AsRef<Path>>(
-    path: P,
-    target_path: P,
-    answers: &serde_json::Value,
-    engine: &dyn TemplateRenderer,
-) -> Result<()> {
-    let content = read_file(&path)?;
-    let final_content = engine.render(&content, answers)?;
-    write_file(&target_path, &final_content)?;
-    Ok(())
-}
-
 /// Process a file entry
 fn process_file<P: AsRef<Path>>(
     source: P,
     target: P,
-    needs_processing: bool,
     answers: &serde_json::Value,
     engine: &dyn TemplateRenderer,
     overwrite: Option<bool>,
@@ -244,11 +207,9 @@ fn process_file<P: AsRef<Path>>(
     } else {
         println!("Creating: '{}'.", target.display());
     }
-    if needs_processing {
-        process_template_file(source, target, answers, engine)?
-    } else {
-        copy_file(source, target)?
-    }
+    let content = fs::read_to_string(source).map_err(Error::IoError)?;
+    let rendered_content = engine.render(&content, answers)?;
+    write_file(target, &rendered_content)?;
     Ok(())
 }
 
@@ -314,16 +275,14 @@ pub fn process_directory<P: AsRef<Path>>(
 
     // Process directory or file
     if target_path.is_dir() {
-        create_dir_all(&target_path)?
+        create_dir_all(&target_path)?;
+        return Ok(());
+    }
+
+    if needs_processing {
+        process_file(source_path, &target_path, answers, engine, overwrite)?
     } else {
-        process_file(
-            source_path,
-            &target_path,
-            needs_processing,
-            answers,
-            engine,
-            overwrite,
-        )?
+        copy_file(source_path, &target_path)?
     }
 
     Ok(())
