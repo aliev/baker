@@ -152,18 +152,15 @@ pub fn prompt_boolean<S: Into<String>>(
 /// Prompts for confirmation before executing hooks.
 ///
 /// # Arguments
-/// * `skip_hooks_check` - Whether to skip the confirmation prompt
+/// * `skip_hooks_confirmation` - Whether to skip the confirmation prompt
 ///
 /// # Returns
 /// * `BakerResult<bool>` - Whether hooks should be executed
 ///
 /// # Safety
 /// This function provides a safety check before executing potentially dangerous hook scripts.
-pub fn prompt_confirm_hooks_execution<S: Into<String>>(
-    skip_hooks_check: bool,
-    prompt: S,
-) -> Result<bool> {
-    if skip_hooks_check {
+pub fn prompt_confirm<S: Into<String>>(skip: bool, prompt: S) -> Result<bool> {
+    if skip {
         return Ok(true);
     }
     Confirm::new()

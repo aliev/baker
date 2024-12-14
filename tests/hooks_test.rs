@@ -1,6 +1,6 @@
 use baker::{
     hooks::{get_hooks_dirs, Output},
-    prompt::prompt_confirm_hooks_execution,
+    prompt::prompt_confirm,
 };
 use tempfile::TempDir;
 
@@ -16,7 +16,7 @@ fn test_get_hooks() {
 #[test]
 fn test_confirm_hooks_execution() {
     // Test with skip_hooks_check = true
-    assert!(prompt_confirm_hooks_execution(true, "").unwrap());
+    assert!(prompt_confirm(true, "").unwrap());
 
     // Note: Testing user input would require mock stdin
 }

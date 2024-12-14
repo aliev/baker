@@ -192,7 +192,7 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
         let mut builder = git2::build::RepoBuilder::new();
         builder.fetch_options(fetch_opts);
 
-        match builder.clone(&repo_url, &clone_path) {
+        match builder.clone(repo_url, &clone_path) {
             Ok(_) => Ok(clone_path),
             Err(e) => Err(Error::Git2Error(e)),
         }

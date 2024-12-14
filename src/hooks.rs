@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{ChildStdout, Command, Stdio};
 
 use crate::error::{Error, Result};
+use crate::prompt::prompt_confirm;
 
 /// Structure representing data passed to hook scripts.
 ///
@@ -44,7 +45,7 @@ pub fn get_path_if_exists<P: AsRef<Path>>(path: P) -> String {
 ///
 /// # Returns
 /// * `(PathBuf, PathBuf)` - Tuple containing paths to pre and post hook scripts
-pub fn get_hooks_dirs<P: AsRef<Path>>(template_dir: P) -> (PathBuf, PathBuf) {
+pub fn get_hook_files<P: AsRef<Path>>(template_dir: P) -> (PathBuf, PathBuf) {
     let template_dir = template_dir.as_ref();
     let hooks_dir = template_dir.join("hooks");
 
@@ -108,4 +109,24 @@ pub fn run_hook<P: AsRef<Path>>(
     }
 
     Ok(child.stdout)
+}
+
+pub fn confirm_hook_execution<P: AsRef<Path>>(
+    template_dir: P,
+    skip_hooks_confirmation: bool,
+) -> Result<bool> {
+    let (pre_hook_file, post_hook_file) = get_hook_files(template_dir);
+    if pre_hook_file.exists() || post_hook_file.exists() {
+        Ok(prompt_confirm(
+            skip_hooks_confirmation,
+                format!(
+                    "WARNING: This template contains the following hooks that will execute commands on your system:\n{}{}{}",
+                    get_path_if_exists(&pre_hook_file),
+                    get_path_if_exists(&post_hook_file),
+                    "Do you want to run these hooks?",
+                ),
+            )?)
+    } else {
+        Ok(false)
+    }
 }

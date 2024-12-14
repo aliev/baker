@@ -21,7 +21,7 @@ use crate::template::TemplateEngine;
 ///
 /// # Errors
 /// * Returns `BakerError::ConfigError` if directory exists and force is false
-pub fn ensure_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> Result<PathBuf> {
+pub fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> Result<PathBuf> {
     let output_dir = output_dir.as_ref();
     if output_dir.exists() && !force {
         return Err(Error::OutputDirectoryExistsError {

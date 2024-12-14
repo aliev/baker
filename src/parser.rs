@@ -13,6 +13,13 @@ pub enum QuestionType {
     YesNo,
 }
 
+#[derive(Debug)]
+pub enum AnswerSource {
+    Stdin,
+    PreHookStdout(ChildStdout),
+    None,
+}
+
 /// Retrieves the default value of single choice
 pub fn get_single_choice_default(question: &Question) -> serde_json::Value {
     let default_value = if let Some(default_value) = &question.default {
@@ -88,21 +95,10 @@ pub fn get_yes_no_default(question: &Question) -> serde_json::Value {
     serde_json::Value::Bool(default_value)
 }
 
-fn read_stdin() -> Result<String> {
+pub fn load_from_stdin() -> Result<serde_json::Value> {
     let mut buffer = String::new();
     std::io::stdin().read_to_string(&mut buffer)?;
-    Ok(buffer.trim().to_string())
-}
-
-#[derive(Debug)]
-pub enum AnswerSource {
-    Stdin,
-    PreHookStdout(ChildStdout),
-    None,
-}
-
-pub fn load_from_stdin() -> Result<serde_json::Value> {
-    let out = read_stdin()?;
+    let out = buffer.trim().to_string();
     Ok(serde_json::from_str(&out).unwrap_or(serde_json::Value::Null))
 }
 
@@ -115,11 +111,17 @@ pub fn load_from_hook(mut stdout: ChildStdout) -> Result<serde_json::Value> {
 pub fn get_answers_from(
     take_from_stdin: bool,
     pre_hook_stdout: Option<ChildStdout>,
-) -> Result<AnswerSource> {
-    match (take_from_stdin, pre_hook_stdout) {
-        (true, _) => Ok(AnswerSource::Stdin),
-        (false, Some(stdout)) => Ok(AnswerSource::PreHookStdout(stdout)),
-        (false, None) => Ok(AnswerSource::None),
+) -> Result<serde_json::Value> {
+    let answers_source = match (take_from_stdin, pre_hook_stdout) {
+        (true, _) => AnswerSource::Stdin,
+        (false, Some(stdout)) => AnswerSource::PreHookStdout(stdout),
+        (false, None) => AnswerSource::None,
+    };
+
+    match answers_source {
+        AnswerSource::Stdin => load_from_stdin(),
+        AnswerSource::PreHookStdout(stdout) => load_from_hook(stdout),
+        AnswerSource::None => Ok(serde_json::Value::Null),
     }
 }
 

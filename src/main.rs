@@ -6,13 +6,10 @@ use baker::{
     cli::{get_args, Args},
     config::get_config,
     error::{default_error_handler, Error, Result},
-    hooks::{get_hooks_dirs, get_path_if_exists, run_hook},
+    hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
-    parser::{
-        get_answers, get_answers_from, load_from_hook, load_from_stdin, AnswerSource,
-    },
-    processor::{ensure_output_dir, process_directory},
-    prompt::prompt_confirm_hooks_execution,
+    parser::{get_answers, get_answers_from},
+    processor::{get_output_dir, process_directory},
     template::{get_template_dir, MiniJinjaEngine, TemplateEngine},
 };
 use walkdir::WalkDir;
@@ -53,47 +50,23 @@ fn main() {
 /// 7. Processes template files
 /// 8. Executes post-generation hooks
 fn run(args: Args) -> Result<()> {
-    let output_dir = ensure_output_dir(args.output_dir, args.force)?;
-
-    // TEMPLATE PART
+    let output_dir = get_output_dir(args.output_dir, args.force)?;
     let template_dir = get_template_dir(args.template)?;
 
-    // Load and parse configuration
     let config = get_config(&template_dir)?;
 
-    // HOOKS PART
-    let (pre_hook_dir, post_hook_dir) = get_hooks_dirs(&template_dir);
+    let execute_hooks = confirm_hook_execution(&template_dir, args.skip_hooks_check)?;
 
-    let execute_hooks = if pre_hook_dir.exists() || post_hook_dir.exists() {
-        prompt_confirm_hooks_execution(
-                args.skip_hooks_check,
-                format!(
-                    "WARNING: This template contains the following hooks that will execute commands on your system:\n{}{}{}",
-                    get_path_if_exists(&post_hook_dir),
-                    get_path_if_exists(&pre_hook_dir),
-                    "Do you want to run these hooks?",
-                ),
-            )?
-    } else {
-        false
-    };
+    let (pre_hook_file, post_hook_file) = get_hook_files(&template_dir);
 
     // Execute pre-generation hook
-    let pre_hook_stdout = if execute_hooks && pre_hook_dir.exists() {
-        run_hook(&template_dir, &output_dir, &pre_hook_dir, None, true)?
+    let pre_hook_stdout = if execute_hooks && pre_hook_file.exists() {
+        run_hook(&template_dir, &output_dir, &pre_hook_file, None, true)?
     } else {
         None
     };
 
-    // HOOKS PART END
-
-    let answers_source = get_answers_from(args.stdin, pre_hook_stdout)?;
-
-    let preloaded_answers = match answers_source {
-        AnswerSource::Stdin => load_from_stdin(),
-        AnswerSource::PreHookStdout(stdout) => load_from_hook(stdout),
-        AnswerSource::None => Ok(serde_json::Value::Null),
-    }?;
+    let preloaded_answers = get_answers_from(args.stdin, pre_hook_stdout)?;
 
     let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
     let answers = get_answers(&*engine, config.questions, preloaded_answers)?;
@@ -124,8 +97,8 @@ fn run(args: Args) -> Result<()> {
     }
 
     // Execute post-generation hook
-    if execute_hooks && post_hook_dir.exists() {
-        run_hook(&template_dir, &output_dir, &post_hook_dir, Some(&answers), false)?;
+    if execute_hooks && post_hook_file.exists() {
+        run_hook(&template_dir, &output_dir, &post_hook_file, Some(&answers), false)?;
     }
 
     println!("Template generation completed successfully in {}.", output_dir.display());

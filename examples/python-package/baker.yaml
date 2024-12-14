@@ -8,7 +8,7 @@ now:
 
 project_name:
   type: str
-  help: "Hello {{username}}. Please enter the project name"
+  help: "Hello {{username}}. Your OS is {{user_os}} Please enter the project name"
 
 cronjob_schedule:
   type: str
