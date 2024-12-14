@@ -79,12 +79,12 @@ pub trait TemplateEngine {
 }
 
 /// Loader for templates from the local filesystem.
-pub struct LocalLoader {
-    path: PathBuf,
+pub struct LocalLoader<P: AsRef<std::path::Path>> {
+    path: P,
 }
 /// Loader for templates from git repositories.
-pub struct GitLoader {
-    repo: String,
+pub struct GitLoader<S: AsRef<str>> {
+    repo: S,
 }
 
 /// MiniJinja-based template rendering engine.
@@ -93,14 +93,14 @@ pub struct MiniJinjaEngine {
     env: Environment<'static>,
 }
 
-impl LocalLoader {
+impl<P: AsRef<std::path::Path>> LocalLoader<P> {
     /// Creates a new LocalLoader instance.
-    pub fn new(path: PathBuf) -> Self {
+    pub fn new(path: P) -> Self {
         Self { path }
     }
 }
 
-impl TemplateLoader for LocalLoader {
+impl<P: AsRef<std::path::Path>> TemplateLoader for LocalLoader<P> {
     /// Loads a template from the local filesystem.
     ///
     /// # Arguments
@@ -113,7 +113,7 @@ impl TemplateLoader for LocalLoader {
     /// * `BakerError::TemplateError` if path doesn't exist
     /// * Panics if source is not FileSystem variant
     fn load(&self) -> Result<PathBuf> {
-        let path = &self.path;
+        let path = self.path.as_ref();
         if !path.exists() {
             return Err(Error::TemplateDoesNotExistsError {
                 template_dir: path.display().to_string(),
@@ -124,14 +124,14 @@ impl TemplateLoader for LocalLoader {
     }
 }
 
-impl GitLoader {
+impl<S: AsRef<str>> GitLoader<S> {
     /// Creates a new GitLoader instance.
-    pub fn new(repo: String) -> Self {
+    pub fn new(repo: S) -> Self {
         Self { repo }
     }
 }
 
-impl TemplateLoader for GitLoader {
+impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
     /// Loads a template by cloning a git repository.
     ///
     /// # Arguments
@@ -143,7 +143,7 @@ impl TemplateLoader for GitLoader {
     /// # Errors
     /// * `BakerError::TemplateError` if clone fails
     fn load(&self) -> Result<PathBuf> {
-        let repo_url = &self.repo;
+        let repo_url = self.repo.as_ref();
 
         debug!("Cloning repository '{}'.", repo_url);
 
@@ -192,7 +192,7 @@ impl TemplateLoader for GitLoader {
         let mut builder = git2::build::RepoBuilder::new();
         builder.fetch_options(fetch_opts);
 
-        match builder.clone(repo_url, &clone_path) {
+        match builder.clone(&repo_url, &clone_path) {
             Ok(_) => Ok(clone_path),
             Err(e) => Err(Error::Git2Error(e)),
         }
