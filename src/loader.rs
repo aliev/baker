@@ -5,7 +5,6 @@ use crate::error::{Error, Result};
 use dialoguer::Confirm;
 use git2;
 use log::debug;
-use minijinja::Environment;
 use std::fs;
 use std::path::PathBuf;
 use url::Url;
@@ -65,19 +64,6 @@ pub trait TemplateLoader {
     fn load(&self) -> Result<PathBuf>; // was process
 }
 
-/// Trait for template rendering engines.
-pub trait TemplateEngine {
-    /// Renders a template string with the given context.
-    ///
-    /// # Arguments
-    /// * `template` - Template string to render
-    /// * `context` - Context variables for rendering
-    ///
-    /// # Returns
-    /// * `BakerResult<String>` - Rendered template string
-    fn render(&self, template: &str, context: &serde_json::Value) -> Result<String>;
-}
-
 /// Loader for templates from the local filesystem.
 pub struct LocalLoader<P: AsRef<std::path::Path>> {
     path: P,
@@ -86,13 +72,6 @@ pub struct LocalLoader<P: AsRef<std::path::Path>> {
 pub struct GitLoader<S: AsRef<str>> {
     repo: S,
 }
-
-/// MiniJinja-based template rendering engine.
-pub struct MiniJinjaEngine {
-    /// MiniJinja environment instance
-    env: Environment<'static>,
-}
-
 impl<P: AsRef<std::path::Path>> LocalLoader<P> {
     /// Creates a new LocalLoader instance.
     pub fn new(path: P) -> Self {
@@ -199,47 +178,8 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
     }
 }
 
-impl MiniJinjaEngine {
-    /// Creates a new MiniJinjaEngine instance with default environment.
-    pub fn new() -> Self {
-        let env = Environment::new();
-        Self { env }
-    }
-}
-
-impl Default for MiniJinjaEngine {
-    fn default() -> Self {
-        MiniJinjaEngine::new()
-    }
-}
-
-impl TemplateEngine for MiniJinjaEngine {
-    /// Renders a template string using MiniJinja.
-    ///
-    /// # Arguments
-    /// * `template` - Template string to render
-    /// * `context` - JSON context for variable interpolation
-    ///
-    /// # Returns
-    /// * `BakerResult<String>` - Rendered template string
-    ///
-    /// # Errors
-    /// * `BakerError::TemplateError` if:
-    ///   - Template addition fails
-    ///   - Template retrieval fails
-    ///   - Template rendering fails
-    fn render(&self, template: &str, context: &serde_json::Value) -> Result<String> {
-        let mut env = self.env.clone();
-        env.add_template("temp", template).map_err(Error::MinijinjaError)?;
-
-        let tmpl = env.get_template("temp").map_err(Error::MinijinjaError)?;
-
-        tmpl.render(context).map_err(Error::MinijinjaError)
-    }
-}
-
 /// Returns the template directory from provided template source
-pub fn get_template_dir<S: Into<String>>(template: S) -> Result<PathBuf> {
+pub fn load_template<S: Into<String>>(template: S) -> Result<PathBuf> {
     let template: String = template.into();
     let template_source = match TemplateSource::from_string(&template) {
         Some(source) => Ok(source),

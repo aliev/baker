@@ -8,7 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
-use crate::template::TemplateEngine;
+use crate::renderer::TemplateRenderer;
 
 /// Ensures the output directory exists and is safe to write to.
 ///
@@ -204,7 +204,7 @@ fn process_template_file<P: AsRef<Path>>(
     path: P,
     target_path: P,
     answers: &serde_json::Value,
-    engine: &dyn TemplateEngine,
+    engine: &dyn TemplateRenderer,
 ) -> Result<()> {
     let content = read_file(&path)?;
     let final_content = engine.render(&content, answers)?;
@@ -218,7 +218,7 @@ fn process_file<P: AsRef<Path>>(
     target: P,
     needs_processing: bool,
     answers: &serde_json::Value,
-    engine: &dyn TemplateEngine,
+    engine: &dyn TemplateRenderer,
     overwrite: Option<bool>,
 ) -> Result<()> {
     let source = source.as_ref();
@@ -258,7 +258,7 @@ pub fn process_directory<P: AsRef<Path>>(
     template_dir: P,
     output_dir: P,
     answers: &serde_json::Value,
-    engine: &dyn TemplateEngine,
+    engine: &dyn TemplateRenderer,
     ignored_set: &GlobSet,
     overwrite: Option<bool>,
 ) -> Result<()> {

@@ -40,7 +40,7 @@ pub mod processor;
 /// - Local and Git template sources
 /// - MiniJinja template rendering
 /// - Variable interpolation
-pub mod template;
+pub mod renderer;
 
 /// User input and interaction handling.
 ///
@@ -58,3 +58,5 @@ pub mod template;
 pub mod prompt;
 
 pub mod parser;
+
+pub mod loader;

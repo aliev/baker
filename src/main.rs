@@ -8,9 +8,10 @@ use baker::{
     error::{default_error_handler, Error, Result},
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::{parse_bakerignore_file, IGNORE_FILE},
+    loader::load_template,
     parser::{get_answers, get_answers_from},
     processor::{get_output_dir, process_directory},
-    template::{get_template_dir, MiniJinjaEngine, TemplateEngine},
+    renderer::MiniJinjaRenderer,
 };
 use walkdir::WalkDir;
 
@@ -51,7 +52,7 @@ fn main() {
 /// 8. Executes post-generation hooks
 fn run(args: Args) -> Result<()> {
     let output_dir = get_output_dir(args.output_dir, args.force)?;
-    let template_dir = get_template_dir(args.template)?;
+    let template_dir = load_template(args.template)?;
 
     let config = get_config(&template_dir)?;
 
@@ -68,7 +69,7 @@ fn run(args: Args) -> Result<()> {
 
     let preloaded_answers = get_answers_from(args.stdin, pre_hook_stdout)?;
 
-    let engine: Box<dyn TemplateEngine> = Box::new(MiniJinjaEngine::new());
+    let engine = Box::new(MiniJinjaRenderer::new());
     let answers = get_answers(&*engine, config.questions, preloaded_answers)?;
 
     // Process ignore patterns
