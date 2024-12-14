@@ -1,7 +1,7 @@
 use crate::config::{Question, ValueType};
 use crate::error::{Error, Result};
 use crate::prompt::prompt_answer;
-use crate::template::TemplateEngine;
+use crate::renderer::TemplateRenderer;
 use indexmap::IndexMap;
 use std::io::Read;
 use std::process::ChildStdout;
@@ -70,7 +70,7 @@ pub fn get_multiple_choice_default(question: &Question) -> serde_json::Value {
 pub fn get_text_default(
     question: &Question,
     current_context: &serde_json::Value,
-    engine: &dyn TemplateEngine,
+    engine: &dyn TemplateRenderer,
 ) -> serde_json::Value {
     let default_value = if let Some(default_value) = &question.default {
         if let Some(s) = default_value.as_str() {
@@ -126,7 +126,7 @@ pub fn get_answers_from(
 }
 
 pub fn get_answers(
-    engine: &dyn TemplateEngine,
+    engine: &dyn TemplateRenderer,
     questions: IndexMap<String, Question>,
     preloaded_answers: serde_json::Value,
 ) -> Result<serde_json::Value> {

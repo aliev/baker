@@ -1,5 +1,5 @@
-use baker::template::{
-    LocalLoader, MiniJinjaEngine, TemplateEngine, TemplateLoader, TemplateSource,
+use baker::renderer::{
+    LocalLoader, MiniJinjaRenderer, TemplateLoader, TemplateRenderer, TemplateSource,
 };
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -39,7 +39,7 @@ fn test_local_loader() {
 
 #[test]
 fn test_minijinja_engine() {
-    let engine = MiniJinjaEngine::new();
+    let engine = MiniJinjaRenderer::new();
     let context = serde_json::json!({
         "name": "test",
         "value": 42
