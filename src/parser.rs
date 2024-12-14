@@ -159,16 +159,16 @@ pub fn get_answers(
             }
         };
 
-        let (key, value) = if let Some(default_answer_value) = preloaded_answer {
+        let value = if let Some(default_answer_value) = preloaded_answer {
             // Return the default answer
-            (key, default_answer_value.clone())
+            default_answer_value.clone()
         } else {
             // Sometimes "help" contain the value with the template strings.
             // This function renders it and returns rendered value.
             let help_rendered = engine
                 .render(&question.help, &current_context)
                 .unwrap_or(question.help.clone());
-            prompt_answer(key, question_type, default_value, help_rendered, question)?
+            prompt_answer(question_type, default_value, help_rendered, question)?
         };
         answers.insert(key, value);
     }
