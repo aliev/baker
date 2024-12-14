@@ -44,7 +44,7 @@ pub fn parse_bakerignore_file<P: AsRef<Path>>(bakerignore_path: P) -> Result<Glo
 
     // Add default patterns first
     for pattern in DEFAULT_IGNORE_PATTERNS {
-        builder.add(Glob::new(pattern).map_err(Error::from_glob_set_error)?);
+        builder.add(Glob::new(pattern).map_err(Error::GlobSetParseError)?);
     }
 
     // Then add patterns from .bakerignore if it exists
@@ -52,12 +52,12 @@ pub fn parse_bakerignore_file<P: AsRef<Path>>(bakerignore_path: P) -> Result<Glo
         for line in contents.lines() {
             let line = line.trim();
             if !line.is_empty() && !line.starts_with('#') {
-                builder.add(Glob::new(line).map_err(Error::from_glob_set_error)?);
+                builder.add(Glob::new(line).map_err(Error::GlobSetParseError)?);
             }
         }
     } else {
         debug!("No .bakerignore file found, using default patterns.");
     }
 
-    Ok(builder.build().map_err(Error::from_glob_set_error)?)
+    builder.build().map_err(Error::GlobSetParseError)
 }

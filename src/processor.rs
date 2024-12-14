@@ -230,7 +230,7 @@ fn process_file<P: AsRef<Path>>(
                 .with_prompt(format!("Overwrite '{}'?", target.display()))
                 .default(false)
                 .interact()
-                .map_err(Error::from_dialoguer_error)?,
+                .map_err(Error::PromptError)?,
         };
 
         if !confirm {
@@ -253,7 +253,7 @@ fn process_file<P: AsRef<Path>>(
 }
 
 /// Processes a single entry in the template directory
-pub fn process_entry<P: AsRef<Path>>(
+pub fn process_directory<P: AsRef<Path>>(
     source_path: P,
     template_dir: P,
     output_dir: P,
@@ -267,41 +267,47 @@ pub fn process_entry<P: AsRef<Path>>(
     let source_path = source_path.as_ref();
 
     // Get path relative to template directory
-    let relative_to_template = source_path
-        .strip_prefix(template_dir)
-        .map_err(|e| Error::TemplateError(format!("Failed to strip prefix: {}", e)))?;
+    let relative_to_template =
+        source_path.strip_prefix(template_dir).map_err(|e| Error::ProcessError {
+            source_path: source_path.display().to_string(),
+            e: e.to_string(),
+        })?;
 
     // Check if file should be ignored
+    // Skip when ignored
     if ignored_set.is_match(relative_to_template) {
-        return Err(Error::TemplateError(format!(
-            "Skipping ignored file '{}'.",
-            relative_to_template.display()
-        )));
+        println!("Skipping: '{}'.", relative_to_template.display());
+        return Ok(());
     }
 
-    let path_str = source_path.to_str().ok_or_else(|| {
-        Error::TemplateError(format!("Invalid path '{}'.", source_path.display()))
+    // Skip when the path is not valid
+    let path_str = source_path.to_str().ok_or_else(|| Error::ProcessError {
+        source_path: source_path.display().to_string(),
+        e: "Cannot convert source_path to string.".to_string(),
     })?;
 
+    // Skip when it cannot render
     let rendered_path_str = engine.render(path_str, answers).map_err(|e| {
-        Error::TemplateError(format!("Failed to render path '{}': {}.", path_str, e))
+        Error::ProcessError { source_path: path_str.to_string(), e: e.to_string() }
     })?;
 
     // Validate rendered path
     if !is_rendered_path_valid(&rendered_path_str) {
-        return Err(Error::TemplateError(format!(
-            "Invalid rendered path '{}'.",
-            rendered_path_str
-        )));
+        return Err(Error::ProcessError {
+            source_path: rendered_path_str,
+            e: "The rendered path is not valid".to_string(),
+        });
     }
 
     // Convert rendered string back to Path and get relative path
     let rendered_path = PathBuf::from(&rendered_path_str);
 
     // Removes template_dir prefix from rendered_path
-    let relative_path = rendered_path
-        .strip_prefix(template_dir)
-        .map_err(|e| Error::TemplateError(e.to_string()))?;
+    let relative_path =
+        rendered_path.strip_prefix(template_dir).map_err(|e| Error::ProcessError {
+            source_path: source_path.display().to_string(),
+            e: e.to_string(),
+        })?;
 
     // Resolve final target path
     let (target_path, needs_processing) = resolve_target_path(relative_path, output_dir);

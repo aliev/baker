@@ -14,6 +14,21 @@ pub enum Error {
     #[error("IO error: {0}.")]
     IoError(#[from] std::io::Error),
 
+    #[error("Failed to parse config file. Original error: {0}.")]
+    ConfigParseError(#[from] serde_yaml::Error),
+
+    #[error("Failed to parse .bakerignore file. Original error: {0}")]
+    GlobSetParseError(#[from] globset::Error),
+
+    #[error("Failed to display confirmation prompt. Original error: {0}")]
+    PromptError(#[from] dialoguer::Error),
+
+    #[error("Failed to clone repository. Original error: {0}")]
+    Git2Error(#[from] git2::Error),
+
+    #[error("Failed to render. Original error: {0}")]
+    MinijinjaError(#[from] minijinja::Error),
+
     /// Represents errors that occur during template processing
     #[error("Template error: {0}.")]
     TemplateError(String),
@@ -22,10 +37,7 @@ pub enum Error {
     #[error("No configuration file found in '{template_dir}'. Tried: {config_files}.")]
     ConfigError { template_dir: String, config_files: String },
 
-    /// Represents errors that occur during hook script execution
-    #[error("Hook execution error: {0}.")]
-    HookError(String),
-
+    /// When the Hook has executed but finished with an error.
     #[error("Hook execution failed with status: {status}")]
     HookExecutionError { status: ExitStatus },
 
@@ -37,24 +49,15 @@ pub enum Error {
     #[error("BakerIgnore error: {0}.")]
     BakerIgnoreError(String),
 
-    #[error("Failed to parse .bakerignore file. Original error: {e}")]
-    GlobSetParseError { e: globset::Error },
-
-    #[error("Failed to display confirmation prompt. Original error: {e}")]
-    PromptError { e: dialoguer::Error },
-
     #[error("Cannot proceed: output directory '{output_dir}' already exists. Use --force to overwrite it.")]
     OutputDirectoryExistsError { output_dir: String },
-}
+    #[error("Cannot proceed: template directory '{template_dir}' does not exist.")]
+    TemplateDoesNotExistsError { template_dir: String },
+    #[error("Cannot proceed: invalid type of template source.")]
+    TemplateSourceInvalidError,
 
-impl Error {
-    pub fn from_dialoguer_error(e: dialoguer::Error) -> Self {
-        Error::PromptError { e }
-    }
-
-    pub fn from_glob_set_error(e: globset::Error) -> Self {
-        Error::GlobSetParseError { e }
-    }
+    #[error("Cannot process the source path: '{source_path}'. Original error: {e}")]
+    ProcessError { source_path: String, e: String },
 }
 
 /// Convenience type alias for Results with BakerError as the error type.

@@ -62,7 +62,7 @@ pub trait TemplateLoader {
     ///
     /// # Returns
     /// * `BakerResult<PathBuf>` - Path to the loaded template
-    fn load(&self, source: &TemplateSource) -> Result<PathBuf>; // was process
+    fn load(&self) -> Result<PathBuf>; // was process
 }
 
 /// Trait for template rendering engines.
@@ -79,9 +79,13 @@ pub trait TemplateEngine {
 }
 
 /// Loader for templates from the local filesystem.
-pub struct LocalLoader {}
+pub struct LocalLoader {
+    path: PathBuf,
+}
 /// Loader for templates from git repositories.
-pub struct GitLoader {}
+pub struct GitLoader {
+    repo: String,
+}
 
 /// MiniJinja-based template rendering engine.
 pub struct MiniJinjaEngine {
@@ -89,16 +93,10 @@ pub struct MiniJinjaEngine {
     env: Environment<'static>,
 }
 
-impl Default for LocalLoader {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl LocalLoader {
     /// Creates a new LocalLoader instance.
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
     }
 }
 
@@ -114,16 +112,12 @@ impl TemplateLoader for LocalLoader {
     /// # Errors
     /// * `BakerError::TemplateError` if path doesn't exist
     /// * Panics if source is not FileSystem variant
-    fn load(&self, source: &TemplateSource) -> Result<PathBuf> {
-        let path = match source {
-            TemplateSource::FileSystem(path) => path,
-            _ => panic!("Expected LocalPath variant."),
-        };
+    fn load(&self) -> Result<PathBuf> {
+        let path = &self.path;
         if !path.exists() {
-            return Err(Error::TemplateError(format!(
-                "Template path '{}' does not exist.",
-                path.display()
-            )));
+            return Err(Error::TemplateDoesNotExistsError {
+                template_dir: path.display().to_string(),
+            });
         }
 
         Ok(path.to_path_buf())
@@ -132,14 +126,8 @@ impl TemplateLoader for LocalLoader {
 
 impl GitLoader {
     /// Creates a new GitLoader instance.
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for GitLoader {
-    fn default() -> Self {
-        GitLoader::new()
+    pub fn new(repo: String) -> Self {
+        Self { repo }
     }
 }
 
@@ -154,11 +142,8 @@ impl TemplateLoader for GitLoader {
     ///
     /// # Errors
     /// * `BakerError::TemplateError` if clone fails
-    fn load(&self, source: &TemplateSource) -> Result<PathBuf> {
-        let repo_url = match source {
-            TemplateSource::Git(url) => url,
-            _ => return Err(Error::TemplateError("Expected Git URL.".to_string())),
-        };
+    fn load(&self) -> Result<PathBuf> {
+        let repo_url = &self.repo;
 
         debug!("Cloning repository '{}'.", repo_url);
 
@@ -174,15 +159,9 @@ impl TemplateLoader for GitLoader {
                 ))
                 .default(false)
                 .interact()
-                .map_err(|e| Error::HookError(e.to_string()))?;
+                .map_err(Error::PromptError)?;
             if response {
-                fs::remove_dir_all(&clone_path).map_err(|e| {
-                    Error::TemplateError(format!(
-                        "Failed to remove existing directory '{}': {}.",
-                        clone_path.display(),
-                        e
-                    ))
-                })?;
+                fs::remove_dir_all(&clone_path).map_err(Error::IoError)?;
             } else {
                 debug!("Using existing directory '{}'.", clone_path.display());
                 return Ok(clone_path);
@@ -215,10 +194,7 @@ impl TemplateLoader for GitLoader {
 
         match builder.clone(repo_url, &clone_path) {
             Ok(_) => Ok(clone_path),
-            Err(e) => Err(Error::TemplateError(format!(
-                "Failed to clone repository '{}': {}.",
-                repo_url, e
-            ))),
+            Err(e) => Err(Error::Git2Error(e)),
         }
     }
 }
@@ -254,12 +230,28 @@ impl TemplateEngine for MiniJinjaEngine {
     ///   - Template rendering fails
     fn render(&self, template: &str, context: &serde_json::Value) -> Result<String> {
         let mut env = self.env.clone();
-        env.add_template("temp", template)
-            .map_err(|e| Error::TemplateError(e.to_string()))?;
+        env.add_template("temp", template).map_err(Error::MinijinjaError)?;
 
-        let tmpl =
-            env.get_template("temp").map_err(|e| Error::TemplateError(e.to_string()))?;
+        let tmpl = env.get_template("temp").map_err(Error::MinijinjaError)?;
 
-        tmpl.render(context).map_err(|e| Error::TemplateError(e.to_string()))
+        tmpl.render(context).map_err(Error::MinijinjaError)
     }
+}
+
+/// Returns the template directory from provided template source
+pub fn get_template_dir<S: Into<String>>(template: S) -> Result<PathBuf> {
+    let template: String = template.into();
+    let template_source = match TemplateSource::from_string(&template) {
+        Some(source) => Ok(source),
+        None => {
+            Err(Error::TemplateError(format!("invalid template source: {}", template)))
+        }
+    }?;
+
+    let loader: Box<dyn TemplateLoader> = match template_source {
+        TemplateSource::Git(repo) => Box::new(GitLoader::new(repo)),
+        TemplateSource::FileSystem(path) => Box::new(LocalLoader::new(path)),
+    };
+
+    loader.load()
 }

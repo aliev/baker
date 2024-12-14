@@ -67,10 +67,7 @@ pub struct Config {
 ///
 /// # Errors
 /// * `BakerError::ConfigError` if no valid config file exists
-pub fn load_config<P: AsRef<Path>>(
-    template_dir: P,
-    config_files: &[&str],
-) -> Result<String> {
+fn load_config<P: AsRef<Path>>(template_dir: P, config_files: &[&str]) -> Result<String> {
     for file in config_files {
         let config_path = template_dir.as_ref().join(file);
         if config_path.exists() {
@@ -83,4 +80,18 @@ pub fn load_config<P: AsRef<Path>>(
         template_dir: template_dir.as_ref().display().to_string(),
         config_files: config_files.join(", "),
     })
+}
+
+/// Parses config file.
+fn parse_config<S: Into<String>>(config_content: S) -> Result<Config> {
+    let config_content: String = config_content.into();
+    let config: Config =
+        serde_yaml::from_str(&config_content).map_err(Error::ConfigParseError)?;
+    Ok(config)
+}
+
+/// Loads configuration and parses it.
+pub fn get_config<P: AsRef<Path>>(template_dir: P) -> Result<Config> {
+    let config_content = load_config(template_dir, &CONFIG_FILES)?;
+    parse_config(config_content)
 }
