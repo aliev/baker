@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use baker::processor::{
-    ensure_output_dir, is_jinja_template, is_rendered_path_valid, resolve_target_path,
+    get_output_dir, is_jinja_template, is_rendered_path_valid, resolve_target_path,
 };
 use tempfile::TempDir;
 
@@ -12,13 +12,13 @@ fn test_ensure_output_dir() {
 
     // Test non-existent directory
     let new_dir = path.join("new_dir");
-    assert!(ensure_output_dir(new_dir, false).is_ok());
+    assert!(get_output_dir(new_dir, false).is_ok());
 
     // Test existing directory without force
-    assert!(ensure_output_dir(path, false).is_err());
+    assert!(get_output_dir(path, false).is_err());
 
     // Test existing directory with force
-    assert!(ensure_output_dir(path, true).is_ok());
+    assert!(get_output_dir(path, true).is_ok());
 }
 
 #[test]
