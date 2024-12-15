@@ -10,7 +10,7 @@ use baker::{
     ignore::{parse_bakerignore_file, IGNORE_FILE},
     loader::load_template,
     parser::{get_answers, get_answers_from},
-    processor::{get_output_dir, process_directory},
+    processor::{get_output_dir, process_template_entry},
     renderer::MiniJinjaRenderer,
 };
 use walkdir::WalkDir;
@@ -76,11 +76,12 @@ fn run(args: Args) -> Result<()> {
     let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;
 
     // Process template files
-    for entry in WalkDir::new(&template_dir) {
-        let entry = entry.map_err(|e| Error::TemplateError(e.to_string()))?;
-        let path = entry.path();
-        if let Err(e) = process_directory(
-            path,
+    for dir_entry in WalkDir::new(&template_dir) {
+        let raw_entry = dir_entry.map_err(|e| Error::TemplateError(e.to_string()))?;
+        let template_entry = raw_entry.path();
+        dbg!(template_entry);
+        if let Err(e) = process_template_entry(
+            template_entry,
             &template_dir,
             &output_dir,
             &answers,

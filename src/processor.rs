@@ -139,25 +139,25 @@ pub fn is_template_file(filename: &str) -> bool {
 /// ```
 pub fn resolve_target_path<P: AsRef<Path>>(
     source_path: P,
-    target_dir: P,
+    output_dir: P,
 ) -> (PathBuf, bool) {
-    let target_dir = target_dir.as_ref();
     let source_path = source_path.as_ref();
+    let output_dir = output_dir.as_ref();
 
     // Get filename if it exists, otherwise return unprocessed path
     let filename = match source_path.file_name().and_then(|n| n.to_str()) {
         Some(name) => name,
-        None => return (target_dir.join(source_path), false),
+        None => return (output_dir.join(source_path), false),
     };
 
     // Check if file is a template
     if !is_template_file(filename) {
-        return (target_dir.join(source_path), false);
+        return (output_dir.join(source_path), false);
     }
 
     // Process template file by removing .j2 extension
     let new_name = filename.strip_suffix(".j2").unwrap();
-    let target_path = target_dir.join(source_path.with_file_name(new_name));
+    let target_path = output_dir.join(source_path.with_file_name(new_name));
 
     debug!("Template file detected: {} -> {}", filename, target_path.display());
     (target_path, true)
@@ -176,46 +176,116 @@ pub fn is_rendered_path_valid<S: Into<String>>(rendered_path: S) -> bool {
     empty_parts.is_empty()
 }
 
-/// Process a file entry
-fn process_file<P: AsRef<Path>>(
-    source: P,
-    target: P,
+/// Renders the provided template path using the given answers and template rendering engine.
+///
+/// This function takes a path to a template file or directory, uses the provided `answers`
+/// as the rendering context, and applies the specified template rendering engine to produce
+/// a rendered `PathBuf`. The resulting path is validated to ensure it is a valid file system path.
+///
+/// # Type Parameters
+/// - `P`: A type that can be converted to a `Path` (e.g., `Path`, `PathBuf`, or `&str`).
+///
+/// # Arguments
+/// - `template_entry`: The path to the template file or directory to render.
+/// - `answers`: A JSON object containing context variables for rendering.
+/// - `engine`: An implementation of the `TemplateRenderer` trait used to render the template path.
+///
+/// # Returns
+/// - `Ok(PathBuf)`: A valid, rendered path as a `PathBuf`.
+/// - `Err(Error)`: An error occurs if:
+///     - The `template_entry` path cannot be converted to a string.
+///     - The rendering engine encounters an error while processing the path.
+///     - The rendered path is invalid (e.g., contains illegal characters or is empty).
+///
+/// # Errors
+/// - Returns `Error::ProcessError` if:
+///     - The source path cannot be converted to a valid UTF-8 string.
+///     - Rendering the template path fails.
+///     - The resulting rendered path is not valid.
+///
+/// # Example
+/// ```rust
+/// use serde_json::json;
+/// use your_crate::render_path;
+/// use your_crate::engine::YourTemplateRenderer;
+///
+/// let template_path = "template/{{variable}}.txt";
+/// let answers = json!({ "variable": "example" });
+/// let engine = YourTemplateRenderer::new();
+///
+/// let rendered_path = render_path(template_path, &answers, &engine)?;
+/// assert_eq!(rendered_path, PathBuf::from("template/example.txt"));
+/// ```
+fn render_path<P: AsRef<Path>>(
+    template_entry: P,
     answers: &serde_json::Value,
     engine: &dyn TemplateRenderer,
+) -> Result<PathBuf> {
+    // Convert the input to a Path
+    let template_entry = template_entry.as_ref();
+
+    // Ensure the path can be converted to a string
+    let path_str = template_entry.to_str().ok_or_else(|| Error::ProcessError {
+        source_path: template_entry.display().to_string(),
+        e: "Cannot convert source_path to string.".to_string(),
+    })?;
+
+    // Render the path using the template engine
+    let rendered_path = engine.render(path_str, answers).map_err(|e| {
+        Error::ProcessError { source_path: path_str.to_string(), e: e.to_string() }
+    })?;
+
+    // Validate the rendered path
+    if !is_rendered_path_valid(&rendered_path) {
+        return Err(Error::ProcessError {
+            source_path: rendered_path,
+            e: "The rendered path is not valid".to_string(),
+        });
+    }
+
+    // Return the rendered path as a PathBuf
+    Ok(PathBuf::from(rendered_path))
+}
+
+/// Process a file entry
+fn render_content<P: AsRef<Path>>(
+    template_entry: P,
+    answers: &serde_json::Value,
+    engine: &dyn TemplateRenderer,
+) -> Result<String> {
+    let template_entry = template_entry.as_ref();
+    let content = fs::read_to_string(template_entry).map_err(Error::IoError)?;
+    Ok(engine.render(&content, answers)?)
+}
+
+fn confirm_file_overwriting<P: AsRef<Path>>(
+    target_path: P,
     overwrite: Option<bool>,
-) -> Result<()> {
-    let source = source.as_ref();
-    let target = target.as_ref();
-    if target.exists() {
+) -> Result<bool> {
+    let target_path = target_path.as_ref();
+    if target_path.exists() {
         let confirm = match overwrite {
             Some(val) => val,
             _ => Confirm::new()
-                .with_prompt(format!("Overwrite '{}'?", target.display()))
+                .with_prompt(format!("Overwrite '{}'?", target_path.display()))
                 .default(false)
                 .interact()
                 .map_err(Error::PromptError)?,
         };
-
-        if !confirm {
-            println!("Skipping: '{}'.", target.display());
-            return Ok(());
-        }
+        return Ok(confirm);
     }
 
-    if target.exists() {
-        println!("Overwriting: '{}'.", target.display());
-    } else {
-        println!("Creating: '{}'.", target.display());
-    }
-    let content = fs::read_to_string(source).map_err(Error::IoError)?;
-    let rendered_content = engine.render(&content, answers)?;
-    write_file(target, &rendered_content)?;
-    Ok(())
+    Ok(true)
 }
 
 /// Processes a single entry in the template directory
-pub fn process_directory<P: AsRef<Path>>(
-    source_path: P,
+///
+/// # Arguments
+/// * `template_entry` - An item representing a file or directory from the template directory tree.
+/// * `template_dir` - The path to template directory
+/// * `output_dir` - The path to output directory
+pub fn process_template_entry<P: AsRef<Path>>(
+    template_entry: P,
     template_dir: P,
     output_dir: P,
     answers: &serde_json::Value,
@@ -225,53 +295,31 @@ pub fn process_directory<P: AsRef<Path>>(
 ) -> Result<()> {
     let template_dir = template_dir.as_ref();
     let output_dir = output_dir.as_ref();
-    let source_path = source_path.as_ref();
+    let template_entry = template_entry.as_ref();
 
-    // Get path relative to template directory
-    let relative_to_template =
-        source_path.strip_prefix(template_dir).map_err(|e| Error::ProcessError {
-            source_path: source_path.display().to_string(),
-            e: e.to_string(),
-        })?;
-
-    // Check if file should be ignored
-    // Skip when ignored
-    if ignored_set.is_match(relative_to_template) {
-        println!("Skipping: '{}'.", relative_to_template.display());
+    // Skip processing if template entry in `.bakerignore`
+    if ignored_set.is_match(template_entry) {
+        println!("Skipping: '{}'.", template_entry.display());
         return Ok(());
     }
 
     // Skip when the path is not valid
-    let path_str = source_path.to_str().ok_or_else(|| Error::ProcessError {
-        source_path: source_path.display().to_string(),
-        e: "Cannot convert source_path to string.".to_string(),
-    })?;
+    let rendered_template_entry = render_path(template_entry, answers, engine)?;
 
-    // Skip when it cannot render
-    let rendered_path_str = engine.render(path_str, answers).map_err(|e| {
-        Error::ProcessError { source_path: path_str.to_string(), e: e.to_string() }
-    })?;
-
-    // Validate rendered path
-    if !is_rendered_path_valid(&rendered_path_str) {
-        return Err(Error::ProcessError {
-            source_path: rendered_path_str,
-            e: "The rendered path is not valid".to_string(),
-        });
-    }
-
-    // Convert rendered string back to Path and get relative path
-    let rendered_path = PathBuf::from(&rendered_path_str);
-
-    // Removes template_dir prefix from rendered_path
-    let relative_path =
-        rendered_path.strip_prefix(template_dir).map_err(|e| Error::ProcessError {
-            source_path: source_path.display().to_string(),
-            e: e.to_string(),
+    // Here we starting the process of building the entry path in output directory.
+    // We should remove the template directory prefix from the `template_entry`.
+    // For example, if your `template_entry` is: `my_template_directory/README.md`
+    // the path will be converted to `output_dir/README.md`.
+    let target_entry =
+        rendered_template_entry.strip_prefix(template_dir).map_err(|e| {
+            Error::ProcessError {
+                source_path: template_entry.display().to_string(),
+                e: e.to_string(),
+            }
         })?;
 
     // Resolve final target path
-    let (target_path, needs_processing) = resolve_target_path(relative_path, output_dir);
+    let (target_path, needs_processing) = resolve_target_path(target_entry, output_dir);
 
     // Process directory or file
     if target_path.is_dir() {
@@ -280,9 +328,29 @@ pub fn process_directory<P: AsRef<Path>>(
     }
 
     if needs_processing {
-        process_file(source_path, &target_path, answers, engine, overwrite)?
+        let rendered_template_entry_content = render_content(
+            template_entry,
+            // &target_path,
+            answers,
+            engine,
+            // overwrite,
+        )?;
+
+        let confirm = confirm_file_overwriting(&target_path, overwrite)?;
+
+        if !confirm {
+            println!("Skipping: '{}'.", target_path.display());
+            return Ok(());
+        }
+
+        if target_path.exists() {
+            println!("Overwriting: '{}'.", target_path.display());
+        } else {
+            println!("Creating: '{}'.", target_path.display());
+        }
+        write_file(target_path, &rendered_template_entry_content)?;
     } else {
-        copy_file(source_path, &target_path)?
+        copy_file(template_entry, &target_path)?
     }
 
     Ok(())
