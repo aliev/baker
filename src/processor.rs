@@ -163,7 +163,37 @@ pub fn resolve_target_path<P: AsRef<Path>>(
     (target_path, true)
 }
 
-/// Validates whether the rendered path is valid.
+/// Checks whether the rendered path is valid.
+///
+/// This function verifies if a given rendered path is valid by ensuring
+/// there are no empty segments in the path when split by "/".
+///
+/// # Example
+/// A rendered path might occasionally contain empty segments, such as:
+///
+/// `path/to//my_file.txt`
+///
+/// This can happen for various reasons, for instance, when a file template
+/// includes conditional placeholders:
+///
+/// ```text
+/// template_dir/{% if create_file %}dirname{% endif %}/filename.txt
+/// ```
+///
+/// If `create_file` is `false`, the resulting path would be:
+///
+/// `template_dir//filename.txt`
+///
+/// This function identifies such cases and returns `false` to prevent
+/// the creation of invalid paths or files.
+///
+/// # Parameters
+/// - `rendered_path`: The rendered path to be validated, provided as a type that
+///   can be converted into a `String`.
+///
+/// # Returns
+/// - `true` if the rendered path contains no empty segments after trimming.
+/// - `false` if the rendered path contains one or more empty segments.
 pub fn is_rendered_path_valid<S: Into<String>>(rendered_path: S) -> bool {
     let rendered_path = rendered_path.into();
     // Split the path by "/" and collect non-empty segments.
@@ -202,25 +232,11 @@ pub fn is_rendered_path_valid<S: Into<String>>(rendered_path: S) -> bool {
 ///     - The source path cannot be converted to a valid UTF-8 string.
 ///     - Rendering the template path fails.
 ///     - The resulting rendered path is not valid.
-///
-/// # Example
-/// ```rust
-/// use serde_json::json;
-/// use your_crate::render_path;
-/// use your_crate::engine::YourTemplateRenderer;
-///
-/// let template_path = "template/{{variable}}.txt";
-/// let answers = json!({ "variable": "example" });
-/// let engine = YourTemplateRenderer::new();
-///
-/// let rendered_path = render_path(template_path, &answers, &engine)?;
-/// assert_eq!(rendered_path, PathBuf::from("template/example.txt"));
-/// ```
 fn render_path<P: AsRef<Path>>(
     template_entry: P,
     answers: &serde_json::Value,
     engine: &dyn TemplateRenderer,
-) -> Result<PathBuf> {
+) -> Result<String> {
     // Convert the input to a Path
     let template_entry = template_entry.as_ref();
 
@@ -231,20 +247,10 @@ fn render_path<P: AsRef<Path>>(
     })?;
 
     // Render the path using the template engine
-    let rendered_path = engine.render(path_str, answers).map_err(|e| {
-        Error::ProcessError { source_path: path_str.to_string(), e: e.to_string() }
-    })?;
-
-    // Validate the rendered path
-    if !is_rendered_path_valid(&rendered_path) {
-        return Err(Error::ProcessError {
-            source_path: rendered_path,
-            e: "The rendered path is not valid".to_string(),
-        });
-    }
-
-    // Return the rendered path as a PathBuf
-    Ok(PathBuf::from(rendered_path))
+    engine.render(path_str, answers).map_err(|e| Error::ProcessError {
+        source_path: path_str.to_string(),
+        e: e.to_string(),
+    })
 }
 
 /// Process a file entry
@@ -303,19 +309,26 @@ pub fn process_template_entry<P: AsRef<Path>>(
         return Ok(());
     }
 
+    let rendered_path = render_path(template_entry, answers, engine)?;
+
     // Skip when the path is not valid
-    let rendered_template_entry = render_path(template_entry, answers, engine)?;
+    if !is_rendered_path_valid(&rendered_path) {
+        return Err(Error::ProcessError {
+            source_path: rendered_path,
+            e: "The rendered path is not valid".to_string(),
+        });
+    }
+
+    let rendered_path = PathBuf::from(rendered_path);
 
     // Here we starting the process of building the entry path in output directory.
     // We should remove the template directory prefix from the `template_entry`.
     // For example, if your `template_entry` is: `my_template_directory/README.md`
     // the path will be converted to `output_dir/README.md`.
     let target_entry =
-        rendered_template_entry.strip_prefix(template_dir).map_err(|e| {
-            Error::ProcessError {
-                source_path: template_entry.display().to_string(),
-                e: e.to_string(),
-            }
+        rendered_path.strip_prefix(template_dir).map_err(|e| Error::ProcessError {
+            source_path: template_entry.display().to_string(),
+            e: e.to_string(),
         })?;
 
     // Resolve final target path
@@ -354,4 +367,60 @@ pub fn process_template_entry<P: AsRef<Path>>(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::renderer::MiniJinjaRenderer;
+    use serde_json::json;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[test]
+    fn test_render_path() {
+        let engine = Box::new(MiniJinjaRenderer::new());
+        let template_path = "template/{{variable}}.txt";
+        let answers = json!({"variable": "Hello, World"});
+        let rendered_path = render_path(template_path, &answers, &*engine);
+        assert_eq!(rendered_path.unwrap(), "template/Hello, World.txt".to_string());
+    }
+
+    #[test]
+    fn test_render_content() {
+        let engine = Box::new(MiniJinjaRenderer::new());
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("template.txt");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(b"Hello, {{placeholder}}!").unwrap();
+        let answers = json!({"placeholder": "World"});
+        let result = render_content(&file_path, &answers, &*engine);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "Hello, World!");
+    }
+
+    #[test]
+    fn test_is_rendered_path_valid() {
+        // Invalid: Contains an empty segment between slashes ("//").
+        let is_valid = is_rendered_path_valid("template//filename.txt");
+        assert_eq!(is_valid, false);
+
+        // Valid: All segments are non-empty.
+        let is_valid = is_rendered_path_valid("template/my_directory/filename.txt");
+        assert_eq!(is_valid, true);
+
+        // Invalid: Ends with a trailing slash, resulting in an empty segment at the end.
+        let is_valid = is_rendered_path_valid("template/my_directory/");
+        assert_eq!(is_valid, false);
+
+        // Invalid: Starts with a leading slash, resulting in an empty segment at the start.
+        let is_valid = is_rendered_path_valid("/template");
+        assert_eq!(is_valid, false);
+
+        // Invalid: Starts and ends with slashes, resulting in empty segments at both ends.
+        let is_valid = is_rendered_path_valid("/template/");
+        assert_eq!(is_valid, false);
+    }
 }

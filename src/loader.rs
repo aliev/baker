@@ -26,13 +26,6 @@ impl TemplateSource {
     ///
     /// # Returns
     /// * `Option<Self>` - Some(TemplateSource) if valid input
-    ///
-    /// # Examples
-    /// ```
-    /// use baker::template::TemplateSource;
-    /// let local = TemplateSource::from_string("./templates/web");
-    /// let git = TemplateSource::from_string("https://github.com/user/template.git");
-    /// ```
     pub fn from_string(s: &str) -> Option<Self> {
         // First try to parse as URL
         if let Ok(url) = Url::parse(s) {
