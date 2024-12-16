@@ -57,7 +57,7 @@ pub struct Args {
 
     /// Overwrite files that already exist, without asking.
     #[arg(short, long)]
-    pub overwrite: Option<bool>,
+    pub overwrite: bool,
 }
 
 /// Parses command line arguments and returns the Args structure.

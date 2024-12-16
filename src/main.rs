@@ -2,6 +2,8 @@
 //! Handles command-line argument parsing, template processing flow,
 //! and coordinates interactions between different modules.
 
+use std::path::{Path, PathBuf};
+
 use baker::{
     cli::{get_args, Args},
     config::get_config,
@@ -10,7 +12,7 @@ use baker::{
     ignore::{parse_bakerignore_file, IGNORE_FILE},
     loader::load_template,
     parser::{get_answers, get_answers_from},
-    processor::{get_output_dir, process_template_entry},
+    processor::process_template_entry,
     renderer::MiniJinjaRenderer,
 };
 use walkdir::WalkDir;
@@ -31,6 +33,27 @@ fn main() {
     if let Err(err) = run(args) {
         default_error_handler(err);
     }
+}
+
+/// Ensures the output directory exists and is safe to write to.
+///
+/// # Arguments
+/// * `output_dir` - Target directory path for generated output
+/// * `force` - Whether to overwrite existing directory
+///
+/// # Returns
+/// * `BakerResult<PathBuf>` - Validated output directory path
+///
+/// # Errors
+/// * Returns `BakerError::ConfigError` if directory exists and force is false
+pub fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> Result<PathBuf> {
+    let output_dir = output_dir.as_ref();
+    if output_dir.exists() && !force {
+        return Err(Error::OutputDirectoryExistsError {
+            output_dir: output_dir.display().to_string(),
+        });
+    }
+    Ok(output_dir.to_path_buf())
 }
 
 /// Main application logic execution.
@@ -79,7 +102,7 @@ fn run(args: Args) -> Result<()> {
     for dir_entry in WalkDir::new(&template_dir) {
         let raw_entry = dir_entry.map_err(|e| Error::TemplateError(e.to_string()))?;
         let template_entry = raw_entry.path();
-        dbg!(template_entry);
+
         if let Err(e) = process_template_entry(
             template_entry,
             &template_dir,

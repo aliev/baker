@@ -1,53 +1,36 @@
 //! Core template processing module for Baker.
 //! Handles file system operations, template rendering, and output generation
 //! with support for path manipulation and error handling.
-use dialoguer::Confirm;
 use globset::GlobSet;
 use log::debug;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
+use crate::prompt::prompt_confirm;
 use crate::renderer::TemplateRenderer;
 
-/// Ensures the output directory exists and is safe to write to.
-///
-/// # Arguments
-/// * `output_dir` - Target directory path for generated output
-/// * `force` - Whether to overwrite existing directory
-///
-/// # Returns
-/// * `BakerResult<PathBuf>` - Validated output directory path
-///
-/// # Errors
-/// * Returns `BakerError::ConfigError` if directory exists and force is false
-pub fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> Result<PathBuf> {
-    let output_dir = output_dir.as_ref();
-    if output_dir.exists() && !force {
-        return Err(Error::OutputDirectoryExistsError {
-            output_dir: output_dir.display().to_string(),
-        });
+fn has_valid_rendered_path_parts(template_path: &str, rendered_path: &str) -> bool {
+    let template_path: Vec<&str> = template_path.split('/').collect();
+    let rendered_path: Vec<&str> = rendered_path.split('/').collect();
+
+    for (template_path, rendered_path) in template_path.iter().zip(rendered_path.iter()) {
+        if is_template_string(template_path) && rendered_path.is_empty() {
+            return false;
+        }
     }
-    Ok(output_dir.to_path_buf())
+
+    true
 }
 
-/// Writes content to a file, creating parent directories if needed.
-///
-/// # Arguments
-/// * `path` - Target file path
-/// * `content` - String content to write
-///
-/// # Returns
-/// * `BakerResult<()>` - Success or error status
-///
-/// # Notes
-/// - Converts relative paths to absolute using current working directory
-/// - Creates parent directories automatically
-fn write_file<P: AsRef<Path>>(path: P, content: &str) -> Result<()> {
-    let path = path.as_ref();
+fn write_file<P: AsRef<Path>>(target_path: P, content: &str) -> Result<()> {
+    let target_path = target_path.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
-    let abs_path =
-        if path.is_absolute() { path.to_path_buf() } else { base_path.join(path) };
+    let abs_path = if target_path.is_absolute() {
+        target_path.to_path_buf()
+    } else {
+        base_path.join(target_path)
+    };
 
     if let Some(parent) = abs_path.parent() {
         fs::create_dir_all(parent).map_err(Error::IoError)?;
@@ -55,88 +38,48 @@ fn write_file<P: AsRef<Path>>(path: P, content: &str) -> Result<()> {
     fs::write(abs_path, content).map_err(Error::IoError)
 }
 
-/// Creates a directory and all its parent directories.
-///
-/// # Arguments
-/// * `path` - Directory path to create
-///
-/// # Returns
-/// * `BakerResult<()>` - Success or error status
-fn create_dir_all<P: AsRef<Path>>(path: P) -> Result<()> {
-    let path = path.as_ref();
+fn create_dir_all<P: AsRef<Path>>(dir_path: P) -> Result<()> {
+    let dir_path = dir_path.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
-    let abs_path =
-        if path.is_absolute() { path.to_path_buf() } else { base_path.join(path) };
+    let abs_path = if dir_path.is_absolute() {
+        dir_path.to_path_buf()
+    } else {
+        base_path.join(dir_path)
+    };
     fs::create_dir_all(abs_path).map_err(Error::IoError)
 }
 
-/// Copies a file from source to destination.
-///
-/// # Arguments
-/// * `source` - Source file path
-/// * `dest` - Destination file path
-///
-/// # Returns
-/// * `BakerResult<()>` - Success or error status
-///
-/// # Notes
-/// - Creates parent directories automatically
-fn copy_file<P: AsRef<Path>>(source: P, dest: P) -> Result<()> {
-    let dest = dest.as_ref();
+fn copy_file<P: AsRef<Path>>(source_path: P, dest_path: P) -> Result<()> {
+    let dest_path = dest_path.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
-    let abs_dest =
-        if dest.is_absolute() { dest.to_path_buf() } else { base_path.join(dest) };
+    let abs_dest = if dest_path.is_absolute() {
+        dest_path.to_path_buf()
+    } else {
+        base_path.join(dest_path)
+    };
 
     if let Some(parent) = abs_dest.parent() {
         fs::create_dir_all(parent).map_err(Error::IoError)?;
     }
-    fs::copy(source, abs_dest).map(|_| ()).map_err(Error::IoError)
+    fs::copy(source_path, abs_dest).map(|_| ()).map_err(Error::IoError)
 }
 
-/// Checks if a file is a Jinja2 template based on its extension.
-///
-/// # Arguments
-/// * `filename` - Name of the file to check
-///
-/// # Returns
-/// * `bool` - True if the file has a .j2 extension, false otherwise
-///
-/// # Examples
-/// ```
-/// use baker::processor::is_template_file;
-/// assert!(is_template_file("template.html.j2"));
-/// assert!(!is_template_file("regular.html"));
-/// assert!(!is_template_file("regular.j2"));
-/// ```
-pub fn is_template_file(filename: &str) -> bool {
-    let parts: Vec<&str> = filename.split('.').collect();
+fn is_template_file<P: AsRef<Path>>(path: P) -> bool {
+    let path = path.as_ref();
+    let file_name = match path.file_name().and_then(|n| n.to_str()) {
+        Some(name) => name,
+        None => return false,
+    };
+
+    let parts: Vec<&str> = file_name.split('.').collect();
     parts.len() > 2 && parts.last() == Some(&"j2")
 }
 
-/// Resolves the target path for a template file and determines if it needs processing.
-///
-/// # Arguments
-/// * `source_path` - Path to the source template file
-/// * `target_dir` - Directory where the processed file should be placed
-///
-/// # Returns
-/// * `(PathBuf, bool)` - Tuple containing:
-///   - The resolved target path
-///   - Whether the file should be processed as a template
-///
-/// # Notes
-/// - Files with .j2 extension are processed as templates
-/// - The .j2 extension is stripped from the target filename
-/// - Non-template files are copied directly
-///
-/// # Examples
-/// ```
-/// use std::path::PathBuf;
-/// use baker::processor::resolve_target_path;
-/// let (path, should_process) = resolve_target_path("templates/index.html.j2", "output");
-/// assert_eq!(path, PathBuf::from("output/templates/index.html"));
-/// assert!(should_process);
-/// ```
+fn is_template_string(text: &str) -> bool {
+    text.starts_with("{%") && text.ends_with("%}")
+        || text.starts_with("{{") && text.ends_with("}}")
+}
+
 pub fn resolve_target_path<P: AsRef<Path>>(
     source_path: P,
     output_dir: P,
@@ -163,86 +106,17 @@ pub fn resolve_target_path<P: AsRef<Path>>(
     (target_path, true)
 }
 
-/// Checks whether the rendered path is valid.
-///
-/// This function verifies if a given rendered path is valid by ensuring
-/// there are no empty segments in the path when split by "/".
-///
-/// # Example
-/// A rendered path might occasionally contain empty segments, such as:
-///
-/// `path/to//my_file.txt`
-///
-/// This can happen for various reasons, for instance, when a file template
-/// includes conditional placeholders:
-///
-/// ```text
-/// template_dir/{% if create_file %}dirname{% endif %}/filename.txt
-/// ```
-///
-/// If `create_file` is `false`, the resulting path would be:
-///
-/// `template_dir//filename.txt`
-///
-/// This function identifies such cases and returns `false` to prevent
-/// the creation of invalid paths or files.
-///
-/// # Parameters
-/// - `rendered_path`: The rendered path to be validated, provided as a type that
-///   can be converted into a `String`.
-///
-/// # Returns
-/// - `true` if the rendered path contains no empty segments after trimming.
-/// - `false` if the rendered path contains one or more empty segments.
-pub fn is_rendered_path_valid<S: Into<String>>(rendered_path: S) -> bool {
-    let rendered_path = rendered_path.into();
-    // Split the path by "/" and collect non-empty segments.
-    let path_parts = rendered_path.split('/');
-
-    let empty_parts: Vec<&str> =
-        path_parts.clone().filter(|part| part.trim().is_empty()).collect();
-
-    // If any segment is empty after trimming, return an error.
-    empty_parts.is_empty()
-}
-
-/// Renders the provided template path using the given answers and template rendering engine.
-///
-/// This function takes a path to a template file or directory, uses the provided `answers`
-/// as the rendering context, and applies the specified template rendering engine to produce
-/// a rendered `PathBuf`. The resulting path is validated to ensure it is a valid file system path.
-///
-/// # Type Parameters
-/// - `P`: A type that can be converted to a `Path` (e.g., `Path`, `PathBuf`, or `&str`).
-///
-/// # Arguments
-/// - `template_entry`: The path to the template file or directory to render.
-/// - `answers`: A JSON object containing context variables for rendering.
-/// - `engine`: An implementation of the `TemplateRenderer` trait used to render the template path.
-///
-/// # Returns
-/// - `Ok(PathBuf)`: A valid, rendered path as a `PathBuf`.
-/// - `Err(Error)`: An error occurs if:
-///     - The `template_entry` path cannot be converted to a string.
-///     - The rendering engine encounters an error while processing the path.
-///     - The rendered path is invalid (e.g., contains illegal characters or is empty).
-///
-/// # Errors
-/// - Returns `Error::ProcessError` if:
-///     - The source path cannot be converted to a valid UTF-8 string.
-///     - Rendering the template path fails.
-///     - The resulting rendered path is not valid.
 fn render_path<P: AsRef<Path>>(
-    template_entry: P,
+    template_path: P,
     answers: &serde_json::Value,
     engine: &dyn TemplateRenderer,
 ) -> Result<String> {
     // Convert the input to a Path
-    let template_entry = template_entry.as_ref();
+    let template_path = template_path.as_ref();
 
     // Ensure the path can be converted to a string
-    let path_str = template_entry.to_str().ok_or_else(|| Error::ProcessError {
-        source_path: template_entry.display().to_string(),
+    let path_str = template_path.to_str().ok_or_else(|| Error::ProcessError {
+        source_path: template_path.display().to_string(),
         e: "Cannot convert source_path to string.".to_string(),
     })?;
 
@@ -253,66 +127,60 @@ fn render_path<P: AsRef<Path>>(
     })
 }
 
-/// Process a file entry
+/// Renders the content of a template file using provided answers.
+///
+/// # Arguments
+/// * `template_path` - Path to the template file
+/// * `answers` - JSON data for template variable substitution
+/// * `engine` - Template rendering engine implementation
+///
+/// # Returns
+/// * `Ok(String)` containing the rendered content
+/// * `Err(Error)` if file reading or template processing fails
 fn render_content<P: AsRef<Path>>(
-    template_entry: P,
+    template_path: P,
     answers: &serde_json::Value,
     engine: &dyn TemplateRenderer,
 ) -> Result<String> {
-    let template_entry = template_entry.as_ref();
-    let content = fs::read_to_string(template_entry).map_err(Error::IoError)?;
+    let template_path = template_path.as_ref();
+    let content = fs::read_to_string(template_path).map_err(Error::IoError)?;
     Ok(engine.render(&content, answers)?)
 }
 
-fn confirm_file_overwriting<P: AsRef<Path>>(
-    target_path: P,
-    overwrite: Option<bool>,
-) -> Result<bool> {
-    let target_path = target_path.as_ref();
-    if target_path.exists() {
-        let confirm = match overwrite {
-            Some(val) => val,
-            _ => Confirm::new()
-                .with_prompt(format!("Overwrite '{}'?", target_path.display()))
-                .default(false)
-                .interact()
-                .map_err(Error::PromptError)?,
-        };
-        return Ok(confirm);
-    }
-
-    Ok(true)
-}
-
-/// Processes a single entry in the template directory
+/// Processes a single template directory entry, handling both files and directories.
 ///
 /// # Arguments
-/// * `template_entry` - An item representing a file or directory from the template directory tree.
-/// * `template_dir` - The path to template directory
-/// * `output_dir` - The path to output directory
+/// * `template_path` - Path to the template entry to process
+/// * `template_root` - Root directory containing templates
+/// * `output_root` - Target directory for processed output
+/// * `answers` - JSON data for template variable substitution
+/// * `engine` - Template rendering engine implementation
+/// * `ignored_patterns` - Set of glob patterns for files to ignore
+/// * `force_overwrite` - Whether to overwrite existing files without prompting
+///
+/// # Returns
+/// * `Ok(())` if processing succeeds
+/// * `Err(Error)` if any step of processing fails
 pub fn process_template_entry<P: AsRef<Path>>(
-    template_entry: P,
-    template_dir: P,
-    output_dir: P,
+    template_path: P,
+    template_root: P,
+    output_root: P,
     answers: &serde_json::Value,
     engine: &dyn TemplateRenderer,
-    ignored_set: &GlobSet,
-    overwrite: Option<bool>,
+    ignored_patterns: &GlobSet,
+    force_overwrite: bool,
 ) -> Result<()> {
-    let template_dir = template_dir.as_ref();
-    let output_dir = output_dir.as_ref();
-    let template_entry = template_entry.as_ref();
+    let template_root = template_root.as_ref();
+    let output_root = output_root.as_ref();
+    let template_path = template_path.as_ref();
 
-    // Skip processing if template entry in `.bakerignore`
-    if ignored_set.is_match(template_entry) {
-        println!("Skipping: '{}'.", template_entry.display());
-        return Ok(());
-    }
+    let rendered_path = render_path(template_path, answers, engine)?;
 
-    let rendered_path = render_path(template_entry, answers, engine)?;
+    let p1 = rendered_path.as_str();
+    let p2 = template_path.to_str().unwrap();
 
     // Skip when the path is not valid
-    if !is_rendered_path_valid(&rendered_path) {
+    if !has_valid_rendered_path_parts(p1, p2) {
         return Err(Error::ProcessError {
             source_path: rendered_path,
             e: "The rendered path is not valid".to_string(),
@@ -322,17 +190,23 @@ pub fn process_template_entry<P: AsRef<Path>>(
     let rendered_path = PathBuf::from(rendered_path);
 
     // Here we starting the process of building the entry path in output directory.
-    // We should remove the template directory prefix from the `template_entry`.
-    // For example, if your `template_entry` is: `my_template_directory/README.md`
-    // the path will be converted to `output_dir/README.md`.
+    // We should remove the template directory prefix from the `template_path`.
+    // For example, if your `template_path` is: `my_template_directory/README.md`
+    // the path will be converted to `output_root/README.md`.
     let target_entry =
-        rendered_path.strip_prefix(template_dir).map_err(|e| Error::ProcessError {
-            source_path: template_entry.display().to_string(),
+        rendered_path.strip_prefix(template_root).map_err(|e| Error::ProcessError {
+            source_path: template_path.display().to_string(),
             e: e.to_string(),
         })?;
 
+    // Skip processing if template entry in `.bakerignore`
+    if ignored_patterns.is_match(target_entry) {
+        println!("Skipping (.bakerignore): '{}'.", target_entry.display());
+        return Ok(());
+    }
+
     // Resolve final target path
-    let (target_path, needs_processing) = resolve_target_path(target_entry, output_dir);
+    let (target_path, needs_processing) = resolve_target_path(target_entry, output_root);
 
     // Process directory or file
     if target_path.is_dir() {
@@ -340,31 +214,29 @@ pub fn process_template_entry<P: AsRef<Path>>(
         return Ok(());
     }
 
-    if needs_processing {
-        let rendered_template_entry_content = render_content(
-            template_entry,
-            // &target_path,
-            answers,
-            engine,
-            // overwrite,
+    if !needs_processing {
+        copy_file(template_path, &target_path)?;
+        return Ok(());
+    }
+
+    let rendered_content = render_content(template_path, answers, engine)?;
+
+    if target_path.exists() {
+        let overwrite = prompt_confirm(
+            force_overwrite,
+            format!("Overwrite {}?", target_path.display()),
         )?;
 
-        let confirm = confirm_file_overwriting(&target_path, overwrite)?;
-
-        if !confirm {
+        if overwrite {
+            println!("Overwriting: '{}'.", target_path.display());
+        } else {
             println!("Skipping: '{}'.", target_path.display());
             return Ok(());
         }
-
-        if target_path.exists() {
-            println!("Overwriting: '{}'.", target_path.display());
-        } else {
-            println!("Creating: '{}'.", target_path.display());
-        }
-        write_file(target_path, &rendered_template_entry_content)?;
     } else {
-        copy_file(template_entry, &target_path)?
+        println!("Creating: '{}'.", target_path.display());
     }
+    write_file(target_path, &rendered_content)?;
 
     Ok(())
 }
@@ -389,6 +261,15 @@ mod tests {
     }
 
     #[test]
+    fn test_render_path_empty_variable() {
+        let engine = Box::new(MiniJinjaRenderer::new());
+        let template_path = "template/{{variable}}.txt";
+        let answers = json!({});
+        let rendered_path = render_path(template_path, &answers, &*engine);
+        assert_eq!(rendered_path.unwrap(), "template/.txt".to_string());
+    }
+
+    #[test]
     fn test_render_content() {
         let engine = Box::new(MiniJinjaRenderer::new());
         let dir = tempdir().unwrap();
@@ -402,25 +283,44 @@ mod tests {
     }
 
     #[test]
-    fn test_is_rendered_path_valid() {
-        // Invalid: Contains an empty segment between slashes ("//").
-        let is_valid = is_rendered_path_valid("template//filename.txt");
-        assert_eq!(is_valid, false);
+    fn test_is_template_file() {
+        assert!(is_template_file("template.html.j2"));
+        assert!(!is_template_file("regular.html"));
+        assert!(!is_template_file("regular.j2"));
+    }
 
-        // Valid: All segments are non-empty.
-        let is_valid = is_rendered_path_valid("template/my_directory/filename.txt");
-        assert_eq!(is_valid, true);
+    #[test]
+    fn test_process_template_entry() {
+        let engine = Box::new(MiniJinjaRenderer::new());
+        let dir = tempdir().unwrap();
+        let template_dir = dir.path().join("template");
+        let output_dir = dir.path().join("output");
 
-        // Invalid: Ends with a trailing slash, resulting in an empty segment at the end.
-        let is_valid = is_rendered_path_valid("template/my_directory/");
-        assert_eq!(is_valid, false);
+        // Create template file
+        fs::create_dir_all(&template_dir).unwrap();
+        let template_file = template_dir.join("hello.txt.j2");
+        let mut file = File::create(&template_file).unwrap();
+        file.write_all(b"Hello, {{name}}!").unwrap();
 
-        // Invalid: Starts with a leading slash, resulting in an empty segment at the start.
-        let is_valid = is_rendered_path_valid("/template");
-        assert_eq!(is_valid, false);
+        // Process template
+        let answers = json!({"name": "World"});
+        let ignored_set = GlobSet::empty();
+        let result = process_template_entry(
+            &template_file,
+            &template_dir,
+            &output_dir,
+            &answers,
+            &*engine,
+            &ignored_set,
+            true,
+        );
 
-        // Invalid: Starts and ends with slashes, resulting in empty segments at both ends.
-        let is_valid = is_rendered_path_valid("/template/");
-        assert_eq!(is_valid, false);
+        assert!(result.is_ok());
+
+        // Verify output
+        let output_file = output_dir.join("hello.txt");
+        assert!(output_file.exists());
+        let content = fs::read_to_string(output_file).unwrap();
+        assert_eq!(content, "Hello, World!");
     }
 }
