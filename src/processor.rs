@@ -10,7 +10,12 @@ use crate::error::{Error, Result};
 use crate::prompt::prompt_confirm;
 use crate::renderer::TemplateRenderer;
 
-fn has_valid_rendered_path_parts(template_path: &str, rendered_path: &str) -> bool {
+fn has_valid_rendered_path_parts<S: Into<String>>(
+    template_path: S,
+    rendered_path: S,
+) -> bool {
+    let template_path = template_path.into();
+    let rendered_path = rendered_path.into();
     let template_path: Vec<&str> = template_path.split('/').collect();
     let rendered_path: Vec<&str> = rendered_path.split('/').collect();
 
@@ -80,17 +85,17 @@ fn is_template_string(text: &str) -> bool {
         || text.starts_with("{{") && text.ends_with("}}")
 }
 
-pub fn resolve_target_path<P: AsRef<Path>>(
-    source_path: P,
-    output_dir: P,
-) -> (PathBuf, bool) {
+fn resolve_target_path<P: AsRef<Path>>(source_path: P, output_dir: P) -> (PathBuf, bool) {
     let source_path = source_path.as_ref();
     let output_dir = output_dir.as_ref();
 
     // Get filename if it exists, otherwise return unprocessed path
-    let filename = match source_path.file_name().and_then(|n| n.to_str()) {
-        Some(name) => name,
-        None => return (output_dir.join(source_path), false),
+    let filename = source_path.file_name().and_then(|n| n.to_str());
+
+    let filename = if let Some(filename) = filename {
+        filename
+    } else {
+        return (output_dir.join(source_path), false);
     };
 
     // Check if file is a template
@@ -174,69 +179,69 @@ pub fn process_template_entry<P: AsRef<Path>>(
     let output_root = output_root.as_ref();
     let template_path = template_path.as_ref();
 
-    let rendered_path = render_path(template_path, answers, engine)?;
+    // Skip processing if template entry in `.bakerignore`
+    if ignored_patterns.is_match(template_path) {
+        println!("Skipping (.bakerignore): '{}'.", template_path.display());
+        return Ok(());
+    }
 
-    let p1 = rendered_path.as_str();
-    let p2 = template_path.to_str().unwrap();
+    // Build the rendered path from template_path
+    let rendered_path = render_path(template_path, answers, engine)?;
+    let rendered_path = rendered_path.as_str();
 
     // Skip when the path is not valid
-    if !has_valid_rendered_path_parts(p1, p2) {
+    if !has_valid_rendered_path_parts(
+        rendered_path,
+        template_path.to_str().unwrap_or_default(),
+    ) {
         return Err(Error::ProcessError {
-            source_path: rendered_path,
+            source_path: rendered_path.to_string(),
             e: "The rendered path is not valid".to_string(),
         });
     }
 
-    let rendered_path = PathBuf::from(rendered_path);
+    // In order to build target path we have to remove the template suffix if it exists.
+    // If template suffix does not exist we keep the path as it is.
+    let rendered_path = if is_template_file(rendered_path) {
+        rendered_path.strip_suffix(".j2").unwrap_or_default()
+    } else {
+        rendered_path
+    };
 
-    // Here we starting the process of building the entry path in output directory.
-    // We should remove the template directory prefix from the `template_path`.
-    // For example, if your `template_path` is: `my_template_directory/README.md`
-    // the path will be converted to `output_root/README.md`.
-    let target_entry =
-        rendered_path.strip_prefix(template_root).map_err(|e| Error::ProcessError {
+    let rendered_path_buf = PathBuf::from(rendered_path);
+
+    // Creating the target path
+    let target_path = rendered_path_buf.strip_prefix(template_root).map_err(|e| {
+        Error::ProcessError {
             source_path: template_path.display().to_string(),
             e: e.to_string(),
-        })?;
+        }
+    })?;
 
-    // Skip processing if template entry in `.bakerignore`
-    if ignored_patterns.is_match(target_entry) {
-        println!("Skipping (.bakerignore): '{}'.", target_entry.display());
-        return Ok(());
-    }
+    let target_path = output_root.join(target_path);
 
-    // Resolve final target path
-    let (target_path, needs_processing) = resolve_target_path(target_entry, output_root);
-
-    // Process directory or file
-    if target_path.is_dir() {
-        create_dir_all(&target_path)?;
-        return Ok(());
-    }
-
-    if !needs_processing {
+    if !is_template_file(template_path) {
         copy_file(template_path, &target_path)?;
         return Ok(());
     }
 
     let rendered_content = render_content(template_path, answers, engine)?;
 
-    if target_path.exists() {
-        let overwrite = prompt_confirm(
-            force_overwrite,
-            format!("Overwrite {}?", target_path.display()),
-        )?;
-
-        if overwrite {
-            println!("Overwriting: '{}'.", target_path.display());
-        } else {
-            println!("Skipping: '{}'.", target_path.display());
-            return Ok(());
-        }
-    } else {
-        println!("Creating: '{}'.", target_path.display());
+    if !target_path.exists() {
+        write_file(target_path, &rendered_content)?;
+        return Ok(());
     }
-    write_file(target_path, &rendered_content)?;
+
+    let overwrite =
+        prompt_confirm(force_overwrite, format!("Overwrite {}?", target_path.display()))?;
+
+    if overwrite {
+        println!("Overwriting: '{}'.", target_path.display());
+    } else {
+        println!("Skipping: '{}'.", target_path.display());
+        return Ok(());
+    }
+    println!("Creating: '{}'.", target_path.display());
 
     Ok(())
 }
