@@ -2,13 +2,40 @@
 //! Handles file system operations, template rendering, and output generation
 //! with support for path manipulation and error handling.
 use globset::GlobSet;
-use log::debug;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
 use crate::prompt::prompt_confirm;
 use crate::renderer::TemplateRenderer;
+
+#[derive(Debug)]
+enum FileAction {
+    Create,
+    Overwrite,
+    Skip,
+}
+
+impl std::fmt::Display for FileAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FileAction::Create => write!(f, "Creating"),
+            FileAction::Overwrite => write!(f, "Overwriting"),
+            FileAction::Skip => write!(f, "Skipping"),
+        }
+    }
+}
+
+fn determine_file_action(
+    target_path_exists: bool,
+    user_confirmed_overwrite: bool,
+) -> FileAction {
+    match (target_path_exists, user_confirmed_overwrite) {
+        (true, true) => FileAction::Overwrite,
+        (false, _) => FileAction::Create,
+        (true, false) => FileAction::Skip,
+    }
+}
 
 fn has_valid_rendered_path_parts<S: Into<String>>(
     template_path: S,
@@ -43,17 +70,6 @@ fn write_file<P: AsRef<Path>>(target_path: P, content: &str) -> Result<()> {
     fs::write(abs_path, content).map_err(Error::IoError)
 }
 
-fn create_dir_all<P: AsRef<Path>>(dir_path: P) -> Result<()> {
-    let dir_path = dir_path.as_ref();
-    let base_path = std::env::current_dir().unwrap_or_default();
-    let abs_path = if dir_path.is_absolute() {
-        dir_path.to_path_buf()
-    } else {
-        base_path.join(dir_path)
-    };
-    fs::create_dir_all(abs_path).map_err(Error::IoError)
-}
-
 fn copy_file<P: AsRef<Path>>(source_path: P, dest_path: P) -> Result<()> {
     let dest_path = dest_path.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
@@ -83,32 +99,6 @@ fn is_template_file<P: AsRef<Path>>(path: P) -> bool {
 fn is_template_string(text: &str) -> bool {
     text.starts_with("{%") && text.ends_with("%}")
         || text.starts_with("{{") && text.ends_with("}}")
-}
-
-fn resolve_target_path<P: AsRef<Path>>(source_path: P, output_dir: P) -> (PathBuf, bool) {
-    let source_path = source_path.as_ref();
-    let output_dir = output_dir.as_ref();
-
-    // Get filename if it exists, otherwise return unprocessed path
-    let filename = source_path.file_name().and_then(|n| n.to_str());
-
-    let filename = if let Some(filename) = filename {
-        filename
-    } else {
-        return (output_dir.join(source_path), false);
-    };
-
-    // Check if file is a template
-    if !is_template_file(filename) {
-        return (output_dir.join(source_path), false);
-    }
-
-    // Process template file by removing .j2 extension
-    let new_name = filename.strip_suffix(".j2").unwrap();
-    let target_path = output_dir.join(source_path.with_file_name(new_name));
-
-    debug!("Template file detected: {} -> {}", filename, target_path.display());
-    (target_path, true)
 }
 
 fn render_path<P: AsRef<Path>>(
@@ -149,7 +139,7 @@ fn render_content<P: AsRef<Path>>(
 ) -> Result<String> {
     let template_path = template_path.as_ref();
     let content = fs::read_to_string(template_path).map_err(Error::IoError)?;
-    Ok(engine.render(&content, answers)?)
+    engine.render(&content, answers)
 }
 
 /// Processes a single template directory entry, handling both files and directories.
@@ -161,51 +151,55 @@ fn render_content<P: AsRef<Path>>(
 /// * `answers` - JSON data for template variable substitution
 /// * `engine` - Template rendering engine implementation
 /// * `ignored_patterns` - Set of glob patterns for files to ignore
-/// * `force_overwrite` - Whether to overwrite existing files without prompting
+/// * `skip_overwrite_check` - Whether to overwrite existing files without prompting
 ///
 /// # Returns
 /// * `Ok(())` if processing succeeds
 /// * `Err(Error)` if any step of processing fails
 pub fn process_template_entry<P: AsRef<Path>>(
-    template_path: P,
     template_root: P,
     output_root: P,
+    template_entry: P,
     answers: &serde_json::Value,
     engine: &dyn TemplateRenderer,
     ignored_patterns: &GlobSet,
-    force_overwrite: bool,
+    skip_overwrite_check: bool,
 ) -> Result<()> {
+    // Relative or absolute path to the template root.
     let template_root = template_root.as_ref();
+    // Relative or absolute path to the output root.
     let output_root = output_root.as_ref();
-    let template_path = template_path.as_ref();
+    // Relative or absolute path to every file or directory
+    // in the template root.
+    let template_entry = template_entry.as_ref();
 
     // Skip processing if template entry in `.bakerignore`
-    if ignored_patterns.is_match(template_path) {
-        println!("Skipping (.bakerignore): '{}'.", template_path.display());
+    if ignored_patterns.is_match(template_entry) {
+        println!("Skipping (.bakerignore): '{}'.", template_entry.display());
         return Ok(());
     }
 
     // Build the rendered path from template_path
-    let rendered_path = render_path(template_path, answers, engine)?;
-    let rendered_path = rendered_path.as_str();
+    let rendered_entry = render_path(template_entry, answers, engine)?;
+    let rendered_entry = rendered_entry.as_str();
 
     // Skip when the path is not valid
     if !has_valid_rendered_path_parts(
-        rendered_path,
-        template_path.to_str().unwrap_or_default(),
+        rendered_entry,
+        template_entry.to_str().unwrap_or_default(),
     ) {
         return Err(Error::ProcessError {
-            source_path: rendered_path.to_string(),
+            source_path: rendered_entry.to_string(),
             e: "The rendered path is not valid".to_string(),
         });
     }
 
     // In order to build target path we have to remove the template suffix if it exists.
     // If template suffix does not exist we keep the path as it is.
-    let rendered_path = if is_template_file(rendered_path) {
-        rendered_path.strip_suffix(".j2").unwrap_or_default()
+    let rendered_path = if is_template_file(rendered_entry) {
+        rendered_entry.strip_suffix(".j2").unwrap_or_default()
     } else {
-        rendered_path
+        rendered_entry
     };
 
     let rendered_path_buf = PathBuf::from(rendered_path);
@@ -213,37 +207,37 @@ pub fn process_template_entry<P: AsRef<Path>>(
     // Creating the target path
     let target_path = rendered_path_buf.strip_prefix(template_root).map_err(|e| {
         Error::ProcessError {
-            source_path: template_path.display().to_string(),
+            source_path: template_entry.display().to_string(),
             e: e.to_string(),
         }
     })?;
 
     let target_path = output_root.join(target_path);
 
-    if !is_template_file(template_path) {
-        copy_file(template_path, &target_path)?;
-        return Ok(());
+    let rendered_content = render_content(template_entry, answers, engine)?;
+
+    let prompt_not_needed = skip_overwrite_check || !target_path.exists();
+
+    let user_confirmed_overwrite = prompt_confirm(
+        prompt_not_needed,
+        format!("Overwrite {}?", target_path.display()),
+    )?;
+
+    let action = determine_file_action(target_path.exists(), user_confirmed_overwrite);
+
+    match action {
+        FileAction::Create | FileAction::Overwrite => {
+            if is_template_file(template_entry) {
+                // Just copies file as it is.
+                copy_file(template_entry, &target_path)?;
+            } else {
+                // Copies file with writing a rendered content.
+                write_file(target_path, &rendered_content)?;
+            }
+            Ok(())
+        }
+        FileAction::Skip => Ok(()),
     }
-
-    let rendered_content = render_content(template_path, answers, engine)?;
-
-    if !target_path.exists() {
-        write_file(target_path, &rendered_content)?;
-        return Ok(());
-    }
-
-    let overwrite =
-        prompt_confirm(force_overwrite, format!("Overwrite {}?", target_path.display()))?;
-
-    if overwrite {
-        println!("Overwriting: '{}'.", target_path.display());
-    } else {
-        println!("Skipping: '{}'.", target_path.display());
-        return Ok(());
-    }
-    println!("Creating: '{}'.", target_path.display());
-
-    Ok(())
 }
 
 #[cfg(test)]

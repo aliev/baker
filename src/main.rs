@@ -9,7 +9,7 @@ use baker::{
     config::get_config,
     error::{default_error_handler, Error, Result},
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
-    ignore::{parse_bakerignore_file, IGNORE_FILE},
+    ignore::parse_bakerignore_file,
     loader::load_template,
     parser::{get_answers, get_answers_from},
     processor::process_template_entry,
@@ -74,18 +74,18 @@ pub fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> Result<Path
 /// 7. Processes template files
 /// 8. Executes post-generation hooks
 fn run(args: Args) -> Result<()> {
-    let output_dir = get_output_dir(args.output_dir, args.force)?;
-    let template_dir = load_template(args.template)?;
+    let output_root = get_output_dir(args.output_dir, args.force)?;
+    let template_root = load_template(args.template)?;
 
-    let config = get_config(&template_dir)?;
+    let config = get_config(&template_root)?;
 
-    let execute_hooks = confirm_hook_execution(&template_dir, args.skip_hooks_check)?;
+    let execute_hooks = confirm_hook_execution(&template_root, args.skip_hooks_check)?;
 
-    let (pre_hook_file, post_hook_file) = get_hook_files(&template_dir);
+    let (pre_hook_file, post_hook_file) = get_hook_files(&template_root);
 
     // Execute pre-generation hook
     let pre_hook_stdout = if execute_hooks && pre_hook_file.exists() {
-        run_hook(&template_dir, &output_dir, &pre_hook_file, None, true)?
+        run_hook(&template_root, &output_root, &pre_hook_file, None, true)?
     } else {
         None
     };
@@ -96,21 +96,21 @@ fn run(args: Args) -> Result<()> {
     let answers = get_answers(&*engine, config.questions, preloaded_answers)?;
 
     // Process ignore patterns
-    let ignored_set = parse_bakerignore_file(template_dir.join(IGNORE_FILE))?;
+    let ignored_patterns = parse_bakerignore_file(&template_root)?;
 
     // Process template files
-    for dir_entry in WalkDir::new(&template_dir) {
+    for dir_entry in WalkDir::new(&template_root) {
         let raw_entry = dir_entry.map_err(|e| Error::TemplateError(e.to_string()))?;
-        let template_entry = raw_entry.path();
+        let template_entry = raw_entry.path().to_path_buf();
 
         if let Err(e) = process_template_entry(
-            template_entry,
-            &template_dir,
-            &output_dir,
+            &template_root,
+            &output_root,
+            &template_entry,
             &answers,
             &*engine,
-            &ignored_set,
-            args.overwrite,
+            &ignored_patterns,
+            args.skip_overwrite_check,
         ) {
             match e {
                 Error::ProcessError { .. } => {
@@ -123,9 +123,9 @@ fn run(args: Args) -> Result<()> {
 
     // Execute post-generation hook
     if execute_hooks && post_hook_file.exists() {
-        run_hook(&template_dir, &output_dir, &post_hook_file, Some(&answers), false)?;
+        run_hook(&template_root, &output_root, &post_hook_file, Some(&answers), false)?;
     }
 
-    println!("Template generation completed successfully in {}.", output_dir.display());
+    println!("Template generation completed successfully in {}.", output_root.display());
     Ok(())
 }

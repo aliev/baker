@@ -45,19 +45,23 @@ pub struct Args {
     #[arg(short, long)]
     pub verbose: bool,
 
-    /// Skip confirmation prompt for executing hooks
-    #[arg(long)]
-    pub skip_hooks_check: bool,
-
     /// Get answers from stding
     /// For example:
     /// $ echo '{"question_key": "answer"}' | baker template out
     #[arg(short, long)]
     pub stdin: bool,
 
-    /// Overwrite files that already exist, without asking.
-    #[arg(short, long)]
-    pub overwrite: bool,
+    /// Skip confirmation prompts when overwriting existing files.
+    /// This will automatically overwrite any existing files in the output directory
+    /// without asking for confirmation.
+    #[arg(long)]
+    pub skip_overwrite_check: bool,
+
+    /// Skip confirmation prompts when executing hooks.
+    /// This will automatically execute any pre/post hooks defined in the template
+    /// without asking for confirmation first.
+    #[arg(long)]
+    pub skip_hooks_check: bool,
 }
 
 /// Parses command line arguments and returns the Args structure.
