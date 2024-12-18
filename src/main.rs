@@ -75,7 +75,7 @@ pub fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> Result<Path
 /// 8. Executes post-generation hooks
 fn run(args: Args) -> Result<()> {
     let output_root = get_output_dir(args.output_dir, args.force)?;
-    let template_root = load_template(args.template)?;
+    let template_root = load_template(args.template, args.skip_overwrite_check)?;
 
     let config = get_config(&template_root)?;
 

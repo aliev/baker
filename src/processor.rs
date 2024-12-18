@@ -225,6 +225,8 @@ pub fn process_template_entry<P: AsRef<Path>>(
 
     let action = determine_file_action(target_path.exists(), user_confirmed_overwrite);
 
+    println!("{}: '{}'", action, target_path.display());
+
     match action {
         FileAction::Create | FileAction::Overwrite => {
             if is_template_file(template_entry) {

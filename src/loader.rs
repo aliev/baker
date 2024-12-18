@@ -2,7 +2,7 @@
 //! Handles both local filesystem and git repository templates with support
 //! for MiniJinja template processing.
 use crate::error::{Error, Result};
-use dialoguer::Confirm;
+use crate::prompt::prompt_confirm;
 use git2;
 use log::debug;
 use std::fs;
@@ -64,6 +64,7 @@ pub struct LocalLoader<P: AsRef<std::path::Path>> {
 /// Loader for templates from git repositories.
 pub struct GitLoader<S: AsRef<str>> {
     repo: S,
+    skip_overwrite_check: bool,
 }
 impl<P: AsRef<std::path::Path>> LocalLoader<P> {
     /// Creates a new LocalLoader instance.
@@ -98,8 +99,8 @@ impl<P: AsRef<std::path::Path>> TemplateLoader for LocalLoader<P> {
 
 impl<S: AsRef<str>> GitLoader<S> {
     /// Creates a new GitLoader instance.
-    pub fn new(repo: S) -> Self {
-        Self { repo }
+    pub fn new(repo: S, skip_overwrite_check: bool) -> Self {
+        Self { repo, skip_overwrite_check }
     }
 }
 
@@ -124,14 +125,10 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
         let clone_path = PathBuf::from(repo_name);
 
         if clone_path.exists() {
-            let response = Confirm::new()
-                .with_prompt(format!(
-                    "Directory '{}' already exists. Replace it?",
-                    repo_name
-                ))
-                .default(false)
-                .interact()
-                .map_err(Error::PromptError)?;
+            let response = prompt_confirm(
+                self.skip_overwrite_check,
+                format!("Directory '{}' already exists. Replace it?", repo_name),
+            )?;
             if response {
                 fs::remove_dir_all(&clone_path).map_err(Error::IoError)?;
             } else {
@@ -172,7 +169,10 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
 }
 
 /// Returns the template directory from provided template source
-pub fn load_template<S: Into<String>>(template: S) -> Result<PathBuf> {
+pub fn load_template<S: Into<String>>(
+    template: S,
+    skip_overwrite_check: bool,
+) -> Result<PathBuf> {
     let template: String = template.into();
     let template_source = match TemplateSource::from_string(&template) {
         Some(source) => Ok(source),
@@ -182,7 +182,7 @@ pub fn load_template<S: Into<String>>(template: S) -> Result<PathBuf> {
     }?;
 
     let loader: Box<dyn TemplateLoader> = match template_source {
-        TemplateSource::Git(repo) => Box::new(GitLoader::new(repo)),
+        TemplateSource::Git(repo) => Box::new(GitLoader::new(repo, skip_overwrite_check)),
         TemplateSource::FileSystem(path) => Box::new(LocalLoader::new(path)),
     };
 
