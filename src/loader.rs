@@ -18,6 +18,17 @@ pub enum TemplateSource {
     Git(String),
 }
 
+impl std::fmt::Display for TemplateSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TemplateSource::FileSystem(path) => {
+                write!(f, "local path: '{}'", path.display())
+            }
+            TemplateSource::Git(repo) => write!(f, "git repository: '{}'", repo),
+        }
+    }
+}
+
 impl TemplateSource {
     /// Creates a TemplateSource from a string path or URL.
     ///
@@ -180,6 +191,8 @@ pub fn load_template<S: Into<String>>(
             Err(Error::TemplateError(format!("invalid template source: {}", template)))
         }
     }?;
+
+    println!("Using template from the {}", template_source);
 
     let loader: Box<dyn TemplateLoader> = match template_source {
         TemplateSource::Git(repo) => Box::new(GitLoader::new(repo, skip_overwrite_check)),
