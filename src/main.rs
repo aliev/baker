@@ -12,7 +12,7 @@ use baker::{
     ignore::parse_bakerignore_file,
     loader::load_template,
     parser::{get_answers, get_answers_from},
-    processor::process_template_entry,
+    processor::Processor,
     renderer::MiniJinjaRenderer,
 };
 use walkdir::WalkDir;
@@ -98,20 +98,21 @@ fn run(args: Args) -> Result<()> {
     // Process ignore patterns
     let ignored_patterns = parse_bakerignore_file(&template_root)?;
 
+    let processor = Processor::new(
+        &*engine,
+        &template_root,
+        &output_root,
+        args.skip_overwrite_check,
+        &answers,
+        &ignored_patterns,
+    );
+
     // Process template files
     for dir_entry in WalkDir::new(&template_root) {
         let raw_entry = dir_entry.map_err(|e| Error::TemplateError(e.to_string()))?;
         let template_entry = raw_entry.path().to_path_buf();
 
-        if let Err(e) = process_template_entry(
-            &template_root,
-            &output_root,
-            &template_entry,
-            &answers,
-            &*engine,
-            &ignored_patterns,
-            args.skip_overwrite_check,
-        ) {
+        if let Err(e) = processor.process(&template_entry) {
             match e {
                 Error::ProcessError { .. } => {
                     log::warn!("{}", e)
