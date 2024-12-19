@@ -13,6 +13,7 @@ use baker::{
     loader::load_template,
     parser::{get_answers, get_answers_from},
     processor::Processor,
+    prompt::DialoguerPrompter,
     renderer::MiniJinjaRenderer,
 };
 use walkdir::WalkDir;
@@ -74,12 +75,16 @@ pub fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> Result<Path
 /// 7. Processes template files
 /// 8. Executes post-generation hooks
 fn run(args: Args) -> Result<()> {
-    let output_root = get_output_dir(args.output_dir, args.force)?;
-    let template_root = load_template(args.template, args.skip_overwrite_check)?;
+    let engine = Box::new(MiniJinjaRenderer::new());
+    let prompt = Box::new(DialoguerPrompter::new());
 
+    let output_root = get_output_dir(args.output_dir, args.force)?;
+    let template_root =
+        load_template(&*prompt, args.template, args.skip_overwrite_check)?;
     let config = get_config(&template_root)?;
 
-    let execute_hooks = confirm_hook_execution(&template_root, args.skip_hooks_check)?;
+    let execute_hooks =
+        confirm_hook_execution(&*prompt, &template_root, args.skip_hooks_check)?;
 
     let (pre_hook_file, post_hook_file) = get_hook_files(&template_root);
 
@@ -91,15 +96,14 @@ fn run(args: Args) -> Result<()> {
     };
 
     let preloaded_answers = get_answers_from(args.stdin, pre_hook_stdout)?;
-
-    let engine = Box::new(MiniJinjaRenderer::new());
-    let answers = get_answers(&*engine, config.questions, preloaded_answers)?;
+    let answers = get_answers(&*engine, &*prompt, config.questions, preloaded_answers)?;
 
     // Process ignore patterns
     let ignored_patterns = parse_bakerignore_file(&template_root)?;
 
     let processor = Processor::new(
         &*engine,
+        &*prompt,
         &template_root,
         &output_root,
         args.skip_overwrite_check,

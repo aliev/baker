@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
-use crate::prompt::prompt_confirm;
+use crate::prompt::Prompter;
 use crate::renderer::TemplateRenderer;
 
 #[derive(Debug)]
@@ -28,6 +28,7 @@ impl std::fmt::Display for FileAction {
 
 pub struct Processor<'a, P: AsRef<Path>> {
     engine: &'a dyn TemplateRenderer,
+    prompt: &'a dyn Prompter,
     template_root: P,
     output_root: P,
     skip_overwrite_check: bool,
@@ -38,6 +39,7 @@ pub struct Processor<'a, P: AsRef<Path>> {
 impl<'a, P: AsRef<Path>> Processor<'a, P> {
     pub fn new(
         engine: &'a dyn TemplateRenderer,
+        prompt: &'a dyn Prompter,
         template_root: P,
         output_root: P,
         skip_overwrite_check: bool,
@@ -46,6 +48,7 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
     ) -> Self {
         Self {
             engine,
+            prompt,
             template_root,
             output_root,
             skip_overwrite_check,
@@ -156,6 +159,7 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         let template_entry = template_entry.as_ref();
 
         if self.ignored_patterns.is_match(template_entry) {
+            // TODO: Return the process result
             println!("Skipping (.bakerignore): '{}'.", template_entry.display());
             return Ok(());
         }
@@ -164,8 +168,8 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         let rendered_entry = rendered_entry.as_str();
 
         if !self.has_valid_rendered_path_parts(
-            rendered_entry,
             template_entry.to_str().unwrap_or_default(),
+            rendered_entry,
         ) {
             return Err(Error::ProcessError {
                 source_path: rendered_entry.to_string(),
@@ -191,7 +195,7 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         let rendered_content = self.render_content(template_entry)?;
 
         let prompt_not_needed = self.skip_overwrite_check || !target_path.exists();
-        let user_confirmed_overwrite = prompt_confirm(
+        let user_confirmed_overwrite = self.prompt.confirm(
             prompt_not_needed,
             format!("Overwrite {}?", target_path.display()),
         )?;
@@ -202,14 +206,18 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         println!("{}: '{}'", action, target_path.display());
 
         match action {
+            // TODO: Return the process result
             FileAction::Create | FileAction::Overwrite => {
+                // TODO: Move to run
                 if self.is_template_file(template_entry) {
                     self.copy_file(template_entry, &target_path)?;
                 } else {
                     self.write_file(target_path, &rendered_content)?;
                 }
+                // return Process
                 Ok(())
             }
+            // Return Skip
             FileAction::Skip => Ok(()),
         }
     }

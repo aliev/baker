@@ -2,7 +2,7 @@
 //! Handles both local filesystem and git repository templates with support
 //! for MiniJinja template processing.
 use crate::error::{Error, Result};
-use crate::prompt::prompt_confirm;
+use crate::prompt::Prompter;
 use git2;
 use log::debug;
 use std::fs;
@@ -73,7 +73,8 @@ pub struct LocalLoader<P: AsRef<std::path::Path>> {
     path: P,
 }
 /// Loader for templates from git repositories.
-pub struct GitLoader<S: AsRef<str>> {
+pub struct GitLoader<'a, S: AsRef<str>> {
+    prompt: &'a dyn Prompter,
     repo: S,
     skip_overwrite_check: bool,
 }
@@ -108,14 +109,14 @@ impl<P: AsRef<std::path::Path>> TemplateLoader for LocalLoader<P> {
     }
 }
 
-impl<S: AsRef<str>> GitLoader<S> {
+impl<'a, S: AsRef<str>> GitLoader<'a, S> {
     /// Creates a new GitLoader instance.
-    pub fn new(repo: S, skip_overwrite_check: bool) -> Self {
-        Self { repo, skip_overwrite_check }
+    pub fn new(prompt: &'a dyn Prompter, repo: S, skip_overwrite_check: bool) -> Self {
+        Self { repo, skip_overwrite_check, prompt }
     }
 }
 
-impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
+impl<S: AsRef<str>> TemplateLoader for GitLoader<'_, S> {
     /// Loads a template by cloning a git repository.
     ///
     /// # Arguments
@@ -136,7 +137,7 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
         let clone_path = PathBuf::from(repo_name);
 
         if clone_path.exists() {
-            let response = prompt_confirm(
+            let response = self.prompt.confirm(
                 self.skip_overwrite_check,
                 format!("Directory '{}' already exists. Replace it?", repo_name),
             )?;
@@ -181,6 +182,7 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
 
 /// Returns the template directory from provided template source
 pub fn load_template<S: Into<String>>(
+    prompt: &dyn Prompter,
     template: S,
     skip_overwrite_check: bool,
 ) -> Result<PathBuf> {
@@ -195,7 +197,9 @@ pub fn load_template<S: Into<String>>(
     println!("Using template from the {}", template_source);
 
     let loader: Box<dyn TemplateLoader> = match template_source {
-        TemplateSource::Git(repo) => Box::new(GitLoader::new(repo, skip_overwrite_check)),
+        TemplateSource::Git(repo) => {
+            Box::new(GitLoader::new(prompt, repo, skip_overwrite_check))
+        }
         TemplateSource::FileSystem(path) => Box::new(LocalLoader::new(path)),
     };
 

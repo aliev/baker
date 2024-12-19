@@ -7,27 +7,6 @@ use std::path::PathBuf;
 /// Command-line arguments structure for Baker.
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Baker: fast and flexible project scaffolding tool", long_about = None)]
-#[command(after_help = r#"Usage Examples:
-    # Create a new project from a local template:
-    $ baker ./path/to/template ./output
-
-    # Create a new project from a git repository:
-    $ baker https://github.com/user/template.git ./output
-
-    # Force overwrite an existing output directory:
-    $ baker -f ./template ./existing-dir
-
-    # Enable verbose output:
-    $ baker -v ./template ./output
-
-Template Structure:
-    template/
-    ├── baker.json          # Template configuration
-    ├── .bakerignore        # Files to ignore (optional)
-    ├── hooks/              # Template hooks (optional)
-    │   ├── pre_gen_project
-    │   └── post_gen_project
-    └── ... template files ..."#)]
 pub struct Args {
     /// Path to the template directory or git repository URL
     #[arg(value_name = "TEMPLATE")]
@@ -46,8 +25,6 @@ pub struct Args {
     pub verbose: bool,
 
     /// Get answers from stding
-    /// For example:
-    /// $ echo '{"question_key": "answer"}' | baker template out
     #[arg(short, long)]
     pub stdin: bool,
 
