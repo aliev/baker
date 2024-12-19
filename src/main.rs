@@ -12,7 +12,7 @@ use baker::{
     ignore::parse_bakerignore_file,
     loader::load_template,
     parser::{get_answers, get_answers_from},
-    processor::Processor,
+    processor::{FileOperation, Processor},
     prompt::DialoguerPrompter,
     renderer::MiniJinjaRenderer,
 };
@@ -55,6 +55,36 @@ pub fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> Result<Path
         });
     }
     Ok(output_dir.to_path_buf())
+}
+
+fn write_file<P: AsRef<Path>>(content: &str, dest_path: P) -> Result<()> {
+    let dest_path = dest_path.as_ref();
+    let base_path = std::env::current_dir().unwrap_or_default();
+    let abs_path = if dest_path.is_absolute() {
+        dest_path.to_path_buf()
+    } else {
+        base_path.join(dest_path)
+    };
+
+    if let Some(parent) = abs_path.parent() {
+        std::fs::create_dir_all(parent).map_err(Error::IoError)?;
+    }
+    std::fs::write(abs_path, content).map_err(Error::IoError)
+}
+
+fn copy_file<P: AsRef<Path>>(source_path: P, dest_path: P) -> Result<()> {
+    let dest_path = dest_path.as_ref();
+    let base_path = std::env::current_dir().unwrap_or_default();
+    let abs_dest = if dest_path.is_absolute() {
+        dest_path.to_path_buf()
+    } else {
+        base_path.join(dest_path)
+    };
+
+    if let Some(parent) = abs_dest.parent() {
+        std::fs::create_dir_all(parent).map_err(Error::IoError)?;
+    }
+    std::fs::copy(source_path, abs_dest).map(|_| ()).map_err(Error::IoError)
 }
 
 /// Main application logic execution.
@@ -115,14 +145,25 @@ fn run(args: Args) -> Result<()> {
     for dir_entry in WalkDir::new(&template_root) {
         let raw_entry = dir_entry.map_err(|e| Error::TemplateError(e.to_string()))?;
         let template_entry = raw_entry.path().to_path_buf();
-
-        if let Err(e) = processor.process(&template_entry) {
-            match e {
-                Error::ProcessError { .. } => {
-                    log::warn!("{}", e)
+        match processor.process(&template_entry) {
+            Ok(result) => {
+                if let Some(operation) = result.operation {
+                    match operation {
+                        FileOperation::Copy { target } => {
+                            println!("{}: '{}'", result.action, target.display());
+                            copy_file(&result.source, &target)?;
+                        }
+                        FileOperation::Write { target, content } => {
+                            println!("{}: '{}'", result.action, target.display());
+                            write_file(&content, &target)?;
+                        }
+                    }
                 }
-                _ => log::error!("{}", e),
             }
+            Err(e) => match e {
+                Error::ProcessError { .. } => log::warn!("{}", e),
+                _ => log::error!("{}", e),
+            },
         }
     }
 
