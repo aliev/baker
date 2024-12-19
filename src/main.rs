@@ -148,16 +148,17 @@ fn run(args: Args) -> Result<()> {
         match processor.process(&template_entry) {
             Ok(result) => {
                 if let Some(operation) = result.operation {
-                    match operation {
+                    let target = match operation {
                         FileOperation::Copy { target } => {
-                            println!("{}: '{}'", result.action, target.display());
                             copy_file(&result.source, &target)?;
+                            target
                         }
                         FileOperation::Write { target, content } => {
-                            println!("{}: '{}'", result.action, target.display());
                             write_file(&content, &target)?;
+                            target
                         }
-                    }
+                    };
+                    println!("{}: '{}'", result.action, target.display());
                 }
             }
             Err(e) => match e {
