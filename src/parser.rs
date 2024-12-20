@@ -1,6 +1,6 @@
 use crate::config::{Question, ValueType};
 use crate::error::{Error, Result};
-use crate::prompt::prompt_answer;
+use crate::prompt::Prompter;
 use crate::renderer::TemplateRenderer;
 use indexmap::IndexMap;
 use std::io::Read;
@@ -127,6 +127,7 @@ pub fn get_answers_from(
 
 pub fn get_answers(
     engine: &dyn TemplateRenderer,
+    prompt: &dyn Prompter,
     questions: IndexMap<String, Question>,
     preloaded_answers: serde_json::Value,
 ) -> Result<serde_json::Value> {
@@ -170,7 +171,7 @@ pub fn get_answers(
             let help_rendered = engine
                 .render(&question.help, &current_context)
                 .unwrap_or(question.help.clone());
-            prompt_answer(question_type, default_value, help_rendered, question)?
+            prompt.answer(question_type, default_value, help_rendered, question)?
         };
         answers.insert(key, value);
     }

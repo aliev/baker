@@ -7,27 +7,6 @@ use std::path::PathBuf;
 /// Command-line arguments structure for Baker.
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Baker: fast and flexible project scaffolding tool", long_about = None)]
-#[command(after_help = r#"Usage Examples:
-    # Create a new project from a local template:
-    $ baker ./path/to/template ./output
-
-    # Create a new project from a git repository:
-    $ baker https://github.com/user/template.git ./output
-
-    # Force overwrite an existing output directory:
-    $ baker -f ./template ./existing-dir
-
-    # Enable verbose output:
-    $ baker -v ./template ./output
-
-Template Structure:
-    template/
-    ├── baker.json          # Template configuration
-    ├── .bakerignore        # Files to ignore (optional)
-    ├── hooks/              # Template hooks (optional)
-    │   ├── pre_gen_project
-    │   └── post_gen_project
-    └── ... template files ..."#)]
 pub struct Args {
     /// Path to the template directory or git repository URL
     #[arg(value_name = "TEMPLATE")]
@@ -45,19 +24,21 @@ pub struct Args {
     #[arg(short, long)]
     pub verbose: bool,
 
-    /// Skip confirmation prompt for executing hooks
-    #[arg(long)]
-    pub skip_hooks_check: bool,
-
     /// Get answers from stding
-    /// For example:
-    /// $ echo '{"question_key": "answer"}' | baker template out
     #[arg(short, long)]
     pub stdin: bool,
 
-    /// Overwrite files that already exist, without asking.
-    #[arg(short, long)]
-    pub overwrite: Option<bool>,
+    /// Skip confirmation prompts when overwriting existing files.
+    /// This will automatically overwrite any existing files in the output directory
+    /// without asking for confirmation.
+    #[arg(long)]
+    pub skip_overwrite_check: bool,
+
+    /// Skip confirmation prompts when executing hooks.
+    /// This will automatically execute any pre/post hooks defined in the template
+    /// without asking for confirmation first.
+    #[arg(long)]
+    pub skip_hooks_check: bool,
 }
 
 /// Parses command line arguments and returns the Args structure.

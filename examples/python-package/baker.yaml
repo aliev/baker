@@ -61,3 +61,11 @@ copyright_holder:
     {% if project_license == 'Not open source' -%}
         {{ author_name }}
     {%- endif %}
+
+dir_name:
+  type: str
+  help: "Enter directory name"
+
+filename:
+  type: str
+  help: "Enter internal filename"

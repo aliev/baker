@@ -2,7 +2,7 @@
 //! Handles both local filesystem and git repository templates with support
 //! for MiniJinja template processing.
 use crate::error::{Error, Result};
-use dialoguer::Confirm;
+use crate::prompt::Prompter;
 use git2;
 use log::debug;
 use std::fs;
@@ -18,6 +18,17 @@ pub enum TemplateSource {
     Git(String),
 }
 
+impl std::fmt::Display for TemplateSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TemplateSource::FileSystem(path) => {
+                write!(f, "local path: '{}'", path.display())
+            }
+            TemplateSource::Git(repo) => write!(f, "git repository: '{}'", repo),
+        }
+    }
+}
+
 impl TemplateSource {
     /// Creates a TemplateSource from a string path or URL.
     ///
@@ -26,13 +37,6 @@ impl TemplateSource {
     ///
     /// # Returns
     /// * `Option<Self>` - Some(TemplateSource) if valid input
-    ///
-    /// # Examples
-    /// ```
-    /// use baker::template::TemplateSource;
-    /// let local = TemplateSource::from_string("./templates/web");
-    /// let git = TemplateSource::from_string("https://github.com/user/template.git");
-    /// ```
     pub fn from_string(s: &str) -> Option<Self> {
         // First try to parse as URL
         if let Ok(url) = Url::parse(s) {
@@ -69,8 +73,10 @@ pub struct LocalLoader<P: AsRef<std::path::Path>> {
     path: P,
 }
 /// Loader for templates from git repositories.
-pub struct GitLoader<S: AsRef<str>> {
+pub struct GitLoader<'a, S: AsRef<str>> {
+    prompt: &'a dyn Prompter,
     repo: S,
+    skip_overwrite_check: bool,
 }
 impl<P: AsRef<std::path::Path>> LocalLoader<P> {
     /// Creates a new LocalLoader instance.
@@ -103,14 +109,14 @@ impl<P: AsRef<std::path::Path>> TemplateLoader for LocalLoader<P> {
     }
 }
 
-impl<S: AsRef<str>> GitLoader<S> {
+impl<'a, S: AsRef<str>> GitLoader<'a, S> {
     /// Creates a new GitLoader instance.
-    pub fn new(repo: S) -> Self {
-        Self { repo }
+    pub fn new(prompt: &'a dyn Prompter, repo: S, skip_overwrite_check: bool) -> Self {
+        Self { repo, skip_overwrite_check, prompt }
     }
 }
 
-impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
+impl<S: AsRef<str>> TemplateLoader for GitLoader<'_, S> {
     /// Loads a template by cloning a git repository.
     ///
     /// # Arguments
@@ -131,14 +137,10 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
         let clone_path = PathBuf::from(repo_name);
 
         if clone_path.exists() {
-            let response = Confirm::new()
-                .with_prompt(format!(
-                    "Directory '{}' already exists. Replace it?",
-                    repo_name
-                ))
-                .default(false)
-                .interact()
-                .map_err(Error::PromptError)?;
+            let response = self.prompt.confirm(
+                self.skip_overwrite_check,
+                format!("Directory '{}' already exists. Replace it?", repo_name),
+            )?;
             if response {
                 fs::remove_dir_all(&clone_path).map_err(Error::IoError)?;
             } else {
@@ -179,7 +181,11 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
 }
 
 /// Returns the template directory from provided template source
-pub fn load_template<S: Into<String>>(template: S) -> Result<PathBuf> {
+pub fn load_template<S: Into<String>>(
+    prompt: &dyn Prompter,
+    template: S,
+    skip_overwrite_check: bool,
+) -> Result<PathBuf> {
     let template: String = template.into();
     let template_source = match TemplateSource::from_string(&template) {
         Some(source) => Ok(source),
@@ -188,8 +194,12 @@ pub fn load_template<S: Into<String>>(template: S) -> Result<PathBuf> {
         }
     }?;
 
+    println!("Using template from the {}", template_source);
+
     let loader: Box<dyn TemplateLoader> = match template_source {
-        TemplateSource::Git(repo) => Box::new(GitLoader::new(repo)),
+        TemplateSource::Git(repo) => {
+            Box::new(GitLoader::new(prompt, repo, skip_overwrite_check))
+        }
         TemplateSource::FileSystem(path) => Box::new(LocalLoader::new(path)),
     };
 
