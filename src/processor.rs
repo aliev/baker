@@ -112,7 +112,7 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
             });
         }
 
-        let rendered_entry = self.engine.render_path(template_entry, &self.answers)?;
+        let rendered_entry = self.engine.render_path(template_entry, self.answers)?;
         let rendered_entry = rendered_entry.as_str();
 
         if !self.has_valid_rendered_path_parts(
@@ -142,7 +142,7 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         let target_path = self.output_root.as_ref().join(target_path);
         let template_content =
             fs::read_to_string(template_entry).map_err(Error::IoError)?;
-        let rendered_content = self.engine.render(&template_content, &self.answers)?;
+        let rendered_content = self.engine.render(&template_content, self.answers)?;
 
         let prompt_not_needed = self.skip_overwrite_check || !target_path.exists();
         let user_confirmed_overwrite = self.prompt.confirm(
