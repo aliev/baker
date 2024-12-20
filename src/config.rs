@@ -45,6 +45,8 @@ pub struct Question {
     /// Whether the secret should have confirmation
     #[serde(default)]
     pub secret_confirmation: bool,
+    #[serde(default)]
+    pub when: String,
 }
 
 /// Main configuration structure holding all questions

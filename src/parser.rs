@@ -171,7 +171,19 @@ pub fn get_answers(
             let help_rendered = engine
                 .render(&question.help, &current_context)
                 .unwrap_or(question.help.clone());
-            prompt.answer(question_type, default_value, help_rendered, question)?
+
+            let when_rendered = engine
+                .render(&question.when, &current_context)
+                .unwrap_or(question.when.clone());
+
+            let prompt_question: bool =
+                serde_json::from_str(&when_rendered).unwrap_or(true);
+
+            if prompt_question {
+                prompt.answer(question_type, default_value, help_rendered, question)?
+            } else {
+                default_value
+            }
         };
         answers.insert(key, value);
     }
