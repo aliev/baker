@@ -3,6 +3,7 @@
 //! for MiniJinja template processing.
 use crate::error::{Error, Result};
 use minijinja::Environment;
+use std::path::Path;
 
 /// Trait for template rendering engines.
 pub trait TemplateRenderer {
@@ -15,6 +16,11 @@ pub trait TemplateRenderer {
     /// # Returns
     /// * `BakerResult<String>` - Rendered template string
     fn render(&self, template: &str, context: &serde_json::Value) -> Result<String>;
+    fn render_path(
+        &self,
+        template_path: &Path,
+        context: &serde_json::Value,
+    ) -> Result<String>;
 }
 
 /// MiniJinja-based template rendering engine.
@@ -29,6 +35,17 @@ impl MiniJinjaRenderer {
         let env = Environment::new();
         Self { env }
     }
+
+    fn render_internal(
+        &self,
+        template: &str,
+        context: &serde_json::Value,
+    ) -> Result<String> {
+        let mut env = self.env.clone();
+        env.add_template("temp", template).map_err(Error::MinijinjaError)?;
+        let tmpl = env.get_template("temp").map_err(Error::MinijinjaError)?;
+        tmpl.render(context).map_err(Error::MinijinjaError)
+    }
 }
 
 impl Default for MiniJinjaRenderer {
@@ -38,26 +55,22 @@ impl Default for MiniJinjaRenderer {
 }
 
 impl TemplateRenderer for MiniJinjaRenderer {
-    /// Renders a template string using MiniJinja.
-    ///
-    /// # Arguments
-    /// * `template` - Template string to render
-    /// * `context` - JSON context for variable interpolation
-    ///
-    /// # Returns
-    /// * `BakerResult<String>` - Rendered template string
-    ///
-    /// # Errors
-    /// * `BakerError::TemplateError` if:
-    ///   - Template addition fails
-    ///   - Template retrieval fails
-    ///   - Template rendering fails
     fn render(&self, template: &str, context: &serde_json::Value) -> Result<String> {
-        let mut env = self.env.clone();
-        env.add_template("temp", template).map_err(Error::MinijinjaError)?;
+        self.render_internal(template, context)
+    }
+    fn render_path(
+        &self,
+        template_path: &Path,
+        context: &serde_json::Value,
+    ) -> Result<String> {
+        let path_str = template_path.to_str().ok_or_else(|| Error::ProcessError {
+            source_path: template_path.display().to_string(),
+            e: "Cannot convert source_path to string.".to_string(),
+        })?;
 
-        let tmpl = env.get_template("temp").map_err(Error::MinijinjaError)?;
-
-        tmpl.render(context).map_err(Error::MinijinjaError)
+        self.render_internal(path_str, context).map_err(|e| Error::ProcessError {
+            source_path: path_str.to_string(),
+            e: e.to_string(),
+        })
     }
 }

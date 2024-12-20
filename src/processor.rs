@@ -79,10 +79,10 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         let template_path: Vec<&str> = template_path.split('/').collect();
         let rendered_path: Vec<&str> = rendered_path.split('/').collect();
 
-        for (template_path, rendered_path) in
+        for (template_part, rendered_part) in
             template_path.iter().zip(rendered_path.iter())
         {
-            if self.is_template_string(template_path) && rendered_path.is_empty() {
+            if !template_part.is_empty() && rendered_part.is_empty() {
                 return false;
             }
         }
@@ -101,30 +101,6 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         parts.len() > 2 && parts.last() == Some(&"j2")
     }
 
-    fn is_template_string(&self, text: &str) -> bool {
-        text.starts_with("{%") && text.ends_with("%}")
-            || text.starts_with("{{") && text.ends_with("}}")
-    }
-
-    fn render_path<T: AsRef<Path>>(&self, template_path: T) -> Result<String> {
-        let template_path = template_path.as_ref();
-        let path_str = template_path.to_str().ok_or_else(|| Error::ProcessError {
-            source_path: template_path.display().to_string(),
-            e: "Cannot convert source_path to string.".to_string(),
-        })?;
-
-        self.engine.render(path_str, self.answers).map_err(|e| Error::ProcessError {
-            source_path: path_str.to_string(),
-            e: e.to_string(),
-        })
-    }
-
-    fn render_content<T: AsRef<Path>>(&self, template_path: T) -> Result<String> {
-        let template_path = template_path.as_ref();
-        let content = fs::read_to_string(template_path).map_err(Error::IoError)?;
-        self.engine.render(&content, self.answers)
-    }
-
     pub fn process(&self, template_entry: P) -> Result<ProcessResult> {
         let template_entry = template_entry.as_ref();
 
@@ -136,7 +112,7 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
             });
         }
 
-        let rendered_entry = self.render_path(template_entry)?;
+        let rendered_entry = self.engine.render_path(template_entry, &self.answers)?;
         let rendered_entry = rendered_entry.as_str();
 
         if !self.has_valid_rendered_path_parts(
@@ -164,7 +140,9 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
             })?;
 
         let target_path = self.output_root.as_ref().join(target_path);
-        let rendered_content = self.render_content(template_entry)?;
+        let template_content =
+            fs::read_to_string(template_entry).map_err(Error::IoError)?;
+        let rendered_content = self.engine.render(&template_content, &self.answers)?;
 
         let prompt_not_needed = self.skip_overwrite_check || !target_path.exists();
         let user_confirmed_overwrite = self.prompt.confirm(
