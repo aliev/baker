@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use baker::{
     cli::{get_args, Args},
-    config::get_config,
+    config::Config,
     error::{default_error_handler, Error, Result},
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::parse_bakerignore_file,
@@ -111,7 +111,8 @@ fn run(args: Args) -> Result<()> {
     let output_root = get_output_dir(args.output_dir, args.force)?;
     let template_root =
         load_template(&*prompt, args.template, args.skip_overwrite_check)?;
-    let config = get_config(&template_root)?;
+
+    let config = Config::from_file(&template_root)?;
 
     let execute_hooks =
         confirm_hook_execution(&*prompt, &template_root, args.skip_hooks_check)?;
