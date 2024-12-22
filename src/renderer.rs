@@ -84,6 +84,6 @@ impl TemplateRenderer for MiniJinjaRenderer {
             Error::ProcessError { source_path: "".to_string(), e: e.to_string() }
         })?;
         let result = expr.eval(context).unwrap();
-        return Ok(result.is_true());
+        Ok(result.is_true())
     }
 }
