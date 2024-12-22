@@ -209,15 +209,20 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
             })?;
         let target_path = self.output_root.as_ref().join(target_path);
 
+        // Reads the content of `template_entry` and processes it using the template engine,
+        // with `self.answers` provided as the rendering context.
         let template_content =
             fs::read_to_string(template_entry).map_err(Error::IoError)?;
         let rendered_content = self.engine.render(&template_content, self.answers)?;
 
-        let prompt_not_needed = self.skip_overwrite_check || !target_path.exists();
-        let user_confirmed_overwrite = self.prompt.confirm(
-            prompt_not_needed,
-            format!("Overwrite {}?", target_path.display()),
-        )?;
+        // Determines whether to prompt the user for overwrite confirmation:
+        // - Skips the prompt if `self.skip_overwrite_check` is true or if the `target_path` does not exist.
+        // - Otherwise, prompts the user with a confirmation message: "Overwrite <target_path>?"
+        //
+        let skip_user_ask = self.skip_overwrite_check || !target_path.exists();
+        let user_confirmed_overwrite = self
+            .prompt
+            .confirm(skip_user_ask, format!("Overwrite {}?", target_path.display()))?;
 
         let action = match (target_path.exists(), user_confirmed_overwrite) {
             (true, true) => FileAction::Overwrite,
