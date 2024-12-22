@@ -31,8 +31,9 @@ generate_tests:
 project_password:
   type: str
   help: "What is the password?"
-  secret: true
-  secret_confirmation: true
+  secret:
+    confirm: true
+    mistmatch_err: "Passwords did not match"
 requirements:
   type: str
   help: Select requirements

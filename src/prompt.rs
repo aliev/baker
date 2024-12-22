@@ -130,12 +130,18 @@ impl Prompter for DialoguerPrompter {
             _ => default_value.to_string(),
         };
 
-        let input = if question.secret {
+        let input = if let Some(secret) = question.secret {
             let mut password = Password::new().with_prompt(&prompt);
 
-            if question.secret_confirmation {
-                password = password
-                    .with_confirmation(format!("{} (confirm)", &prompt), "Mismatch");
+            if secret.confirm {
+                password = password.with_confirmation(
+                    format!("{} (confirm)", &prompt),
+                    if secret.mistmatch_err.is_empty() {
+                        "Mistmatch".to_string()
+                    } else {
+                        secret.mistmatch_err
+                    },
+                );
             }
 
             password.interact().map_err(Error::PromptError)?

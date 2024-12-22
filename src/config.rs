@@ -20,6 +20,14 @@ pub enum ValueType {
     /// Boolean (yes/no) question type
     Bool,
 }
+#[derive(Debug, Deserialize)]
+pub struct Secret {
+    /// Whether the secret should have confirmation
+    #[serde(default)]
+    pub confirm: bool,
+    #[serde(default)]
+    pub mistmatch_err: String,
+}
 
 /// Represents a single question in the configuration
 #[derive(Debug, Deserialize)]
@@ -41,10 +49,7 @@ pub struct Question {
     pub multiselect: bool,
     /// Whether the string is a secret
     #[serde(default)]
-    pub secret: bool,
-    /// Whether the secret should have confirmation
-    #[serde(default)]
-    pub secret_confirmation: bool,
+    pub secret: Option<Secret>,
     #[serde(default)]
     pub ask_if: String,
 }
