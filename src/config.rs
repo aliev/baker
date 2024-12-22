@@ -46,7 +46,7 @@ pub struct Question {
     #[serde(default)]
     pub secret_confirmation: bool,
     #[serde(default)]
-    pub when: String,
+    pub ask_if: String,
 }
 
 /// Main configuration structure holding all questions

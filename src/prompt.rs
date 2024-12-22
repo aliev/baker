@@ -38,7 +38,7 @@ pub trait Prompter {
 
     fn confirm(&self, skip: bool, prompt: String) -> Result<bool>;
 
-    fn answer(
+    fn ask(
         &self,
         question_type: QuestionType,
         default_value: serde_json::Value,

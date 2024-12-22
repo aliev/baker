@@ -21,6 +21,8 @@ pub trait TemplateRenderer {
         template_path: &Path,
         context: &serde_json::Value,
     ) -> Result<String>;
+    fn execute_expression(&self, expr: &str, context: &serde_json::Value)
+        -> Result<bool>;
 }
 
 /// MiniJinja-based template rendering engine.
@@ -72,5 +74,16 @@ impl TemplateRenderer for MiniJinjaRenderer {
             source_path: path_str.to_string(),
             e: e.to_string(),
         })
+    }
+    fn execute_expression(
+        &self,
+        expr_str: &str,
+        context: &serde_json::Value,
+    ) -> Result<bool> {
+        let expr = self.env.compile_expression(expr_str).map_err(|e| {
+            Error::ProcessError { source_path: "".to_string(), e: e.to_string() }
+        })?;
+        let result = expr.eval(context).unwrap();
+        return Ok(result.is_true());
     }
 }

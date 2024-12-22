@@ -172,15 +172,12 @@ pub fn get_answers(
                 .render(&question.help, &current_context)
                 .unwrap_or(question.help.clone());
 
-            let when_rendered = engine
-                .render(&question.when, &current_context)
-                .unwrap_or(question.when.clone());
+            let ask = engine
+                .execute_expression(&question.ask_if, &current_context)
+                .unwrap_or(true);
 
-            let prompt_question: bool =
-                serde_json::from_str(&when_rendered).unwrap_or(true);
-
-            if prompt_question {
-                prompt.answer(question_type, default_value, help_rendered, question)?
+            if ask {
+                prompt.ask(question_type, default_value, help_rendered, question)?
             } else {
                 default_value
             }
