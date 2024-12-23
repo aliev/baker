@@ -170,6 +170,8 @@ fn run(args: Args) -> Result<()> {
                         }
                     };
                     println!("{}: '{}'", result.action, target.display());
+                } else {
+                    println!("{}: '{}'", result.action, result.source.display());
                 }
             }
             Err(e) => match e {

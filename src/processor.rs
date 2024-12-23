@@ -10,10 +10,29 @@ use crate::prompt::Prompter;
 use crate::renderer::TemplateRenderer;
 
 #[derive(Debug)]
+pub enum SkipReason {
+    TargetDirectoryExists,
+    Bakerignore,
+    DoNotOverwrite,
+}
+
+impl std::fmt::Display for SkipReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SkipReason::TargetDirectoryExists => write!(f, "target directory exists."),
+            SkipReason::Bakerignore => write!(f, "exist in .bakerignore."),
+            SkipReason::DoNotOverwrite => {
+                write!(f, "asked to not overwrite.")
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum FileAction {
     Create,
     Overwrite,
-    Skip,
+    Skip { reason: SkipReason },
 }
 
 impl std::fmt::Display for FileAction {
@@ -21,7 +40,7 @@ impl std::fmt::Display for FileAction {
         match self {
             FileAction::Create => write!(f, "Creating"),
             FileAction::Overwrite => write!(f, "Overwriting"),
-            FileAction::Skip => write!(f, "Skipping"),
+            FileAction::Skip { reason } => write!(f, "Skipping. Reason: {reason}"),
         }
     }
 }
@@ -73,6 +92,28 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         }
     }
 
+    /// Validates whether the `rendered_entry` is properly rendered by comparing its components
+    /// with those of the original `template_entry`. The validation ensures no parts of the path
+    /// are empty after rendering.
+    ///
+    /// Example:
+    /// Given the following `template_entry`:
+    /// `template_root/{% if create_tests %}tests{% endif %}/`
+    /// And a corresponding `rendered_entry`:
+    /// `template_root/tests/`
+    //
+    /// The `has_valid_rendered_path_parts` function splits both paths by "/" and compares
+    /// their parts. If none of the parts are empty, the function concludes that the path
+    /// was correctly rendered and proceeds with processing.
+    ///
+    /// However, if the `create_tests` value in `self.answers` is `false`, the rendered path
+    /// will look like this:
+    /// `template_root//`
+    ///
+    /// When compared with the original `template_entry`, `template_root/{% if create_tests %}tests{% endif %}/`,
+    /// the function detects that one of the parts is empty (due to the double "//").
+    /// In such cases, it considers the rendered path invalid and skips further processing.
+    ///
     fn has_valid_rendered_path_parts<S: Into<String>>(
         &self,
         template_path: S,
@@ -107,59 +148,28 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         parts.len() > 2 && parts.last() == Some(&"j2")
     }
 
-    pub fn process(&self, template_entry: P) -> Result<ProcessResult> {
-        // The `template_entry` refers to any file or directory within the `template_root`.
-        let template_entry = template_entry.as_ref();
-
-        // Check if the `template_entry` is listed in the `.bakerignore` file.
-        // If it is, stop processing and return a skip action.
-        if self.bakerignore.is_match(template_entry) {
-            return Ok(ProcessResult {
-                source: template_entry.to_path_buf(),
-                action: FileAction::Skip,
-                operation: None,
-            });
-        }
-
-        // The `template_entry` file or directory name may contain a template string.
-        // This allows the system to determine whether to create a file or directory and
-        // how to resolve its name based on provided template data.
-        //
-        // For example, if the file or directory name contains the string:
-        // `{{filename}}.txt`, it will be rendered as `my_file_name.txt`
-        // if the value for "filename" in `self.answers` is "my_file_name".
-        //
-        // Additionally, conditions can be applied. For instance, if the file or directory name
-        // has an empty value, it will not be created.
-        // Example: `{% if create_tests %}tests{% endif %}/` will create the directory only
-        // if `create_tests` in `self.answers` evaluates to true.
+    /// The `template_entry` file or directory name may contain a template string.
+    /// This allows the system to determine whether to create a file or directory and
+    /// how to resolve its name based on provided template data.
+    ///
+    /// For example, if the file or directory name contains the string:
+    /// `{{filename}}.txt`, it will be rendered as `my_file_name.txt`
+    /// if the value for "filename" in `self.answers` is "my_file_name".
+    ///
+    /// Additionally, conditions can be applied. For instance, if the file or directory name
+    /// has an empty value, it will not be created.
+    /// Example: `{% if create_tests %}tests{% endif %}/` will create the directory only
+    /// if `create_tests` in `self.answers` evaluates to true.
+    ///
+    fn render_template_entry(&self, template_entry: &Path) -> Result<PathBuf> {
         let rendered_entry = self.engine.render_path(template_entry, self.answers)?;
         let rendered_entry = rendered_entry.as_str();
 
-        // Validates whether the `rendered_entry` is properly rendered by comparing its components
-        // with those of the original `template_entry`. The validation ensures no parts of the path
-        // are empty after rendering.
-        //
-        // Example:
-        // Given the following `template_entry`:
-        // `template_root/{% if create_tests %}tests{% endif %}/`
-        // And a corresponding `rendered_entry`:
-        // `template_root/tests/`
-        //
-        // The `has_valid_rendered_path_parts` function splits both paths by "/" and compares
-        // their parts. If none of the parts are empty, the function concludes that the path
-        // was correctly rendered and proceeds with processing.
-        //
-        // However, if the `create_tests` value in `self.answers` is `false`, the rendered path
-        // will look like this:
-        // `template_root//`
-        //
-        // When compared with the original `template_entry`, `template_root/{% if create_tests %}tests{% endif %}/`,
-        // the function detects that one of the parts is empty (due to the double "//").
-        // In such cases, it considers the rendered path invalid and skips further processing.
-        //
         if !self.has_valid_rendered_path_parts(
-            template_entry.to_str().unwrap_or_default(),
+            template_entry.to_str().ok_or_else(|| Error::ProcessError {
+                source_path: template_entry.display().to_string(),
+                e: "Invalid template path".to_string(),
+            })?,
             rendered_entry,
         ) {
             return Err(Error::ProcessError {
@@ -181,42 +191,66 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         // However, filenames like `template.j2` or `README.md` will not be considered
         // template files because they lack a double extension with `.j2`.
         //
-        let rendered_entry = if self.is_template_file(template_entry) {
-            rendered_entry.strip_suffix(".j2").unwrap_or_default()
+        let result = if self.is_template_file(template_entry) {
+            rendered_entry.strip_suffix(".j2").unwrap_or(rendered_entry)
         } else {
             rendered_entry
         };
 
         // Converts the `rendered_entry` slice to a `PathBuf` for easier manipulation
         // in subsequent operations.
-        let rendered_path_buf = PathBuf::from(rendered_entry);
+        Ok(PathBuf::from(result))
+    }
 
-        // Constructs the `target_path` from `rendered_path_buf`, which represents the
-        // actual path to the file or directory that will be created in `output_root`.
-        //
-        // The `target_path` is built by replacing the `template_root` prefix with the `output_root` prefix.
-        // Example:
-        // If `rendered_path_buf` is:
-        // `PathBuf("template_root/tests/__init__.py")`
-        //
-        // The `template_root` prefix is replaced with `output_root`, resulting in:
-        // `PathBuf("output_root/tests/__init__.py")`
-        //
-        // Here, `output_root` is the directory where the rendered file or directory will be saved.
-        //
-        let target_path = rendered_path_buf
+    /// Constructs the `target_path` from `rendered_entry`, which represents the
+    /// actual path to the file or directory that will be created in `output_root`.
+    //
+    /// The `target_path` is built by replacing the `template_root` prefix with the `output_root` prefix.
+    /// Example:
+    /// If `rendered_entry` is:
+    /// `PathBuf("template_root/tests/__init__.py")`
+    ///
+    /// The `template_root` prefix is replaced with `output_root`, resulting in:
+    /// `PathBuf("output_root/tests/__init__.py")`
+    ///
+    /// Here, `output_root` is the directory where the rendered file or directory will be saved.
+    ///
+    fn get_target_path(
+        &self,
+        rendered_entry: &Path,
+        template_entry: &Path,
+    ) -> Result<PathBuf> {
+        let target_path = rendered_entry
             .strip_prefix(self.template_root.as_ref())
             .map_err(|e| Error::ProcessError {
                 source_path: template_entry.display().to_string(),
                 e: e.to_string(),
             })?;
-        let target_path = self.output_root.as_ref().join(target_path);
+        Ok(self.output_root.as_ref().join(target_path))
+    }
+
+    pub fn process(&self, template_entry: P) -> Result<ProcessResult> {
+        // The `template_entry` refers to any file or directory within the `template_root`.
+        let template_entry = template_entry.as_ref();
+
+        // Check if the `template_entry` is listed in the `.bakerignore` file.
+        // If it is, stop processing and return a skip action.
+        if self.bakerignore.is_match(template_entry) {
+            return Ok(ProcessResult {
+                source: template_entry.to_path_buf(),
+                action: FileAction::Skip { reason: SkipReason::Bakerignore },
+                operation: None,
+            });
+        }
+
+        let rendered_entry = self.render_template_entry(template_entry)?;
+        let target_path = self.get_target_path(&rendered_entry, template_entry)?;
 
         // If the `target_path` exists and is a directory,
         // skip it from further processing.
         if target_path.exists() && target_path.is_dir() {
             return Ok(ProcessResult {
-                action: FileAction::Skip,
+                action: FileAction::Skip { reason: SkipReason::TargetDirectoryExists },
                 operation: None,
                 source: template_entry.to_path_buf(),
             });
@@ -236,7 +270,7 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
             (false, _) => FileAction::Create,
             (true, false) => {
                 return Ok(ProcessResult {
-                    action: FileAction::Skip,
+                    action: FileAction::Skip { reason: SkipReason::DoNotOverwrite },
                     operation: None,
                     source: template_entry.to_path_buf(),
                 })
