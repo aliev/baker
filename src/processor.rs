@@ -28,10 +28,11 @@ impl std::fmt::Display for FileAction {
 
 #[derive(Debug)]
 pub enum FileOperation {
-    Copy { target: PathBuf },
-    Write { target: PathBuf, content: String },
+    CopyFile { target: PathBuf },
+    CreateDir { target: PathBuf },
+    WriteFile { target: PathBuf, content: String },
 }
-
+#[derive(Debug)]
 pub struct ProcessResult {
     pub action: FileAction,
     pub operation: Option<FileOperation>,
@@ -209,12 +210,6 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
             })?;
         let target_path = self.output_root.as_ref().join(target_path);
 
-        // Reads the content of `template_entry` and processes it using the template engine,
-        // with `self.answers` provided as the rendering context.
-        let template_content =
-            fs::read_to_string(template_entry).map_err(Error::IoError)?;
-        let rendered_content = self.engine.render(&template_content, self.answers)?;
-
         // Determines whether to prompt the user for overwrite confirmation:
         // - Skips the prompt if `self.skip_overwrite_check` is true or if the `target_path` does not exist.
         // - Otherwise, prompts the user with a confirmation message: "Overwrite <target_path>?"
@@ -236,10 +231,19 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
             }
         };
 
-        let operation = if self.is_template_file(template_entry) {
-            FileOperation::Write { target: target_path, content: rendered_content }
+        let operation = if template_entry.is_file()
+            && self.is_template_file(template_entry)
+        {
+            // Reads the content of `template_entry` and processes it using the template engine,
+            // with `self.answers` provided as the rendering context.
+            let template_content =
+                fs::read_to_string(template_entry).map_err(Error::IoError)?;
+            let rendered_content = self.engine.render(&template_content, self.answers)?;
+            FileOperation::WriteFile { target: target_path, content: rendered_content }
+        } else if template_entry.is_dir() {
+            FileOperation::CreateDir { target: target_path }
         } else {
-            FileOperation::Copy { target: target_path }
+            FileOperation::CopyFile { target: target_path }
         };
 
         Ok(ProcessResult {

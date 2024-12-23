@@ -14,6 +14,9 @@ pub enum Error {
     #[error("IO error: {0}.")]
     IoError(#[from] std::io::Error),
 
+    #[error("IO error: {e} with context: {context}.")]
+    IoError2 { context: String, e: std::io::Error },
+
     #[error("Failed to parse config file. Original error: {0}.")]
     ConfigParseError(#[from] serde_yaml::Error),
 

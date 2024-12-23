@@ -57,6 +57,11 @@ pub fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> Result<Path
     Ok(output_dir.to_path_buf())
 }
 
+fn create_dir_all<P: AsRef<Path>>(dest_path: P) -> Result<()> {
+    let dest_path = dest_path.as_ref();
+    std::fs::create_dir_all(dest_path).map_err(Error::IoError)
+}
+
 fn write_file<P: AsRef<Path>>(content: &str, dest_path: P) -> Result<()> {
     let dest_path = dest_path.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
@@ -67,13 +72,14 @@ fn write_file<P: AsRef<Path>>(content: &str, dest_path: P) -> Result<()> {
     };
 
     if let Some(parent) = abs_path.parent() {
-        std::fs::create_dir_all(parent).map_err(Error::IoError)?;
+        create_dir_all(parent)?;
     }
     std::fs::write(abs_path, content).map_err(Error::IoError)
 }
 
 fn copy_file<P: AsRef<Path>>(source_path: P, dest_path: P) -> Result<()> {
     let dest_path = dest_path.as_ref();
+    let source_path = source_path.as_ref();
     let base_path = std::env::current_dir().unwrap_or_default();
     let abs_dest = if dest_path.is_absolute() {
         dest_path.to_path_buf()
@@ -82,7 +88,7 @@ fn copy_file<P: AsRef<Path>>(source_path: P, dest_path: P) -> Result<()> {
     };
 
     if let Some(parent) = abs_dest.parent() {
-        std::fs::create_dir_all(parent).map_err(Error::IoError)?;
+        create_dir_all(parent)?;
     }
     std::fs::copy(source_path, abs_dest).map(|_| ()).map_err(Error::IoError)
 }
@@ -150,12 +156,16 @@ fn run(args: Args) -> Result<()> {
             Ok(result) => {
                 if let Some(operation) = result.operation {
                     let target = match operation {
-                        FileOperation::Copy { target } => {
+                        FileOperation::CopyFile { target } => {
                             copy_file(&result.source, &target)?;
                             target
                         }
-                        FileOperation::Write { target, content } => {
+                        FileOperation::WriteFile { target, content } => {
                             write_file(&content, &target)?;
+                            target
+                        }
+                        FileOperation::CreateDir { target } => {
+                            create_dir_all(&target)?;
                             target
                         }
                     };
