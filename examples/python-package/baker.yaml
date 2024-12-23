@@ -1,10 +1,17 @@
 user_os:
   type: str
+  ask_if: "false"
 username:
   type: str
+  ask_if: "false"
 now:
   type: str
+  ask_if: "false"
 
+create_empty_dir:
+  type: bool
+  default: true
+  ask_if: "false"
 
 project_name:
   type: str

@@ -80,8 +80,10 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
     ) -> bool {
         let template_path = template_path.into();
         let rendered_path = rendered_path.into();
-        let template_path: Vec<&str> = template_path.split('/').collect();
-        let rendered_path: Vec<&str> = rendered_path.split('/').collect();
+        let template_path: Vec<&str> =
+            template_path.split(std::path::MAIN_SEPARATOR).collect();
+        let rendered_path: Vec<&str> =
+            rendered_path.split(std::path::MAIN_SEPARATOR).collect();
 
         for (template_part, rendered_part) in
             template_path.iter().zip(rendered_path.iter())
@@ -210,6 +212,16 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
             })?;
         let target_path = self.output_root.as_ref().join(target_path);
 
+        // If the `target_path` exists and is a directory,
+        // skip it from further processing.
+        if target_path.exists() && target_path.is_dir() {
+            return Ok(ProcessResult {
+                action: FileAction::Skip,
+                operation: None,
+                source: template_entry.to_path_buf(),
+            });
+        }
+
         // Determines whether to prompt the user for overwrite confirmation:
         // - Skips the prompt if `self.skip_overwrite_check` is true or if the `target_path` does not exist.
         // - Otherwise, prompts the user with a confirmation message: "Overwrite <target_path>?"
@@ -234,15 +246,17 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         let operation = if template_entry.is_file()
             && self.is_template_file(template_entry)
         {
-            // Reads the content of `template_entry` and processes it using the template engine,
-            // with `self.answers` provided as the rendering context.
+            // If `template_entry` is a file and a template file, read its content and
+            // process it using the template engine with `self.answers` as the context.
             let template_content =
                 fs::read_to_string(template_entry).map_err(Error::IoError)?;
             let rendered_content = self.engine.render(&template_content, self.answers)?;
             FileOperation::WriteFile { target: target_path, content: rendered_content }
         } else if template_entry.is_dir() {
+            // If `template_entry` is a directory, create the corresponding target directory.
             FileOperation::CreateDir { target: target_path }
         } else {
+            // Otherwise, copy the source file to the target path as-is.
             FileOperation::CopyFile { target: target_path }
         };
 
