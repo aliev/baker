@@ -313,4 +313,84 @@ mod tests {
             _ => panic!("Expected Write operation"),
         }
     }
+
+    #[test]
+    #[ignore]
+    fn it_works_2() {
+        let answers =
+            json!({"file_name": "hello_world.txt.j2", "greetings": "Hello, World"});
+        let template_root = TempDir::new().unwrap();
+        let template_root = template_root.path();
+
+        let output_root = TempDir::new().unwrap();
+        let output_root = output_root.path();
+
+        let file_path = template_root.join("{{file_name}}");
+
+        let mut temp_file = File::create(&file_path).unwrap();
+        temp_file.write_all(b"{{greetings}}").unwrap();
+
+        let engine = Box::new(MiniJinjaRenderer::new());
+        let prompt = Box::new(DialoguerPrompter::new());
+        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let processor = Processor::new(
+            &*engine,
+            &*prompt,
+            &template_root,
+            &output_root,
+            true,
+            &answers,
+            &ignored_patterns,
+        );
+
+        let result = processor.process(&file_path.as_path()).unwrap();
+
+        match result {
+            FileOperation::Write { target, content, overwrite } => {
+                assert_eq!(target, output_root.join("hello_world.txt"));
+                assert_eq!(content, "Hello, World");
+                assert_eq!(overwrite, false);
+            }
+            _ => panic!("Expected Write operation"),
+        }
+    }
+
+    #[test]
+    fn it_works_3() {
+        let answers = json!({});
+        let template_root = TempDir::new().unwrap();
+        let template_root = template_root.path();
+
+        let output_root = TempDir::new().unwrap();
+        let output_root = output_root.path();
+
+        let file_path = template_root.join("hello_world.txt");
+
+        let mut temp_file = File::create(&file_path).unwrap();
+        temp_file.write_all(b"Hello, World").unwrap();
+
+        let engine = Box::new(MiniJinjaRenderer::new());
+        let prompt = Box::new(DialoguerPrompter::new());
+        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let processor = Processor::new(
+            &*engine,
+            &*prompt,
+            &template_root,
+            &output_root,
+            true,
+            &answers,
+            &ignored_patterns,
+        );
+
+        let result = processor.process(&file_path.as_path()).unwrap();
+
+        match result {
+            FileOperation::Copy { source, target, overwrite } => {
+                assert_eq!(target, output_root.join("hello_world.txt"));
+                assert_eq!(source, template_root.join("hello_world.txt"));
+                assert_eq!(overwrite, false);
+            }
+            _ => panic!("Expected Write operation"),
+        }
+    }
 }
