@@ -259,3 +259,58 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    use fs::File;
+    use serde_json::json;
+    use tempfile::TempDir;
+
+    use crate::{
+        ignore::parse_bakerignore_file, prompt::DialoguerPrompter,
+        renderer::MiniJinjaRenderer,
+    };
+
+    use super::*;
+
+    #[test]
+    fn it_works_1() {
+        let answers = json!({"file_name": "hello_world", "greetings": "Hello, World"});
+        let template_root = TempDir::new().unwrap();
+        let template_root = template_root.path();
+
+        let output_root = TempDir::new().unwrap();
+        let output_root = output_root.path();
+
+        let file_path = template_root.join("{{file_name}}.txt.j2");
+
+        let mut temp_file = File::create(&file_path).unwrap();
+        temp_file.write_all(b"{{greetings}}").unwrap();
+
+        let engine = Box::new(MiniJinjaRenderer::new());
+        let prompt = Box::new(DialoguerPrompter::new());
+        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let processor = Processor::new(
+            &*engine,
+            &*prompt,
+            &template_root,
+            &output_root,
+            true,
+            &answers,
+            &ignored_patterns,
+        );
+
+        let result = processor.process(&file_path.as_path()).unwrap();
+
+        match result {
+            FileOperation::Write { target, content, overwrite } => {
+                assert_eq!(target, output_root.join("hello_world.txt"));
+                assert_eq!(content, "Hello, World");
+                assert_eq!(overwrite, false);
+            }
+            _ => panic!("Expected Write operation"),
+        }
+    }
+}
