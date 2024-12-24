@@ -12,7 +12,7 @@ use baker::{
     ignore::parse_bakerignore_file,
     loader::load_template,
     parser::{get_answers, get_answers_from},
-    processor::{FileOperation, Processor},
+    processor::{FileOperation, Processor, SkipReason},
     prompt::DialoguerPrompter,
     renderer::MiniJinjaRenderer,
 };
@@ -154,19 +154,35 @@ fn run(args: Args) -> Result<()> {
         let template_entry = raw_entry.path().to_path_buf();
         match processor.process(&template_entry) {
             Ok(result) => {
-                println!("{}", result);
-
                 match result {
                     FileOperation::Copy { source, target, overwrite } => {
+                        if overwrite {
+                            println!("Overwrite: '{}'", target.display());
+                        } else {
+                            println!("Create: '{}'", target.display());
+                        }
                         copy_file(&source, &target)?;
                     }
-                    FileOperation::Write { source, target, content, overwrite } => {
+                    FileOperation::Write { target, content, overwrite } => {
+                        if overwrite {
+                            println!("Overwrite: '{}'", target.display());
+                        } else {
+                            println!("Create: '{}'", target.display());
+                        }
                         write_file(&content, &target)?;
                     }
-                    FileOperation::CreateDirectory { source, target } => {
+                    FileOperation::CreateDirectory { target } => {
+                        println!("Creating (directory): '{}'", target.display(),);
                         create_dir_all(&target)?;
                     }
-                    FileOperation::Skip { source, reason } => {}
+                    FileOperation::Skip { source, reason } => {
+                        let reason = match reason {
+                            SkipReason::DirectoryExists => "target directory exists",
+                            SkipReason::FileExists => "target file exists",
+                            SkipReason::IgnoredByPattern => ".bakerignore",
+                        };
+                        println!("Skipping ({}): '{}'", reason, source.display());
+                    }
                 };
             }
             Err(e) => match e {
