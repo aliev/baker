@@ -154,25 +154,20 @@ fn run(args: Args) -> Result<()> {
         let template_entry = raw_entry.path().to_path_buf();
         match processor.process(&template_entry) {
             Ok(result) => {
-                if let Some(operation) = result.operation {
-                    let target = match operation {
-                        FileOperation::CopyFile { target } => {
-                            copy_file(&result.source, &target)?;
-                            target
-                        }
-                        FileOperation::WriteFile { target, content } => {
-                            write_file(&content, &target)?;
-                            target
-                        }
-                        FileOperation::CreateDir { target } => {
-                            create_dir_all(&target)?;
-                            target
-                        }
-                    };
-                    println!("{}: '{}'", result.action, target.display());
-                } else {
-                    println!("{}: '{}'", result.action, result.source.display());
-                }
+                println!("{}", result);
+
+                match result {
+                    FileOperation::Copy { source, target, overwrite } => {
+                        copy_file(&source, &target)?;
+                    }
+                    FileOperation::Write { source, target, content, overwrite } => {
+                        write_file(&content, &target)?;
+                    }
+                    FileOperation::CreateDirectory { source, target } => {
+                        create_dir_all(&target)?;
+                    }
+                    FileOperation::Skip { source, reason } => {}
+                };
             }
             Err(e) => match e {
                 Error::ProcessError { .. } => log::warn!("{}", e),

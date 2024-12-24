@@ -11,51 +11,57 @@ use crate::renderer::TemplateRenderer;
 
 #[derive(Debug)]
 pub enum SkipReason {
-    TargetDirectoryExists,
-    Bakerignore,
-    DoNotOverwrite,
+    DirectoryExists(PathBuf),
+    IgnoredByPattern(String),
+    FileExists { path: PathBuf, overwrite_granted: bool },
 }
 
 impl std::fmt::Display for SkipReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SkipReason::TargetDirectoryExists => write!(f, "target directory exists."),
-            SkipReason::Bakerignore => write!(f, "exist in .bakerignore."),
-            SkipReason::DoNotOverwrite => {
-                write!(f, "asked to not overwrite.")
+            SkipReason::DirectoryExists(path) => {
+                write!(f, "directory already exists at '{}'", path.display())
+            }
+            SkipReason::IgnoredByPattern(pattern) => {
+                write!(f, "matched ignore pattern '{pattern}'")
+            }
+            SkipReason::FileExists { path, overwrite_granted } => {
+                write!(
+                    f,
+                    "file already exists at '{}' (overwrite was {}granted)",
+                    path.display(),
+                    if *overwrite_granted { "" } else { "not " }
+                )
             }
         }
     }
 }
 
 #[derive(Debug)]
-pub enum FileAction {
-    Create,
-    Overwrite,
-    Skip { reason: SkipReason },
+pub enum FileOperation {
+    Copy { source: PathBuf, target: PathBuf, overwrite: bool },
+    Write { source: PathBuf, target: PathBuf, content: String, overwrite: bool },
+    CreateDirectory { source: PathBuf, target: PathBuf },
+    Skip { source: PathBuf, reason: SkipReason },
 }
 
-impl std::fmt::Display for FileAction {
+impl std::fmt::Display for FileOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FileAction::Create => write!(f, "Creating"),
-            FileAction::Overwrite => write!(f, "Overwriting"),
-            FileAction::Skip { reason } => write!(f, "Skipping. Reason: {reason}"),
+            FileOperation::Copy { source, target, overwrite } => {
+                write!(f, "Copying file to: '{}'", target.display())
+            }
+            FileOperation::Write { source, target, content, overwrite } => {
+                write!(f, "Writing file: '{}", target.display())
+            }
+            FileOperation::CreateDirectory { source, target } => {
+                write!(f, "Creating directory: '{}'", target.display())
+            }
+            FileOperation::Skip { source, reason } => {
+                write!(f, "Skipping. The reason: '{reason}'")
+            }
         }
     }
-}
-
-#[derive(Debug)]
-pub enum FileOperation {
-    CopyFile { target: PathBuf },
-    CreateDir { target: PathBuf },
-    WriteFile { target: PathBuf, content: String },
-}
-#[derive(Debug)]
-pub struct ProcessResult {
-    pub action: FileAction,
-    pub operation: Option<FileOperation>,
-    pub source: PathBuf,
 }
 
 pub struct Processor<'a, P: AsRef<Path>> {
@@ -229,17 +235,16 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         Ok(self.output_root.as_ref().join(target_path))
     }
 
-    pub fn process(&self, template_entry: P) -> Result<ProcessResult> {
+    pub fn process(&self, template_entry: P) -> Result<FileOperation> {
         // The `template_entry` refers to any file or directory within the `template_root`.
         let template_entry = template_entry.as_ref();
 
         // Check if the `template_entry` is listed in the `.bakerignore` file.
         // If it is, stop processing and return a skip action.
         if self.bakerignore.is_match(template_entry) {
-            return Ok(ProcessResult {
+            return Ok(FileOperation::Skip {
                 source: template_entry.to_path_buf(),
-                action: FileAction::Skip { reason: SkipReason::Bakerignore },
-                operation: None,
+                reason: SkipReason::IgnoredByPattern("".to_string()),
             });
         }
 
@@ -249,10 +254,9 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         // If the `target_path` exists and is a directory,
         // skip it from further processing.
         if target_path.exists() && target_path.is_dir() {
-            return Ok(ProcessResult {
-                action: FileAction::Skip { reason: SkipReason::TargetDirectoryExists },
-                operation: None,
+            return Ok(FileOperation::Skip {
                 source: template_entry.to_path_buf(),
+                reason: SkipReason::DirectoryExists(target_path),
             });
         }
 
@@ -265,39 +269,46 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
             .prompt
             .confirm(skip_user_ask, format!("Overwrite {}?", target_path.display()))?;
 
-        let action = match (target_path.exists(), user_confirmed_overwrite) {
-            (true, true) => FileAction::Overwrite,
-            (false, _) => FileAction::Create,
-            (true, false) => {
-                return Ok(ProcessResult {
-                    action: FileAction::Skip { reason: SkipReason::DoNotOverwrite },
-                    operation: None,
+        if target_path.exists() && !user_confirmed_overwrite {
+            return Ok(FileOperation::Skip {
+                source: template_entry.to_path_buf(),
+                reason: SkipReason::FileExists {
+                    path: target_path,
+                    overwrite_granted: user_confirmed_overwrite,
+                },
+            });
+        }
+
+        let operation =
+            if template_entry.is_file() && self.is_template_file(template_entry) {
+                // If `template_entry` is a file and a template file, read its content and
+                // process it using the template engine with `self.answers` as the context.
+                let template_content =
+                    fs::read_to_string(template_entry).map_err(Error::IoError)?;
+                let content = self.engine.render(&template_content, self.answers)?;
+                // FileOperation::WriteFile { target: target_path, content: rendered_content }
+                FileOperation::Write {
+                    target: target_path,
+                    content,
+                    overwrite: user_confirmed_overwrite,
                     source: template_entry.to_path_buf(),
-                })
-            }
-        };
+                }
+            } else if template_entry.is_dir() {
+                // If `template_entry` is a directory, create the corresponding target directory.
+                // FileOperation::CreateDir { target: target_path }
+                FileOperation::CreateDirectory {
+                    target: target_path,
+                    source: template_entry.to_path_buf(),
+                }
+            } else {
+                // Otherwise, copy the source file to the target path as-is.
+                FileOperation::Copy {
+                    target: target_path,
+                    overwrite: user_confirmed_overwrite,
+                    source: template_entry.to_path_buf(),
+                }
+            };
 
-        let operation = if template_entry.is_file()
-            && self.is_template_file(template_entry)
-        {
-            // If `template_entry` is a file and a template file, read its content and
-            // process it using the template engine with `self.answers` as the context.
-            let template_content =
-                fs::read_to_string(template_entry).map_err(Error::IoError)?;
-            let rendered_content = self.engine.render(&template_content, self.answers)?;
-            FileOperation::WriteFile { target: target_path, content: rendered_content }
-        } else if template_entry.is_dir() {
-            // If `template_entry` is a directory, create the corresponding target directory.
-            FileOperation::CreateDir { target: target_path }
-        } else {
-            // Otherwise, copy the source file to the target path as-is.
-            FileOperation::CopyFile { target: target_path }
-        };
-
-        Ok(ProcessResult {
-            action,
-            operation: Some(operation),
-            source: template_entry.to_path_buf(),
-        })
+        Ok(operation)
     }
 }
