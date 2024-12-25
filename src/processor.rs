@@ -196,13 +196,12 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
     }
 
     pub fn process(&self, template_entry: P) -> Result<FileOperation> {
-        // The `template_entry` refers to any file or directory within the `template_root`.
         let template_entry = template_entry.as_ref().to_path_buf();
         let rendered_entry = self.render_template_entry(&template_entry)?;
         let target_path = self.get_target_path(&rendered_entry, &template_entry)?;
+        let target_exists = target_path.exists();
 
-        // Check if the `template_entry` is listed in the `.bakerignore` file.
-        // If it is, stop processing and return a skip action.
+        // Skip if entry is in .bakerignore
         if self.bakerignore.is_match(&template_entry) {
             return Ok(FileOperation::Skip {
                 source: rendered_entry,
@@ -210,53 +209,51 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
             });
         }
 
-        // If the `target_path` exists and is a directory,
-        // skip it from further processing.
-        if target_path.exists() && target_path.is_dir() {
+        // Skip if target is an existing directory
+        if target_exists && target_path.is_dir() {
             return Ok(FileOperation::Skip {
                 source: rendered_entry,
                 reason: SkipReason::DirectoryExists,
             });
         }
 
-        // Determines whether to prompt the user for overwrite confirmation:
-        // - Skips the prompt if `self.skip_overwrite_check` is true or if the `target_path` does not exist.
-        // - Otherwise, prompts the user with a confirmation message: "Overwrite <target_path>?"
-        //
-        let target_path_exists = target_path.exists();
-        let skip_user_ask = self.skip_overwrite_check || !target_path_exists;
-        let user_confirmed_overwrite = self
+        // Handle overwrite confirmation if needed
+        let skip_prompt = self.skip_overwrite_check || !target_exists;
+        let user_confirmed = self
             .prompt
-            .confirm(skip_user_ask, format!("Overwrite {}?", target_path.display()))?;
+            .confirm(skip_prompt, format!("Overwrite {}?", target_path.display()))?;
 
-        if target_path.exists() && !user_confirmed_overwrite {
+        // Skip if user didn't confirm overwrite
+        if target_exists && !user_confirmed {
             return Ok(FileOperation::Skip {
                 source: rendered_entry,
                 reason: SkipReason::FileExists,
             });
         }
 
-        Ok(if template_entry.is_file() && self.is_template_file(&template_entry) {
-            // If `template_entry` is a file and a template file, read its content and
-            // process it using the template engine with `self.answers` as the context.
-            let template_content =
-                fs::read_to_string(&template_entry).map_err(Error::IoError)?;
-            let content = self.engine.render(&template_content, self.answers)?;
-            FileOperation::Write {
-                target: target_path,
-                content,
-                overwrite: target_path_exists,
+        // Handle different types of entries
+        match (template_entry.is_file(), self.is_template_file(&template_entry)) {
+            // Template file
+            (true, true) => {
+                let template_content =
+                    fs::read_to_string(&template_entry).map_err(Error::IoError)?;
+                let content = self.engine.render(&template_content, self.answers)?;
+
+                Ok(FileOperation::Write {
+                    target: target_path,
+                    content,
+                    overwrite: target_exists,
+                })
             }
-        } else if template_entry.is_dir() {
-            // If `template_entry` is a directory, create the corresponding target directory.
-            FileOperation::CreateDirectory { target: target_path }
-        } else {
-            FileOperation::Copy {
+            // Regular file
+            (true, false) => Ok(FileOperation::Copy {
                 source: template_entry,
                 target: target_path,
-                overwrite: target_path_exists,
-            }
-        })
+                overwrite: target_exists,
+            }),
+            // Directory
+            _ => Ok(FileOperation::CreateDirectory { target: target_path }),
+        }
     }
 }
 
@@ -489,11 +486,47 @@ mod tests {
     /// output_root/
     ///
     /// Because answers are
-    /// {"file_name": "world.txt"}
+    /// {"file_name": "world"}
     ///
     #[test]
-    #[ignore]
-    fn it_works_5() {}
+    fn it_works_5() {
+        let answers = json!({"file_name": "world.txt"});
+        let template_root = TempDir::new().unwrap();
+        let template_root = template_root.path();
+
+        let nested_directory_path = template_root.join("{{directory_name}}");
+
+        std::fs::create_dir_all(&nested_directory_path).unwrap();
+
+        let output_root = TempDir::new().unwrap();
+        let output_root = output_root.path();
+
+        let file_path = nested_directory_path.join("{{file_name}}.txt");
+
+        let mut temp_file = File::create(&file_path).unwrap();
+        temp_file.write_all(b"{{greetings}}").unwrap();
+
+        let engine = Box::new(MiniJinjaRenderer::new());
+        let prompt = Box::new(DialoguerPrompter::new());
+        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let processor = Processor::new(
+            &*engine,
+            &*prompt,
+            &template_root,
+            &output_root,
+            true,
+            &answers,
+            &ignored_patterns,
+        );
+
+        let result = processor.process(&file_path.as_path());
+        match result {
+            Err(Error::ProcessError { e, .. }) => {
+                assert_eq!(e, "The rendered path is not valid");
+            }
+            _ => panic!("Expected ProcessError"),
+        }
+    }
 
     /// The template structure
     /// template_root/
@@ -507,8 +540,40 @@ mod tests {
     /// {"create_dir": true}
     ///
     #[test]
-    #[ignore]
-    fn it_works_6() {}
+    fn it_works_6() {
+        let answers = json!({"create_dir": true});
+        let template_root = TempDir::new().unwrap();
+        let template_root = template_root.path();
+
+        let nested_directory_path =
+            template_root.join("{% if create_dir %}hello{% endif %}");
+
+        std::fs::create_dir_all(&nested_directory_path).unwrap();
+
+        let output_root = TempDir::new().unwrap();
+        let output_root = output_root.path();
+
+        let engine = Box::new(MiniJinjaRenderer::new());
+        let prompt = Box::new(DialoguerPrompter::new());
+        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let processor = Processor::new(
+            &*engine,
+            &*prompt,
+            &template_root,
+            &output_root,
+            true,
+            &answers,
+            &ignored_patterns,
+        );
+
+        let result = processor.process(&nested_directory_path.as_path()).unwrap();
+        match result {
+            FileOperation::CreateDirectory { target } => {
+                assert_eq!(target, output_root.join("hello"));
+            }
+            _ => panic!("Expected CreateDirectory operation"),
+        }
+    }
 
     /// The template structure
     /// template_root/
@@ -521,8 +586,40 @@ mod tests {
     /// {"create_dir": false}
     ///
     #[test]
-    #[ignore]
-    fn it_works_7() {}
+    fn it_works_7() {
+        let answers = json!({"create_dir": false});
+        let template_root = TempDir::new().unwrap();
+        let template_root = template_root.path();
+
+        let nested_directory_path =
+            template_root.join("{% if create_dir %}hello{% endif %}");
+
+        std::fs::create_dir_all(&nested_directory_path).unwrap();
+
+        let output_root = TempDir::new().unwrap();
+        let output_root = output_root.path();
+
+        let engine = Box::new(MiniJinjaRenderer::new());
+        let prompt = Box::new(DialoguerPrompter::new());
+        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let processor = Processor::new(
+            &*engine,
+            &*prompt,
+            &template_root,
+            &output_root,
+            true,
+            &answers,
+            &ignored_patterns,
+        );
+
+        let result = processor.process(&nested_directory_path.as_path());
+        match result {
+            Err(Error::ProcessError { e, .. }) => {
+                assert_eq!(e, "The rendered path is not valid");
+            }
+            _ => panic!("Expected ProcessError"),
+        }
+    }
 
     /// The template structure
     /// template_root/
@@ -538,6 +635,97 @@ mod tests {
     /// {"create_dir": true}
     ///
     #[test]
+    fn it_works_8() {
+        let answers = json!({"create_dir": true});
+        let template_root = TempDir::new().unwrap();
+        let template_root = template_root.path();
+
+        let nested_directory_path =
+            template_root.join("{% if create_dir %}hello{% endif %}");
+
+        std::fs::create_dir_all(&nested_directory_path).unwrap();
+
+        let file_path = nested_directory_path.join("file_name.txt");
+
+        let mut temp_file = File::create(&file_path).unwrap();
+        temp_file.write_all(b"{{greetings}}").unwrap();
+
+        let output_root = TempDir::new().unwrap();
+        let output_root = output_root.path();
+
+        let engine = Box::new(MiniJinjaRenderer::new());
+        let prompt = Box::new(DialoguerPrompter::new());
+        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let processor = Processor::new(
+            &*engine,
+            &*prompt,
+            &template_root,
+            &output_root,
+            true,
+            &answers,
+            &ignored_patterns,
+        );
+
+        let result = processor.process(&file_path.as_path()).unwrap();
+        match result {
+            FileOperation::Copy { source, overwrite, target } => {
+                assert_eq!(target, output_root.join("hello").join("file_name.txt"));
+                assert_eq!(source, file_path);
+                assert_eq!(overwrite, false);
+            }
+            _ => panic!("Expected Copy operation"),
+        }
+    }
+
+    /// The template structure
+    /// template_root/
+    ///   {{file_name}}.j2
+    ///
+    /// Expected output
+    /// output_root/
+    ///   hello_world.txt
+    ///
+    /// Because answers are
+    /// {"file_name": "hello_world.txt", "greetings": "Hello, World"}
+    ///
+    #[test]
     #[ignore]
-    fn it_works_8() {}
+    fn it_works_9() {
+        let answers =
+            json!({"file_name": "hello_world.txt", "greetings": "Hello, World"});
+        let template_root = TempDir::new().unwrap();
+        let template_root = template_root.path();
+
+        let output_root = TempDir::new().unwrap();
+        let output_root = output_root.path();
+
+        let file_path = template_root.join("{{file_name}}");
+
+        let mut temp_file = File::create(&file_path).unwrap();
+        temp_file.write_all(b"{{greetings}}").unwrap();
+
+        let engine = Box::new(MiniJinjaRenderer::new());
+        let prompt = Box::new(DialoguerPrompter::new());
+        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let processor = Processor::new(
+            &*engine,
+            &*prompt,
+            &template_root,
+            &output_root,
+            true,
+            &answers,
+            &ignored_patterns,
+        );
+
+        let result = processor.process(&file_path.as_path()).unwrap();
+
+        match result {
+            FileOperation::Write { target, content, overwrite } => {
+                assert_eq!(target, output_root.join("hello_world.txt"));
+                assert_eq!(content, "Hello, World");
+                assert_eq!(overwrite, false);
+            }
+            _ => panic!("Expected Write operation"),
+        }
+    }
 }
