@@ -3,7 +3,6 @@ use crate::error::{Error, Result};
 use crate::prompt::Prompter;
 use crate::renderer::TemplateRenderer;
 use indexmap::IndexMap;
-use std::io::Read;
 use std::process::ChildStdout;
 
 pub enum QuestionType {
@@ -95,16 +94,9 @@ pub fn get_yes_no_default(question: &Question) -> serde_json::Value {
     serde_json::Value::Bool(default_value)
 }
 
-pub fn load_from_stdin() -> Result<serde_json::Value> {
-    let mut buffer = String::new();
-    std::io::stdin().read_to_string(&mut buffer)?;
-    let out = buffer.trim().to_string();
-    Ok(serde_json::from_str(&out).unwrap_or(serde_json::Value::Null))
-}
-
-pub fn load_from_hook(mut stdout: ChildStdout) -> Result<serde_json::Value> {
+pub fn read_from(mut reader: impl std::io::Read) -> Result<serde_json::Value> {
     let mut buf = String::new();
-    stdout.read_to_string(&mut buf).map_err(Error::IoError)?;
+    reader.read_to_string(&mut buf).map_err(Error::IoError)?;
     Ok(serde_json::from_str(&buf).unwrap_or(serde_json::Value::Null))
 }
 
@@ -119,8 +111,8 @@ pub fn get_answers_from(
     };
 
     match answers_source {
-        AnswerSource::Stdin => load_from_stdin(),
-        AnswerSource::PreHookStdout(stdout) => load_from_hook(stdout),
+        AnswerSource::Stdin => read_from(std::io::stdin()),
+        AnswerSource::PreHookStdout(stdout) => read_from(stdout),
         AnswerSource::None => Ok(serde_json::Value::Null),
     }
 }
