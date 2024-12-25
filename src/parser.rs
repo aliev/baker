@@ -3,20 +3,12 @@ use crate::error::{Error, Result};
 use crate::prompt::Prompter;
 use crate::renderer::TemplateRenderer;
 use indexmap::IndexMap;
-use std::process::ChildStdout;
 
 pub enum QuestionType {
     MultipleChoice,
     SingleChoice,
     Text,
     YesNo,
-}
-
-#[derive(Debug)]
-pub enum AnswerSource {
-    Stdin,
-    PreHookStdout(ChildStdout),
-    None,
 }
 
 /// Retrieves the default value of single choice
@@ -98,23 +90,6 @@ pub fn read_from(mut reader: impl std::io::Read) -> Result<serde_json::Value> {
     let mut buf = String::new();
     reader.read_to_string(&mut buf).map_err(Error::IoError)?;
     Ok(serde_json::from_str(&buf).unwrap_or(serde_json::Value::Null))
-}
-
-pub fn get_answers_from(
-    take_from_stdin: bool,
-    pre_hook_stdout: Option<ChildStdout>,
-) -> Result<serde_json::Value> {
-    let answers_source = match (take_from_stdin, pre_hook_stdout) {
-        (true, _) => AnswerSource::Stdin,
-        (false, Some(stdout)) => AnswerSource::PreHookStdout(stdout),
-        (false, None) => AnswerSource::None,
-    };
-
-    match answers_source {
-        AnswerSource::Stdin => read_from(std::io::stdin()),
-        AnswerSource::PreHookStdout(stdout) => read_from(stdout),
-        AnswerSource::None => Ok(serde_json::Value::Null),
-    }
 }
 
 pub fn get_answers(

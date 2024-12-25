@@ -11,7 +11,7 @@ use baker::{
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::parse_bakerignore_file,
     loader::load_template,
-    parser::{get_answers, get_answers_from},
+    parser::{get_answers, read_from},
     processor::{FileOperation, Processor, SkipReason},
     prompt::DialoguerPrompter,
     renderer::MiniJinjaRenderer,
@@ -118,6 +118,11 @@ fn run(args: Args) -> Result<()> {
     let template_root =
         load_template(&*prompt, args.template, args.skip_overwrite_check)?;
 
+    // TODO:
+    // Config::new()
+    // .from_json(path)
+    // .from_yaml(path)
+    // .from_yml(path);
     let config = Config::from_file(&template_root)?;
 
     let execute_hooks =
@@ -132,8 +137,15 @@ fn run(args: Args) -> Result<()> {
         None
     };
 
-    let preloaded_answers = get_answers_from(args.stdin, pre_hook_stdout)?;
-    let answers = get_answers(&*engine, &*prompt, config.questions, preloaded_answers)?;
+    let answers = if args.stdin {
+        read_from(std::io::stdin())?
+    } else if let Some(pre_hook_stdout) = pre_hook_stdout {
+        read_from(pre_hook_stdout)?
+    } else {
+        serde_json::Value::Null
+    };
+
+    let answers = get_answers(&*engine, &*prompt, config.questions, answers)?;
 
     // Process ignore patterns
     let ignored_patterns = parse_bakerignore_file(&template_root)?;
