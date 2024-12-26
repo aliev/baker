@@ -1,4 +1,4 @@
-use crate::config::{Question, ValueType};
+use crate::config::{Question, QuestionType};
 use crate::error::{Error, Result};
 use crate::renderer::TemplateRenderer;
 
@@ -37,17 +37,11 @@ impl<'a> QuestionRenderer<'a> {
         question: &Question,
         current_context: serde_json::Value,
     ) -> RenderedQuestion {
-        let default = match (
-            &question.value_type,
-            question.choices.is_empty(),
-            question.multiselect,
-        ) {
-            (ValueType::Str, false, true) => self.get_multiple_choice_default(question),
-            (ValueType::Str, false, false) => self.get_single_choice_default(question),
-            (ValueType::Str, true, _) => {
-                self.get_text_default(question, &current_context, self.engine)
-            }
-            (ValueType::Bool, _, _) => self.get_yes_no_default(question),
+        let default = match question.question_type() {
+            QuestionType::MultipleChoice => self.get_multiple_choice_default(question),
+            QuestionType::SingleChoice => self.get_single_choice_default(question),
+            QuestionType::Text => self.get_text_default(question, &current_context),
+            QuestionType::Boolean => self.get_yes_no_default(question),
         };
 
         // Sometimes "help" contain the value with the template strings.
@@ -120,11 +114,10 @@ impl<'a> QuestionRenderer<'a> {
         &self,
         question: &Question,
         current_context: &serde_json::Value,
-        engine: &dyn TemplateRenderer,
     ) -> serde_json::Value {
         let default_value = if let Some(default_value) = &question.default {
             if let Some(s) = default_value.as_str() {
-                engine.render(s, current_context).unwrap_or_default()
+                self.engine.render(s, current_context).unwrap_or_default()
             } else {
                 String::new()
             }

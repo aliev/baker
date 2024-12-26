@@ -54,6 +54,24 @@ pub struct Question {
     pub ask_if: String,
 }
 
+pub enum QuestionType {
+    MultipleChoice,
+    SingleChoice,
+    Text,
+    Boolean,
+}
+
+impl Question {
+    pub fn question_type(&self) -> QuestionType {
+        match (&self.value_type, self.choices.is_empty(), self.multiselect) {
+            (ValueType::Str, false, true) => QuestionType::MultipleChoice,
+            (ValueType::Str, false, false) => QuestionType::SingleChoice,
+            (ValueType::Str, true, _) => QuestionType::Text,
+            (ValueType::Bool, _, _) => QuestionType::Boolean,
+        }
+    }
+}
+
 /// Main configuration structure holding all questions
 #[derive(Debug, Deserialize)]
 pub struct Config {

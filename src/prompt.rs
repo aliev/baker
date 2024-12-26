@@ -2,7 +2,7 @@
 //! This module provides functionality for loading and processing template configuration files
 //! with support for variable interpolation.
 
-use crate::config::{Question, ValueType};
+use crate::config::{Question, QuestionType};
 use crate::error::{Error, Result};
 
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
@@ -43,15 +43,15 @@ pub trait Prompter {
         prompt: String,
         question: Question,
     ) -> Result<serde_json::Value> {
-        match (&question.value_type, question.choices.is_empty(), question.multiselect) {
-            (ValueType::Str, false, true) => {
+        match question.question_type() {
+            QuestionType::MultipleChoice => {
                 self.multiple_choice(prompt, question, default_value)
             }
-            (ValueType::Str, false, false) => {
+            QuestionType::SingleChoice => {
                 self.single_choice(prompt, question, default_value)
             }
-            (ValueType::Str, true, _) => self.string(prompt, question, default_value),
-            (ValueType::Bool, _, _) => self.boolean(prompt, default_value),
+            QuestionType::Text => self.string(prompt, question, default_value),
+            QuestionType::Boolean => self.boolean(prompt, default_value),
         }
     }
 }
