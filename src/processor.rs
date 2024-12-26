@@ -728,4 +728,54 @@ mod tests {
             _ => panic!("Expected Write operation"),
         }
     }
+
+    /// The template structure
+    /// template_root/
+    ///   hello_world.j2
+    ///
+    /// Expected output
+    /// output_root/
+    ///   hello_world.j2
+    ///
+    /// Because answers are
+    /// {"greetings": "Hello, World"}
+    ///
+    #[test]
+    fn it_works_10() {
+        let answers = json!({"greetings": "Hello, World"});
+        let template_root = TempDir::new().unwrap();
+        let template_root = template_root.path();
+
+        let output_root = TempDir::new().unwrap();
+        let output_root = output_root.path();
+
+        let file_path = template_root.join("hello_world.j2");
+
+        let mut temp_file = File::create(&file_path).unwrap();
+        temp_file.write_all(b"{{greetings}}").unwrap();
+
+        let engine = Box::new(MiniJinjaRenderer::new());
+        let prompt = Box::new(DialoguerPrompter::new());
+        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let processor = Processor::new(
+            &*engine,
+            &*prompt,
+            &template_root,
+            &output_root,
+            true,
+            &answers,
+            &ignored_patterns,
+        );
+
+        let result = processor.process(&file_path.as_path()).unwrap();
+
+        match result {
+            FileOperation::Copy { target, overwrite, source } => {
+                assert_eq!(source, template_root.join("hello_world.j2"));
+                assert_eq!(target, output_root.join("hello_world.j2"));
+                assert_eq!(overwrite, false);
+            }
+            _ => panic!("Expected Copy operation"),
+        }
+    }
 }
