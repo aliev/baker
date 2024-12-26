@@ -2,26 +2,18 @@ use crate::config::{Question, ValueType};
 use crate::error::{Error, Result};
 use crate::renderer::TemplateRenderer;
 
-pub enum QuestionType {
-    MultipleChoice,
-    SingleChoice,
-    Text,
-    YesNo,
+pub struct RenderedQuestion {
+    pub ask_if: bool,
+    pub default: serde_json::Value,
+    pub help: String,
 }
 
-pub struct Action {
-    pub prompt: bool,
-    pub question_type: QuestionType,
-    pub default_value: serde_json::Value,
-    pub help_rendered: String,
-}
-
-pub struct AnswersParser<'a> {
+pub struct QuestionRenderer<'a> {
     engine: &'a dyn TemplateRenderer,
     preloaded_answers: serde_json::Value,
 }
 
-impl<'a> AnswersParser<'a> {
+impl<'a> QuestionRenderer<'a> {
     pub fn new(engine: &'a dyn TemplateRenderer) -> Self {
         Self { engine, preloaded_answers: serde_json::Value::Null }
     }
@@ -41,54 +33,47 @@ impl<'a> AnswersParser<'a> {
         key: &String,
         question: &Question,
         current_context: serde_json::Value,
-    ) -> Action {
+    ) -> RenderedQuestion {
         let preloaded_answer = self.preloaded_answers.get(key);
-        let (question_type, default_value) = match question.value_type {
+        let default = match question.value_type {
             ValueType::Str => {
                 if !question.choices.is_empty() {
                     if question.multiselect {
-                        let default_value = self.get_multiple_choice_default(question);
-                        (QuestionType::MultipleChoice, default_value)
+                        self.get_multiple_choice_default(question)
                     } else {
                         // Extracts the default value from config.default (baker.yaml)
                         // if the value contains the template string it renders it.
-                        let default_value = self.get_single_choice_default(question);
-                        (QuestionType::SingleChoice, default_value)
+                        self.get_single_choice_default(question)
                     }
                 } else {
-                    let default_value =
-                        self.get_text_default(question, &current_context, self.engine);
-                    (QuestionType::Text, default_value)
+                    self.get_text_default(question, &current_context, self.engine)
                 }
             }
-            ValueType::Bool => {
-                let default_value = self.get_yes_no_default(question);
-                (QuestionType::YesNo, default_value)
-            }
+            ValueType::Bool => self.get_yes_no_default(question),
         };
 
-        if let Some(default_answer_value) = preloaded_answer {
-            // Return the default answer
-            return Action {
-                default_value: default_answer_value.clone(),
-                prompt: false,
-                question_type,
-                help_rendered: "".to_string(),
-            };
-        }
         // Sometimes "help" contain the value with the template strings.
         // This function renders it and returns rendered value.
-        let help_rendered = self
+        let help = self
             .engine
             .render(&question.help, &current_context)
             .unwrap_or(question.help.clone());
+
+        if let Some(default_answer_value) = preloaded_answer {
+            // Return the default answer
+            return RenderedQuestion {
+                default: default_answer_value.clone(),
+                ask_if: false,
+                help,
+            };
+        }
 
         let ask = self
             .engine
             .execute_expression(&question.ask_if, &current_context)
             .unwrap_or(true);
 
-        Action { default_value, prompt: ask, question_type, help_rendered }
+        RenderedQuestion { default, ask_if: ask, help }
     }
 
     /// Retrieves the default value of single choice

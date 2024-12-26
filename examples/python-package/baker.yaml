@@ -8,6 +8,11 @@ now:
   type: str
   ask_if: "false"
 
+requirements111:
+  type: str
+  help: Select requirements
+  multiselect: true
+
 create_empty_dir:
   type: bool
   default: true

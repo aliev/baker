@@ -11,10 +11,10 @@ use baker::{
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::parse_bakerignore_file,
     loader::load_template,
-    parser::AnswersParser,
+    parser::QuestionRenderer,
     processor::{FileOperation, Processor},
     prompt::{DialoguerPrompter, Prompter},
-    renderer::MiniJinjaRenderer,
+    renderer::{MiniJinjaRenderer, TemplateRenderer},
 };
 use walkdir::WalkDir;
 
@@ -111,8 +111,8 @@ fn copy_file<P: AsRef<Path>>(source_path: P, dest_path: P) -> Result<()> {
 /// 7. Processes template files
 /// 8. Executes post-generation hooks
 fn run(args: Args) -> Result<()> {
-    let engine = Box::new(MiniJinjaRenderer::new());
-    let prompt = Box::new(DialoguerPrompter::new());
+    let engine: Box<dyn TemplateRenderer> = Box::new(MiniJinjaRenderer::new());
+    let prompt: Box<dyn Prompter> = Box::new(DialoguerPrompter::new());
 
     let output_root = get_output_dir(args.output_dir, args.force)?;
     let template_root =
@@ -137,7 +137,7 @@ fn run(args: Args) -> Result<()> {
         None
     };
 
-    let mut answers_parser = AnswersParser::new(&*engine);
+    let mut answers_parser = QuestionRenderer::new(&*engine);
 
     if args.stdin {
         answers_parser.read_from(std::io::stdin())?
@@ -150,18 +150,13 @@ fn run(args: Args) -> Result<()> {
     for (key, question) in config.questions {
         let current_context = serde_json::Value::Object(answers.clone());
 
-        let action = answers_parser.parse(&key, &question, current_context);
-        let value = if action.prompt {
-            prompt.as_ref().ask(
-                action.question_type,
-                action.default_value,
-                action.help_rendered,
-                question,
-            )?
+        let rendered_question = answers_parser.parse(&key, &question, current_context);
+        let answer = if rendered_question.ask_if {
+            prompt.ask(rendered_question.default, rendered_question.help, question)?
         } else {
-            action.default_value
+            rendered_question.default
         };
-        answers.insert(key, value);
+        answers.insert(key, answer);
     }
 
     let answers = serde_json::Value::Object(answers);
@@ -181,7 +176,7 @@ fn run(args: Args) -> Result<()> {
                 match result {
                     FileOperation::Copy { source, target, target_exists } => {
                         let skip_prompt = args.skip_overwrite_check || !target_exists;
-                        let user_confirmed = prompt.as_ref().confirm(
+                        let user_confirmed = prompt.confirm(
                             skip_prompt,
                             format!("Overwrite {}?", target.display()),
                         )?;
@@ -198,7 +193,7 @@ fn run(args: Args) -> Result<()> {
                     }
                     FileOperation::Write { target, content, target_exists } => {
                         let skip_prompt = args.skip_overwrite_check || !target_exists;
-                        let user_confirmed = prompt.as_ref().confirm(
+                        let user_confirmed = prompt.confirm(
                             skip_prompt,
                             format!("Overwrite {}?", target.display()),
                         )?;
