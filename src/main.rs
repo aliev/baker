@@ -11,7 +11,7 @@ use baker::{
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::parse_bakerignore_file,
     loader::load_template,
-    parser::{get_answers, read_from},
+    parser::{prompt_for_answers, read_from},
     processor::{FileOperation, Processor, SkipReason},
     prompt::DialoguerPrompter,
     renderer::MiniJinjaRenderer,
@@ -145,10 +145,10 @@ fn run(args: Args) -> Result<()> {
         serde_json::Value::Null
     };
 
-    let answers = get_answers(&*engine, &*prompt, config.questions, answers)?;
+    let answers = prompt_for_answers(&*engine, &*prompt, config.questions, answers)?;
 
     // Process ignore patterns
-    let ignored_patterns = parse_bakerignore_file(&template_root)?;
+    let bakerignore = parse_bakerignore_file(&template_root)?;
 
     let processor = Processor::new(
         &*engine,
@@ -157,7 +157,7 @@ fn run(args: Args) -> Result<()> {
         &output_root,
         args.skip_overwrite_check,
         &answers,
-        &ignored_patterns,
+        &bakerignore,
     );
 
     // Process template files

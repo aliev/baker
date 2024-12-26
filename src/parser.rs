@@ -92,7 +92,7 @@ pub fn read_from(mut reader: impl std::io::Read) -> Result<serde_json::Value> {
     Ok(serde_json::from_str(&buf).unwrap_or(serde_json::Value::Null))
 }
 
-pub fn get_answers(
+pub fn prompt_for_answers(
     engine: &dyn TemplateRenderer,
     prompt: &dyn Prompter,
     questions: IndexMap<String, Question>,
