@@ -152,7 +152,11 @@ fn run(args: Args) -> Result<()> {
 
         let rendered_question = answers_parser.parse(&key, &question, current_context);
         let answer = if rendered_question.ask_if {
-            prompt.ask(rendered_question.default, rendered_question.help, question)?
+            prompt.ask(
+                rendered_question.default,
+                rendered_question.help.unwrap_or_default(),
+                question,
+            )?
         } else {
             rendered_question.default
         };

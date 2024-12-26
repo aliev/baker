@@ -5,7 +5,7 @@ use crate::renderer::TemplateRenderer;
 pub struct RenderedQuestion {
     pub ask_if: bool,
     pub default: serde_json::Value,
-    pub help: String,
+    pub help: Option<String>,
 }
 
 pub struct QuestionRenderer<'a> {
@@ -35,22 +35,28 @@ impl<'a> QuestionRenderer<'a> {
         current_context: serde_json::Value,
     ) -> RenderedQuestion {
         let preloaded_answer = self.preloaded_answers.get(key);
-        let default = match question.value_type {
-            ValueType::Str => {
-                if !question.choices.is_empty() {
-                    if question.multiselect {
-                        self.get_multiple_choice_default(question)
-                    } else {
-                        // Extracts the default value from config.default (baker.yaml)
-                        // if the value contains the template string it renders it.
-                        self.get_single_choice_default(question)
-                    }
-                } else {
-                    self.get_text_default(question, &current_context, self.engine)
-                }
+
+        let default = match (
+            &question.value_type,
+            question.choices.is_empty(),
+            question.multiselect,
+        ) {
+            (ValueType::Str, false, true) => self.get_multiple_choice_default(question),
+            (ValueType::Str, false, false) => self.get_single_choice_default(question),
+            (ValueType::Str, true, _) => {
+                self.get_text_default(question, &current_context, self.engine)
             }
-            ValueType::Bool => self.get_yes_no_default(question),
+            (ValueType::Bool, _, _) => self.get_yes_no_default(question),
         };
+
+        if let Some(default_answer_value) = preloaded_answer {
+            // Return the default answer
+            return RenderedQuestion {
+                default: default_answer_value.clone(),
+                ask_if: false,
+                help: None,
+            };
+        }
 
         // Sometimes "help" contain the value with the template strings.
         // This function renders it and returns rendered value.
@@ -59,21 +65,12 @@ impl<'a> QuestionRenderer<'a> {
             .render(&question.help, &current_context)
             .unwrap_or(question.help.clone());
 
-        if let Some(default_answer_value) = preloaded_answer {
-            // Return the default answer
-            return RenderedQuestion {
-                default: default_answer_value.clone(),
-                ask_if: false,
-                help,
-            };
-        }
-
         let ask = self
             .engine
             .execute_expression(&question.ask_if, &current_context)
             .unwrap_or(true);
 
-        RenderedQuestion { default, ask_if: ask, help }
+        RenderedQuestion { default, ask_if: ask, help: Some(help) }
     }
 
     /// Retrieves the default value of single choice
