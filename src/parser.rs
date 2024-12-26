@@ -10,32 +10,33 @@ pub struct RenderedQuestion {
 
 pub struct QuestionRenderer<'a> {
     engine: &'a dyn TemplateRenderer,
-    preloaded_answers: serde_json::Value,
+}
+
+pub fn read_from(
+    mut reader: impl std::io::Read,
+) -> Result<serde_json::Map<String, serde_json::Value>> {
+    let mut buf = String::new();
+    reader.read_to_string(&mut buf).map_err(Error::IoError)?;
+
+    let value = serde_json::from_str(&buf)
+        .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+
+    match value {
+        serde_json::Value::Object(map) => Ok(map),
+        _ => Ok(serde_json::Map::new()),
+    }
 }
 
 impl<'a> QuestionRenderer<'a> {
     pub fn new(engine: &'a dyn TemplateRenderer) -> Self {
-        Self { engine, preloaded_answers: serde_json::Value::Null }
-    }
-
-    pub fn read_from(&mut self, mut reader: impl std::io::Read) -> Result<()> {
-        let mut buf = String::new();
-        reader.read_to_string(&mut buf).map_err(Error::IoError)?;
-
-        self.preloaded_answers =
-            serde_json::from_str(&buf).unwrap_or(serde_json::Value::Null);
-
-        Ok(())
+        Self { engine }
     }
 
     pub fn parse(
         &self,
-        key: &String,
         question: &Question,
         current_context: serde_json::Value,
     ) -> RenderedQuestion {
-        let preloaded_answer = self.preloaded_answers.get(key);
-
         let default = match (
             &question.value_type,
             question.choices.is_empty(),
@@ -48,15 +49,6 @@ impl<'a> QuestionRenderer<'a> {
             }
             (ValueType::Bool, _, _) => self.get_yes_no_default(question),
         };
-
-        if let Some(default_answer_value) = preloaded_answer {
-            // Return the default answer
-            return RenderedQuestion {
-                default: default_answer_value.clone(),
-                ask_if: false,
-                help: None,
-            };
-        }
 
         // Sometimes "help" contain the value with the template strings.
         // This function renders it and returns rendered value.

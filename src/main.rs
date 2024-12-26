@@ -11,7 +11,7 @@ use baker::{
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::parse_bakerignore_file,
     loader::load_template,
-    parser::QuestionRenderer,
+    parser::{read_from, QuestionRenderer},
     processor::{FileOperation, Processor},
     prompt::{DialoguerPrompter, Prompter},
     renderer::{MiniJinjaRenderer, TemplateRenderer},
@@ -137,28 +137,35 @@ fn run(args: Args) -> Result<()> {
         None
     };
 
-    let mut answers_parser = QuestionRenderer::new(&*engine);
-
-    if args.stdin {
-        answers_parser.read_from(std::io::stdin())?
+    let mut answers = if args.stdin {
+        read_from(std::io::stdin())?
     } else if let Some(pre_hook_stdout) = pre_hook_stdout {
-        answers_parser.read_from(pre_hook_stdout)?
-    }
+        read_from(pre_hook_stdout)?
+    } else {
+        serde_json::Map::new()
+    };
 
-    let mut answers = serde_json::Map::new();
+    let answers_parser = QuestionRenderer::new(&*engine);
 
     for (key, question) in config.questions {
         let current_context = serde_json::Value::Object(answers.clone());
 
-        let rendered_question = answers_parser.parse(&key, &question, current_context);
-        let answer = if rendered_question.ask_if {
-            prompt.ask(
-                rendered_question.default,
-                rendered_question.help.unwrap_or_default(),
-                question,
-            )?
+        let rendered_question = answers_parser.parse(&question, current_context);
+
+        let answer = if let Some(default_answer_value) = answers.get(&key) {
+            // Gets default answer from whatever context
+            default_answer_value.clone()
         } else {
-            rendered_question.default
+            if rendered_question.ask_if {
+                // Asks answer
+                prompt.ask(
+                    rendered_question.default,
+                    rendered_question.help.unwrap_or_default(),
+                    question,
+                )?
+            } else {
+                rendered_question.default
+            }
         };
         answers.insert(key, answer);
     }
