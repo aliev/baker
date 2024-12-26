@@ -14,7 +14,7 @@ pub const CONFIG_FILES: [&str; 3] = ["baker.json", "baker.yml", "baker.yaml"];
 /// Type of question to be presented to the user
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum ValueType {
+pub enum Type {
     /// String input question type
     Str,
     /// Boolean (yes/no) question type
@@ -37,7 +37,7 @@ pub struct Question {
     pub help: String,
     /// Type of the question (string or boolean)
     #[serde(rename = "type")]
-    pub value_type: ValueType,
+    pub r#type: Type,
     /// Optional default value for the question
     #[serde(default)]
     pub default: Option<serde_json::Value>,
@@ -63,11 +63,11 @@ pub enum QuestionType {
 
 impl Question {
     pub fn question_type(&self) -> QuestionType {
-        match (&self.value_type, self.choices.is_empty(), self.multiselect) {
-            (ValueType::Str, false, true) => QuestionType::MultipleChoice,
-            (ValueType::Str, false, false) => QuestionType::SingleChoice,
-            (ValueType::Str, true, _) => QuestionType::Text,
-            (ValueType::Bool, _, _) => QuestionType::Boolean,
+        match (&self.r#type, self.choices.is_empty(), self.multiselect) {
+            (Type::Str, false, true) => QuestionType::MultipleChoice,
+            (Type::Str, false, false) => QuestionType::SingleChoice,
+            (Type::Str, true, _) => QuestionType::Text,
+            (Type::Bool, _, _) => QuestionType::Boolean,
         }
     }
 }
