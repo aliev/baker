@@ -11,9 +11,9 @@ use baker::{
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::parse_bakerignore_file,
     loader::load_template,
-    parser::{prompt_for_answers, read_from},
+    parser::AnswersParser,
     processor::{FileOperation, Processor, SkipReason},
-    prompt::DialoguerPrompter,
+    prompt::{DialoguerPrompter, Prompter},
     renderer::MiniJinjaRenderer,
 };
 use walkdir::WalkDir;
@@ -137,15 +137,34 @@ fn run(args: Args) -> Result<()> {
         None
     };
 
-    let answers = if args.stdin {
-        read_from(std::io::stdin())?
-    } else if let Some(pre_hook_stdout) = pre_hook_stdout {
-        read_from(pre_hook_stdout)?
-    } else {
-        serde_json::Value::Null
-    };
+    let mut answers_parser = AnswersParser::new(&*engine);
 
-    let answers = prompt_for_answers(&*engine, &*prompt, config.questions, answers)?;
+    if args.stdin {
+        answers_parser.read_from(std::io::stdin())?
+    } else if let Some(pre_hook_stdout) = pre_hook_stdout {
+        answers_parser.read_from(pre_hook_stdout)?
+    }
+
+    let mut answers = serde_json::Map::new();
+
+    for (key, question) in config.questions {
+        let current_context = serde_json::Value::Object(answers.clone());
+
+        let action = answers_parser.parse(&key, &question, current_context);
+        let value = if action.prompt {
+            prompt.as_ref().ask(
+                action.question_type,
+                action.default_value,
+                action.help_rendered,
+                question,
+            )?
+        } else {
+            action.default_value
+        };
+        answers.insert(key, value);
+    }
+
+    let answers = serde_json::Value::Object(answers);
 
     // Process ignore patterns
     let bakerignore = parse_bakerignore_file(&template_root)?;
