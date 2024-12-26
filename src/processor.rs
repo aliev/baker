@@ -6,56 +6,36 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
-use crate::prompt::Prompter;
 use crate::renderer::TemplateRenderer;
 
 #[derive(Debug)]
-pub enum SkipReason {
-    DirectoryExists,
-    IgnoredByPattern,
-    FileExists,
-}
-
-#[derive(Debug)]
 pub enum FileOperation {
-    Copy { source: PathBuf, target: PathBuf, overwrite: bool },
-    Write { target: PathBuf, content: String, overwrite: bool },
-    CreateDirectory { target: PathBuf },
-    Skip { source: PathBuf, reason: SkipReason },
+    Copy { source: PathBuf, target: PathBuf, target_exists: bool },
+    Write { target: PathBuf, content: String, target_exists: bool },
+    CreateDirectory { target: PathBuf, target_exists: bool },
+    Skip { source: PathBuf },
 }
 
 pub struct Processor<'a, P: AsRef<Path>> {
     /// Dependencies
     engine: &'a dyn TemplateRenderer,
-    prompt: &'a dyn Prompter,
     bakerignore: &'a GlobSet,
 
     /// Other
     template_root: P,
     output_root: P,
-    skip_overwrite_check: bool,
     answers: &'a serde_json::Value,
 }
 
 impl<'a, P: AsRef<Path>> Processor<'a, P> {
     pub fn new(
         engine: &'a dyn TemplateRenderer,
-        prompt: &'a dyn Prompter,
         template_root: P,
         output_root: P,
-        skip_overwrite_check: bool,
         answers: &'a serde_json::Value,
-        ignored_patterns: &'a GlobSet,
+        bakerignore: &'a GlobSet,
     ) -> Self {
-        Self {
-            engine,
-            prompt,
-            template_root,
-            output_root,
-            skip_overwrite_check,
-            answers,
-            bakerignore: ignored_patterns,
-        }
+        Self { engine, template_root, output_root, answers, bakerignore }
     }
 
     /// Validates whether the `rendered_entry` is properly rendered by comparing its components
@@ -203,32 +183,7 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
 
         // Skip if entry is in .bakerignore
         if self.bakerignore.is_match(&template_entry) {
-            return Ok(FileOperation::Skip {
-                source: rendered_entry,
-                reason: SkipReason::IgnoredByPattern,
-            });
-        }
-
-        // Skip if target is an existing directory
-        if target_exists && target_path.is_dir() {
-            return Ok(FileOperation::Skip {
-                source: rendered_entry,
-                reason: SkipReason::DirectoryExists,
-            });
-        }
-
-        // Handle overwrite confirmation if needed
-        let skip_prompt = self.skip_overwrite_check || !target_exists;
-        let user_confirmed = self
-            .prompt
-            .confirm(skip_prompt, format!("Overwrite {}?", target_path.display()))?;
-
-        // Skip if user didn't confirm overwrite
-        if target_exists && !user_confirmed {
-            return Ok(FileOperation::Skip {
-                source: rendered_entry,
-                reason: SkipReason::FileExists,
-            });
+            return Ok(FileOperation::Skip { source: rendered_entry });
         }
 
         // Handle different types of entries
@@ -239,20 +194,18 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
                     fs::read_to_string(&template_entry).map_err(Error::IoError)?;
                 let content = self.engine.render(&template_content, self.answers)?;
 
-                Ok(FileOperation::Write {
-                    target: target_path,
-                    content,
-                    overwrite: target_exists,
-                })
+                Ok(FileOperation::Write { target: target_path, content, target_exists })
             }
             // Regular file
             (true, false) => Ok(FileOperation::Copy {
                 source: template_entry,
                 target: target_path,
-                overwrite: target_exists,
+                target_exists,
             }),
             // Directory
-            _ => Ok(FileOperation::CreateDirectory { target: target_path }),
+            _ => {
+                Ok(FileOperation::CreateDirectory { target: target_path, target_exists })
+            }
         }
     }
 }
@@ -265,10 +218,7 @@ mod tests {
     use serde_json::json;
     use tempfile::TempDir;
 
-    use crate::{
-        ignore::parse_bakerignore_file, prompt::DialoguerPrompter,
-        renderer::MiniJinjaRenderer,
-    };
+    use crate::{ignore::parse_bakerignore_file, renderer::MiniJinjaRenderer};
 
     use super::*;
 
@@ -298,14 +248,11 @@ mod tests {
         temp_file.write_all(b"{{greetings}}").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let prompt = Box::new(DialoguerPrompter::new());
         let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
         let processor = Processor::new(
             &*engine,
-            &*prompt,
             &template_root,
             &output_root,
-            true,
             &answers,
             &ignored_patterns,
         );
@@ -313,10 +260,10 @@ mod tests {
         let result = processor.process(&file_path.as_path()).unwrap();
 
         match result {
-            FileOperation::Write { target, content, overwrite } => {
+            FileOperation::Write { target, content, target_exists } => {
                 assert_eq!(target, output_root.join("hello_world.txt"));
                 assert_eq!(content, "Hello, World");
-                assert_eq!(overwrite, false);
+                assert_eq!(target_exists, false);
             }
             _ => panic!("Expected Write operation"),
         }
@@ -350,14 +297,11 @@ mod tests {
         temp_file.write_all(b"{{greetings}}").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let prompt = Box::new(DialoguerPrompter::new());
         let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
         let processor = Processor::new(
             &*engine,
-            &*prompt,
             &template_root,
             &output_root,
-            true,
             &answers,
             &ignored_patterns,
         );
@@ -365,10 +309,10 @@ mod tests {
         let result = processor.process(&file_path.as_path()).unwrap();
 
         match result {
-            FileOperation::Write { target, content, overwrite } => {
+            FileOperation::Write { target, content, target_exists } => {
                 assert_eq!(target, output_root.join("hello_world.txt"));
                 assert_eq!(content, "Hello, World");
-                assert_eq!(overwrite, false);
+                assert_eq!(target_exists, false);
             }
             _ => panic!("Expected Write operation"),
         }
@@ -400,14 +344,11 @@ mod tests {
         temp_file.write_all(b"Hello, World").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let prompt = Box::new(DialoguerPrompter::new());
         let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
         let processor = Processor::new(
             &*engine,
-            &*prompt,
             &template_root,
             &output_root,
-            true,
             &answers,
             &ignored_patterns,
         );
@@ -415,10 +356,10 @@ mod tests {
         let result = processor.process(&file_path.as_path()).unwrap();
 
         match result {
-            FileOperation::Copy { source, target, overwrite } => {
+            FileOperation::Copy { source, target, target_exists } => {
                 assert_eq!(target, output_root.join("hello_world.txt"));
                 assert_eq!(source, template_root.join("hello_world.txt"));
-                assert_eq!(overwrite, false);
+                assert_eq!(target_exists, false);
             }
             _ => panic!("Expected Copy operation"),
         }
@@ -454,14 +395,11 @@ mod tests {
         temp_file.write_all(b"{{greetings}}").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let prompt = Box::new(DialoguerPrompter::new());
         let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
         let processor = Processor::new(
             &*engine,
-            &*prompt,
             &template_root,
             &output_root,
-            true,
             &answers,
             &ignored_patterns,
         );
@@ -469,10 +407,10 @@ mod tests {
         let result = processor.process(&file_path.as_path()).unwrap();
 
         match result {
-            FileOperation::Write { content, target, overwrite } => {
+            FileOperation::Write { content, target, target_exists } => {
                 assert_eq!(content, "Hello, World");
                 assert_eq!(target, output_root.join("hello").join("file_name.txt"));
-                assert_eq!(overwrite, false);
+                assert_eq!(target_exists, false);
             }
             _ => panic!("Expected Write operation"),
         }
@@ -507,14 +445,11 @@ mod tests {
         temp_file.write_all(b"{{greetings}}").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let prompt = Box::new(DialoguerPrompter::new());
         let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
         let processor = Processor::new(
             &*engine,
-            &*prompt,
             &template_root,
             &output_root,
-            true,
             &answers,
             &ignored_patterns,
         );
@@ -554,22 +489,20 @@ mod tests {
         let output_root = output_root.path();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let prompt = Box::new(DialoguerPrompter::new());
         let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
         let processor = Processor::new(
             &*engine,
-            &*prompt,
             &template_root,
             &output_root,
-            true,
             &answers,
             &ignored_patterns,
         );
 
         let result = processor.process(&nested_directory_path.as_path()).unwrap();
         match result {
-            FileOperation::CreateDirectory { target } => {
+            FileOperation::CreateDirectory { target, target_exists } => {
                 assert_eq!(target, output_root.join("hello"));
+                assert_eq!(target_exists, false);
             }
             _ => panic!("Expected CreateDirectory operation"),
         }
@@ -600,14 +533,11 @@ mod tests {
         let output_root = output_root.path();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let prompt = Box::new(DialoguerPrompter::new());
         let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
         let processor = Processor::new(
             &*engine,
-            &*prompt,
             &template_root,
             &output_root,
-            true,
             &answers,
             &ignored_patterns,
         );
@@ -654,24 +584,21 @@ mod tests {
         let output_root = output_root.path();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let prompt = Box::new(DialoguerPrompter::new());
         let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
         let processor = Processor::new(
             &*engine,
-            &*prompt,
             &template_root,
             &output_root,
-            true,
             &answers,
             &ignored_patterns,
         );
 
         let result = processor.process(&file_path.as_path()).unwrap();
         match result {
-            FileOperation::Copy { source, overwrite, target } => {
+            FileOperation::Copy { source, target, target_exists } => {
                 assert_eq!(target, output_root.join("hello").join("file_name.txt"));
                 assert_eq!(source, file_path);
-                assert_eq!(overwrite, false);
+                assert_eq!(target_exists, false);
             }
             _ => panic!("Expected Copy operation"),
         }
@@ -705,14 +632,11 @@ mod tests {
         temp_file.write_all(b"{{greetings}}").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let prompt = Box::new(DialoguerPrompter::new());
         let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
         let processor = Processor::new(
             &*engine,
-            &*prompt,
             &template_root,
             &output_root,
-            true,
             &answers,
             &ignored_patterns,
         );
@@ -720,10 +644,10 @@ mod tests {
         let result = processor.process(&file_path.as_path()).unwrap();
 
         match result {
-            FileOperation::Write { target, content, overwrite } => {
+            FileOperation::Write { target, content, target_exists } => {
                 assert_eq!(target, output_root.join("hello_world.txt"));
                 assert_eq!(content, "Hello, World");
-                assert_eq!(overwrite, false);
+                assert_eq!(target_exists, false);
             }
             _ => panic!("Expected Write operation"),
         }
@@ -755,14 +679,11 @@ mod tests {
         temp_file.write_all(b"{{greetings}}").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let prompt = Box::new(DialoguerPrompter::new());
         let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
         let processor = Processor::new(
             &*engine,
-            &*prompt,
             &template_root,
             &output_root,
-            true,
             &answers,
             &ignored_patterns,
         );
@@ -770,10 +691,10 @@ mod tests {
         let result = processor.process(&file_path.as_path()).unwrap();
 
         match result {
-            FileOperation::Copy { target, overwrite, source } => {
+            FileOperation::Copy { target, source, target_exists } => {
                 assert_eq!(source, template_root.join("hello_world.j2"));
                 assert_eq!(target, output_root.join("hello_world.j2"));
-                assert_eq!(overwrite, false);
+                assert_eq!(target_exists, false);
             }
             _ => panic!("Expected Copy operation"),
         }

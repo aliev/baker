@@ -12,7 +12,7 @@ use baker::{
     ignore::parse_bakerignore_file,
     loader::load_template,
     parser::AnswersParser,
-    processor::{FileOperation, Processor, SkipReason},
+    processor::{FileOperation, Processor},
     prompt::{DialoguerPrompter, Prompter},
     renderer::MiniJinjaRenderer,
 };
@@ -169,15 +169,8 @@ fn run(args: Args) -> Result<()> {
     // Process ignore patterns
     let bakerignore = parse_bakerignore_file(&template_root)?;
 
-    let processor = Processor::new(
-        &*engine,
-        &*prompt,
-        &template_root,
-        &output_root,
-        args.skip_overwrite_check,
-        &answers,
-        &bakerignore,
-    );
+    let processor =
+        Processor::new(&*engine, &template_root, &output_root, &answers, &bakerignore);
 
     // Process template files
     for dir_entry in WalkDir::new(&template_root) {
@@ -186,33 +179,53 @@ fn run(args: Args) -> Result<()> {
         match processor.process(&template_entry) {
             Ok(result) => {
                 match result {
-                    FileOperation::Copy { source, target, overwrite } => {
-                        if overwrite {
+                    FileOperation::Copy { source, target, target_exists } => {
+                        let skip_prompt = args.skip_overwrite_check || !target_exists;
+                        let user_confirmed = prompt.as_ref().confirm(
+                            skip_prompt,
+                            format!("Overwrite {}?", target.display()),
+                        )?;
+
+                        if target_exists {
                             println!("Overwrite: '{}'", target.display());
                         } else {
                             println!("Create: '{}'", target.display());
                         }
-                        copy_file(&source, &target)?;
+
+                        if user_confirmed {
+                            copy_file(&source, &target)?;
+                        }
                     }
-                    FileOperation::Write { target, content, overwrite } => {
-                        if overwrite {
+                    FileOperation::Write { target, content, target_exists } => {
+                        let skip_prompt = args.skip_overwrite_check || !target_exists;
+                        let user_confirmed = prompt.as_ref().confirm(
+                            skip_prompt,
+                            format!("Overwrite {}?", target.display()),
+                        )?;
+
+                        if target_exists {
                             println!("Overwrite: '{}'", target.display());
                         } else {
                             println!("Create: '{}'", target.display());
                         }
-                        write_file(&content, &target)?;
+
+                        if user_confirmed {
+                            write_file(&content, &target)?;
+                        }
                     }
-                    FileOperation::CreateDirectory { target } => {
-                        println!("Creating (directory): '{}'", target.display(),);
-                        create_dir_all(&target)?;
+                    FileOperation::CreateDirectory { target, target_exists } => {
+                        if target_exists {
+                            println!(
+                                "Skipping (target directory exists): '{}'",
+                                target.display()
+                            );
+                        } else {
+                            println!("Creating (directory): '{}'", target.display());
+                            create_dir_all(&target)?;
+                        }
                     }
-                    FileOperation::Skip { source, reason } => {
-                        let reason = match reason {
-                            SkipReason::DirectoryExists => "target directory exists",
-                            SkipReason::FileExists => "target file exists",
-                            SkipReason::IgnoredByPattern => ".bakerignore",
-                        };
-                        println!("Skipping ({}): '{}'", reason, source.display());
+                    FileOperation::Skip { source } => {
+                        println!("Skipping (.bakerignore): '{}'", source.display());
                     }
                 };
             }
