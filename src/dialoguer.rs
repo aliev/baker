@@ -2,56 +2,12 @@
 //! This module provides functionality for loading and processing template configuration files
 //! with support for variable interpolation.
 
-use crate::config::{Question, QuestionType};
-use crate::error::{Error, Result};
+use crate::{
+    error::{Error, Result},
+    question::{Question, QuestionPrompter, QuestionRenderer},
+};
 
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
-
-pub trait Prompter {
-    fn multiple_choice(
-        &self,
-        prompt: String,
-        default_value: serde_json::Value,
-    ) -> Result<serde_json::Value>;
-
-    fn single_choice(
-        &self,
-        prompt: String,
-        default_value: serde_json::Value,
-    ) -> Result<serde_json::Value>;
-
-    fn string(
-        &self,
-        prompt: String,
-        default_value: serde_json::Value,
-    ) -> Result<serde_json::Value>;
-
-    fn boolean(
-        &self,
-        prompt: String,
-        default_value: serde_json::Value,
-    ) -> Result<serde_json::Value>;
-
-    fn ask(
-        &self,
-        default_value: serde_json::Value,
-        prompt: String,
-    ) -> Result<serde_json::Value>;
-}
-
-pub struct DialoguerPrompter;
-
-impl DialoguerPrompter {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for DialoguerPrompter {
-    fn default() -> Self {
-        Self
-    }
-}
 
 pub fn confirm(skip: bool, prompt: String) -> Result<bool> {
     if skip {
@@ -64,7 +20,9 @@ pub fn confirm(skip: bool, prompt: String) -> Result<bool> {
         .map_err(Error::PromptError)
 }
 
-impl Prompter for Question {
+impl<'a> QuestionRenderer<'a> for Question {}
+
+impl QuestionPrompter for Question {
     fn multiple_choice(
         &self,
         prompt: String,
@@ -158,18 +116,5 @@ impl Prompter for Question {
             .map_err(Error::PromptError)?;
 
         Ok(serde_json::Value::Bool(result))
-    }
-
-    fn ask(
-        &self,
-        default_value: serde_json::Value,
-        prompt: String,
-    ) -> Result<serde_json::Value> {
-        match self.question_type() {
-            QuestionType::MultipleChoice => self.multiple_choice(prompt, default_value),
-            QuestionType::SingleChoice => self.single_choice(prompt, default_value),
-            QuestionType::Text => self.string(prompt, default_value),
-            QuestionType::Boolean => self.boolean(prompt, default_value),
-        }
     }
 }

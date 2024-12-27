@@ -7,13 +7,13 @@ use std::path::{Path, PathBuf};
 use baker::{
     cli::{get_args, Args},
     config::Config,
+    dialoguer::confirm,
     error::{default_error_handler, Error, Result},
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::parse_bakerignore_file,
     loader::load_template,
-    parser::QuestionRenderer,
     processor::{FileOperation, Processor},
-    prompt::{confirm, Prompter},
+    question::{QuestionPrompter, QuestionRenderer},
     renderer::{MiniJinjaRenderer, TemplateRenderer},
 };
 use walkdir::WalkDir;

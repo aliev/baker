@@ -55,8 +55,8 @@ pub mod renderer;
 /// - Uses dialoguer for interactive prompts
 /// - Handles different input types (strings, booleans, selections)
 /// - Provides error handling via BakerResult
-pub mod prompt;
-
-pub mod parser;
+pub mod dialoguer;
 
 pub mod loader;
+
+pub mod question;

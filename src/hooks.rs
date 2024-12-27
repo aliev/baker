@@ -7,8 +7,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{ChildStdout, Command, Stdio};
 
+use crate::dialoguer::confirm;
 use crate::error::{Error, Result};
-use crate::prompt::confirm;
 
 /// Structure representing data passed to hook scripts.
 ///

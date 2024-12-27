@@ -1,8 +1,8 @@
 //! Template loading and rendering functionality for Baker.
 //! Handles both local filesystem and git repository templates with support
 //! for MiniJinja template processing.
+use crate::dialoguer::confirm;
 use crate::error::{Error, Result};
-use crate::prompt::confirm;
 use git2;
 use log::debug;
 use std::fs;
