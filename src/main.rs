@@ -11,7 +11,8 @@ use baker::{
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::parse_bakerignore_file,
     loader::load_template,
-    parser::{read_from, QuestionRenderer},
+    parser::read_from,
+    parser::QuestionRenderer,
     processor::{FileOperation, Processor},
     prompt::{DialoguerPrompter, Prompter},
     renderer::{MiniJinjaRenderer, TemplateRenderer},
@@ -145,12 +146,10 @@ fn run(args: Args) -> Result<()> {
         serde_json::Map::new()
     };
 
-    let answers_parser = QuestionRenderer::new(&*engine);
-
     for (key, question) in config.questions {
         let current_context = serde_json::Value::Object(answers.clone());
 
-        let rendered_question = answers_parser.parse(&question, current_context);
+        let rendered_question = question.render(&*engine, current_context);
 
         let answer = if let Some(default_answer_value) = answers.get(&key) {
             // Gets default answer from whatever context

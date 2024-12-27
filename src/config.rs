@@ -61,7 +61,7 @@ pub enum QuestionType {
     Boolean,
 }
 
-impl Question {
+impl<'a> Question {
     pub fn question_type(&self) -> QuestionType {
         match (&self.r#type, self.choices.is_empty(), self.multiselect) {
             (Type::Str, false, true) => QuestionType::MultipleChoice,
