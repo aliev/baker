@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{ChildStdout, Command, Stdio};
 
 use crate::error::{Error, Result};
-use crate::prompt::Prompter;
+use crate::prompt::confirm;
 
 /// Structure representing data passed to hook scripts.
 ///
@@ -112,13 +112,12 @@ pub fn run_hook<P: AsRef<Path>>(
 }
 
 pub fn confirm_hook_execution<P: AsRef<Path>>(
-    prompt: &dyn Prompter,
     template_dir: P,
     skip_hooks_check: bool,
 ) -> Result<bool> {
     let (pre_hook_file, post_hook_file) = get_hook_files(template_dir);
     if pre_hook_file.exists() || post_hook_file.exists() {
-        Ok(prompt.confirm(
+        Ok(confirm(
             skip_hooks_check,
                 format!(
                     "WARNING: This template contains the following hooks that will execute commands on your system:\n{}{}{}",

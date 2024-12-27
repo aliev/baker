@@ -11,10 +11,9 @@ use baker::{
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::parse_bakerignore_file,
     loader::load_template,
-    parser::read_from,
     parser::QuestionRenderer,
     processor::{FileOperation, Processor},
-    prompt::{DialoguerPrompter, Prompter},
+    prompt::{confirm, Prompter},
     renderer::{MiniJinjaRenderer, TemplateRenderer},
 };
 use walkdir::WalkDir;
@@ -94,6 +93,21 @@ fn copy_file<P: AsRef<Path>>(source_path: P, dest_path: P) -> Result<()> {
     std::fs::copy(source_path, abs_dest).map(|_| ()).map_err(Error::IoError)
 }
 
+pub fn read_from(
+    mut reader: impl std::io::Read,
+) -> Result<serde_json::Map<String, serde_json::Value>> {
+    let mut buf = String::new();
+    reader.read_to_string(&mut buf).map_err(Error::IoError)?;
+
+    let value = serde_json::from_str(&buf)
+        .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+
+    match value {
+        serde_json::Value::Object(map) => Ok(map),
+        _ => Ok(serde_json::Map::new()),
+    }
+}
+
 /// Main application logic execution.
 ///
 /// # Arguments
@@ -113,11 +127,9 @@ fn copy_file<P: AsRef<Path>>(source_path: P, dest_path: P) -> Result<()> {
 /// 8. Executes post-generation hooks
 fn run(args: Args) -> Result<()> {
     let engine: Box<dyn TemplateRenderer> = Box::new(MiniJinjaRenderer::new());
-    let prompt: Box<dyn Prompter> = Box::new(DialoguerPrompter::new());
 
     let output_root = get_output_dir(args.output_dir, args.force)?;
-    let template_root =
-        load_template(&*prompt, args.template, args.skip_overwrite_check)?;
+    let template_root = load_template(args.template, args.skip_overwrite_check)?;
 
     // TODO:
     // Config::new()
@@ -126,8 +138,7 @@ fn run(args: Args) -> Result<()> {
     // .from_yml(path);
     let config = Config::from_file(&template_root)?;
 
-    let execute_hooks =
-        confirm_hook_execution(&*prompt, &template_root, args.skip_hooks_check)?;
+    let execute_hooks = confirm_hook_execution(&template_root, args.skip_hooks_check)?;
 
     let (pre_hook_file, post_hook_file) = get_hook_files(&template_root);
 
@@ -157,10 +168,9 @@ fn run(args: Args) -> Result<()> {
         } else {
             if rendered_question.ask_if {
                 // Asks answer
-                prompt.ask(
+                question.ask(
                     rendered_question.default,
                     rendered_question.help.unwrap_or_default(),
-                    question,
                 )?
             } else {
                 rendered_question.default
@@ -186,7 +196,7 @@ fn run(args: Args) -> Result<()> {
                 match result {
                     FileOperation::Copy { source, target, target_exists } => {
                         let skip_prompt = args.skip_overwrite_check || !target_exists;
-                        let user_confirmed = prompt.confirm(
+                        let user_confirmed = confirm(
                             skip_prompt,
                             format!("Overwrite {}?", target.display()),
                         )?;
@@ -203,7 +213,7 @@ fn run(args: Args) -> Result<()> {
                     }
                     FileOperation::Write { target, content, target_exists } => {
                         let skip_prompt = args.skip_overwrite_check || !target_exists;
-                        let user_confirmed = prompt.confirm(
+                        let user_confirmed = confirm(
                             skip_prompt,
                             format!("Overwrite {}?", target.display()),
                         )?;

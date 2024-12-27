@@ -11,21 +11,18 @@ pub trait Prompter {
     fn multiple_choice(
         &self,
         prompt: String,
-        question: Question,
         default_value: serde_json::Value,
     ) -> Result<serde_json::Value>;
 
     fn single_choice(
         &self,
         prompt: String,
-        question: Question,
         default_value: serde_json::Value,
     ) -> Result<serde_json::Value>;
 
     fn string(
         &self,
         prompt: String,
-        question: Question,
         default_value: serde_json::Value,
     ) -> Result<serde_json::Value>;
 
@@ -35,25 +32,11 @@ pub trait Prompter {
         default_value: serde_json::Value,
     ) -> Result<serde_json::Value>;
 
-    fn confirm(&self, skip: bool, prompt: String) -> Result<bool>;
-
     fn ask(
         &self,
         default_value: serde_json::Value,
         prompt: String,
-        question: Question,
-    ) -> Result<serde_json::Value> {
-        match question.question_type() {
-            QuestionType::MultipleChoice => {
-                self.multiple_choice(prompt, question, default_value)
-            }
-            QuestionType::SingleChoice => {
-                self.single_choice(prompt, question, default_value)
-            }
-            QuestionType::Text => self.string(prompt, question, default_value),
-            QuestionType::Boolean => self.boolean(prompt, default_value),
-        }
-    }
+    ) -> Result<serde_json::Value>;
 }
 
 pub struct DialoguerPrompter;
@@ -70,11 +53,21 @@ impl Default for DialoguerPrompter {
     }
 }
 
-impl Prompter for DialoguerPrompter {
+pub fn confirm(skip: bool, prompt: String) -> Result<bool> {
+    if skip {
+        return Ok(true);
+    }
+    Confirm::new()
+        .with_prompt(prompt)
+        .default(false)
+        .interact()
+        .map_err(Error::PromptError)
+}
+
+impl Prompter for Question {
     fn multiple_choice(
         &self,
         prompt: String,
-        question: Question,
         default_value: serde_json::Value,
     ) -> Result<serde_json::Value> {
         let defaults = default_value
@@ -86,14 +79,14 @@ impl Prompter for DialoguerPrompter {
 
         let indices = MultiSelect::new()
             .with_prompt(prompt)
-            .items(&question.choices)
+            .items(&self.choices)
             .defaults(&defaults)
             .interact()
             .map_err(Error::PromptError)?;
 
         let selected: Vec<serde_json::Value> = indices
             .iter()
-            .map(|&i| serde_json::Value::String(question.choices[i].clone()))
+            .map(|&i| serde_json::Value::String(self.choices[i].clone()))
             .collect();
 
         Ok(serde_json::Value::Array(selected))
@@ -102,24 +95,22 @@ impl Prompter for DialoguerPrompter {
     fn single_choice(
         &self,
         prompt: String,
-        question: Question,
         default_value: serde_json::Value,
     ) -> Result<serde_json::Value> {
         let default_value: usize = default_value.as_u64().unwrap() as usize;
         let selection = Select::new()
             .with_prompt(prompt)
             .default(default_value)
-            .items(&question.choices)
+            .items(&self.choices)
             .interact()
             .map_err(Error::PromptError)?;
 
-        Ok(serde_json::Value::String(question.choices[selection].clone()))
+        Ok(serde_json::Value::String(self.choices[selection].clone()))
     }
 
     fn string(
         &self,
         prompt: String,
-        question: Question,
         default_value: serde_json::Value,
     ) -> Result<serde_json::Value> {
         let default_str = match default_value {
@@ -128,7 +119,7 @@ impl Prompter for DialoguerPrompter {
             _ => default_value.to_string(),
         };
 
-        let input = if let Some(secret) = question.secret {
+        let input = if let Some(secret) = &self.secret {
             let mut password = Password::new().with_prompt(&prompt);
 
             if secret.confirm {
@@ -137,7 +128,7 @@ impl Prompter for DialoguerPrompter {
                     if secret.mistmatch_err.is_empty() {
                         "Mistmatch".to_string()
                     } else {
-                        secret.mistmatch_err
+                        secret.mistmatch_err.clone()
                     },
                 );
             }
@@ -169,14 +160,16 @@ impl Prompter for DialoguerPrompter {
         Ok(serde_json::Value::Bool(result))
     }
 
-    fn confirm(&self, skip: bool, prompt: String) -> Result<bool> {
-        if skip {
-            return Ok(true);
+    fn ask(
+        &self,
+        default_value: serde_json::Value,
+        prompt: String,
+    ) -> Result<serde_json::Value> {
+        match self.question_type() {
+            QuestionType::MultipleChoice => self.multiple_choice(prompt, default_value),
+            QuestionType::SingleChoice => self.single_choice(prompt, default_value),
+            QuestionType::Text => self.string(prompt, default_value),
+            QuestionType::Boolean => self.boolean(prompt, default_value),
         }
-        Confirm::new()
-            .with_prompt(prompt)
-            .default(false)
-            .interact()
-            .map_err(Error::PromptError)
     }
 }

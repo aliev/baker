@@ -1,5 +1,4 @@
 use crate::config::{Question, QuestionType};
-use crate::error::{Error, Result};
 use crate::renderer::TemplateRenderer;
 
 pub struct RenderedQuestion {
@@ -22,21 +21,6 @@ pub trait QuestionRenderer<'a> {
         current_context: &serde_json::Value,
     ) -> serde_json::Value;
     fn get_yes_no_default(&self) -> serde_json::Value;
-}
-
-pub fn read_from(
-    mut reader: impl std::io::Read,
-) -> Result<serde_json::Map<String, serde_json::Value>> {
-    let mut buf = String::new();
-    reader.read_to_string(&mut buf).map_err(Error::IoError)?;
-
-    let value = serde_json::from_str(&buf)
-        .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-
-    match value {
-        serde_json::Value::Object(map) => Ok(map),
-        _ => Ok(serde_json::Map::new()),
-    }
 }
 
 impl<'a> QuestionRenderer<'a> for Question {
