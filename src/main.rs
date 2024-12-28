@@ -163,12 +163,10 @@ fn run(args: Args) -> Result<()> {
         serde_json::Map::new()
     };
 
-    let question_renderer = QuestionRenderer::new(&*engine);
-
     for (key, question) in config.questions {
         let current_context = serde_json::Value::Object(answers.clone());
 
-        let rendered_question = question_renderer.render(&question, &current_context);
+        let rendered_question = question.render(&question, &current_context, &*engine);
 
         let before_answered_question = answers.get(&key);
 

@@ -9,49 +9,43 @@ pub struct QuestionRendered {
     pub help: Option<String>,
 }
 
-pub struct QuestionRenderer<'a> {
-    engine: &'a dyn TemplateRenderer,
-}
-
-impl<'a> QuestionRenderer<'a> {
-    pub fn new(engine: &'a dyn TemplateRenderer) -> Self {
-        Self { engine }
-    }
-
+pub trait QuestionRenderer<'a> {
     fn get_default(
         &self,
         question: &Question,
         answers: &serde_json::Value,
+        engine: &'a dyn TemplateRenderer,
     ) -> serde_json::Value {
         match question.question_type() {
             QuestionType::MultipleChoice => self.get_multiple_choice_default(question),
             QuestionType::SingleChoice => self.get_single_choice_default(question),
-            QuestionType::Text => self.get_text_default(question, &answers),
+            QuestionType::Text => self.get_text_default(question, &answers, engine),
             QuestionType::Boolean => self.get_yes_no_default(question),
         }
     }
 
-    pub fn render(
+    fn render(
         &self,
         question: &Question,
         answers: &serde_json::Value,
+        engine: &'a dyn TemplateRenderer,
     ) -> QuestionRendered {
-        let default = self.get_default(question, answers);
+        let default = self.get_default(question, answers, engine);
 
         // Sometimes "help" contain the value with the template strings.
         // This function renders it and returns rendered value.
         let help = Some(
-            self.engine.render(&question.help, &answers).unwrap_or(question.help.clone()),
+            engine.render(&question.help, &answers).unwrap_or(question.help.clone()),
         );
 
         let ask_if =
-            self.engine.execute_expression(&question.ask_if, &answers).unwrap_or(true);
+            engine.execute_expression(&question.ask_if, &answers).unwrap_or(true);
 
         QuestionRendered { default, ask_if, help }
     }
 
     /// Retrieves the default value of single choice
-    pub fn get_single_choice_default(&self, question: &Question) -> serde_json::Value {
+    fn get_single_choice_default(&self, question: &Question) -> serde_json::Value {
         let default_value = if let Some(default_value) = &question.default {
             if let Some(default_str) = default_value.as_str() {
                 question
@@ -104,11 +98,12 @@ impl<'a> QuestionRenderer<'a> {
     fn get_text_default(
         &self,
         question: &Question,
-        current_context: &serde_json::Value,
+        answers: &serde_json::Value,
+        engine: &'a dyn TemplateRenderer,
     ) -> serde_json::Value {
         let default_value = if let Some(default_value) = &question.default {
             if let Some(s) = default_value.as_str() {
-                self.engine.render(s, current_context).unwrap_or_default()
+                engine.render(s, answers).unwrap_or_default()
             } else {
                 String::new()
             }
@@ -129,3 +124,5 @@ impl<'a> QuestionRenderer<'a> {
         serde_json::Value::Bool(default_value)
     }
 }
+
+impl<'a> QuestionRenderer<'a> for Question {}
