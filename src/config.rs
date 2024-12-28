@@ -22,7 +22,7 @@ pub struct Config {
     pub questions: IndexMap<String, Question>,
 }
 
-impl Config {
+impl<'a> Config {
     /// Loads configuration from a template directory, trying multiple file formats.
     /// Supports: baker.json, baker.yml, baker.yaml
     ///

@@ -11,9 +11,10 @@ use baker::{
     error::{default_error_handler, Error, Result},
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::parse_bakerignore_file,
-    loader::load_template,
+    loader::TemplateSource,
     processor::{FileOperation, Processor},
-    question::{QuestionPrompter, QuestionRenderer},
+    question_prompter::QuestionPrompter,
+    question_renderer::QuestionRenderer,
     renderer::{MiniJinjaRenderer, TemplateRenderer},
 };
 use walkdir::WalkDir;
@@ -129,7 +130,9 @@ fn run(args: Args) -> Result<()> {
     let engine: Box<dyn TemplateRenderer> = Box::new(MiniJinjaRenderer::new());
 
     let output_root = get_output_dir(args.output_dir, args.force)?;
-    let template_root = load_template(args.template, args.skip_overwrite_check)?;
+
+    let template_root =
+        TemplateSource::from_string(args.template.as_str(), args.skip_overwrite_check)?;
 
     // TODO:
     // Config::new()
@@ -149,6 +152,9 @@ fn run(args: Args) -> Result<()> {
         None
     };
 
+    // Gets answers either from stdin or pre_hook stdout.
+    // Maybe rename answers to default / defaults
+    // to be consistent with config file.
     let mut answers = if args.stdin {
         read_from(std::io::stdin())?
     } else if let Some(pre_hook_stdout) = pre_hook_stdout {
@@ -157,12 +163,16 @@ fn run(args: Args) -> Result<()> {
         serde_json::Map::new()
     };
 
+    let question_renderer = QuestionRenderer::new(&*engine);
+
     for (key, question) in config.questions {
         let current_context = serde_json::Value::Object(answers.clone());
 
-        let rendered_question = question.render(&*engine, current_context);
+        let rendered_question = question_renderer.render(&question, &current_context);
 
-        let answer = if let Some(default_answer_value) = answers.get(&key) {
+        let before_answered_question = answers.get(&key);
+
+        let answer = if let Some(default_answer_value) = before_answered_question {
             // Gets default answer from whatever context
             default_answer_value.clone()
         } else {

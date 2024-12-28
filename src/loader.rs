@@ -37,22 +37,28 @@ impl TemplateSource {
     ///
     /// # Returns
     /// * `Option<Self>` - Some(TemplateSource) if valid input
-    pub fn from_string(s: &str) -> Option<Self> {
+    pub fn from_string(s: &str, skip_overwrite_check: bool) -> Result<PathBuf> {
         // First try to parse as URL
-        if let Ok(url) = Url::parse(s) {
+        let source = if let Ok(url) = Url::parse(s) {
             if url.scheme() == "https" || url.scheme() == "git" {
-                return Some(Self::Git(s.to_string()));
+                Self::Git(s.to_string())
+            } else {
+                let path = PathBuf::from(s);
+                Self::FileSystem(path)
             }
-        }
+        } else {
+            let path = PathBuf::from(s);
+            Self::FileSystem(path)
+        };
 
-        // Check for SSH git URL format
-        if s.starts_with("git@") {
-            return Some(Self::Git(s.to_string()));
-        }
+        let loader: Box<dyn TemplateLoader> = match source {
+            TemplateSource::Git(repo) => {
+                Box::new(GitLoader::new(repo, skip_overwrite_check))
+            }
+            TemplateSource::FileSystem(path) => Box::new(LocalLoader::new(path)),
+        };
 
-        // Treat as filesystem path
-        let path = PathBuf::from(s);
-        Some(Self::FileSystem(path))
+        loader.load()
     }
 }
 
@@ -177,27 +183,4 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
             Err(e) => Err(Error::Git2Error(e)),
         }
     }
-}
-
-/// Returns the template directory from provided template source
-pub fn load_template<S: Into<String>>(
-    template: S,
-    skip_overwrite_check: bool,
-) -> Result<PathBuf> {
-    let template: String = template.into();
-    let template_source = match TemplateSource::from_string(&template) {
-        Some(source) => Ok(source),
-        None => {
-            Err(Error::TemplateError(format!("invalid template source: {}", template)))
-        }
-    }?;
-
-    println!("Using template from the {}", template_source);
-
-    let loader: Box<dyn TemplateLoader> = match template_source {
-        TemplateSource::Git(repo) => Box::new(GitLoader::new(repo, skip_overwrite_check)),
-        TemplateSource::FileSystem(path) => Box::new(LocalLoader::new(path)),
-    };
-
-    loader.load()
 }
