@@ -63,4 +63,3 @@ pub mod question;
 
 pub mod ioutils;
 pub mod question_prompter;
-pub mod question_renderer;

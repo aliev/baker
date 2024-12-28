@@ -13,7 +13,6 @@ use baker::{
     loader::TemplateSource,
     processor::{FileOperation, Processor},
     question_prompter::QuestionPrompter,
-    question_renderer::QuestionRenderer,
     renderer::{MiniJinjaRenderer, TemplateRenderer},
 };
 use walkdir::WalkDir;

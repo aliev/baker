@@ -1,16 +1,16 @@
 use crate::{
     error::{Error, Result},
-    question::{Question, QuestionType, WithQuestionType},
+    question::{IntoQuestionType, Question, QuestionType},
 };
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
 
-pub trait QuestionPrompter: WithQuestionType {
+pub trait QuestionPrompter: IntoQuestionType {
     fn ask(
         &self,
         default_value: serde_json::Value,
         prompt: String,
     ) -> Result<serde_json::Value> {
-        match self.question_type() {
+        match self.into_question_type() {
             QuestionType::MultipleChoice => self.multiple_choice(prompt, default_value),
             QuestionType::SingleChoice => self.single_choice(prompt, default_value),
             QuestionType::Text => self.string(prompt, default_value),
