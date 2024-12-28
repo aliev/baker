@@ -2,8 +2,6 @@
 //! Handles command-line argument parsing, template processing flow,
 //! and coordinates interactions between different modules.
 
-use std::path::{Path, PathBuf};
-
 use baker::{
     cli::{get_args, Args},
     config::Config,
@@ -11,6 +9,7 @@ use baker::{
     error::{default_error_handler, Error, Result},
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::parse_bakerignore_file,
+    ioutils::{copy_file, create_dir_all, get_output_dir, read_from, write_file},
     loader::TemplateSource,
     processor::{FileOperation, Processor},
     question_prompter::QuestionPrompter,
@@ -34,78 +33,6 @@ fn main() {
 
     if let Err(err) = run(args) {
         default_error_handler(err);
-    }
-}
-
-/// Ensures the output directory exists and is safe to write to.
-///
-/// # Arguments
-/// * `output_dir` - Target directory path for generated output
-/// * `force` - Whether to overwrite existing directory
-///
-/// # Returns
-/// * `BakerResult<PathBuf>` - Validated output directory path
-///
-/// # Errors
-/// * Returns `BakerError::ConfigError` if directory exists and force is false
-pub fn get_output_dir<P: AsRef<Path>>(output_dir: P, force: bool) -> Result<PathBuf> {
-    let output_dir = output_dir.as_ref();
-    if output_dir.exists() && !force {
-        return Err(Error::OutputDirectoryExistsError {
-            output_dir: output_dir.display().to_string(),
-        });
-    }
-    Ok(output_dir.to_path_buf())
-}
-
-fn create_dir_all<P: AsRef<Path>>(dest_path: P) -> Result<()> {
-    let dest_path = dest_path.as_ref();
-    std::fs::create_dir_all(dest_path).map_err(Error::IoError)
-}
-
-fn write_file<P: AsRef<Path>>(content: &str, dest_path: P) -> Result<()> {
-    let dest_path = dest_path.as_ref();
-    let base_path = std::env::current_dir().unwrap_or_default();
-    let abs_path = if dest_path.is_absolute() {
-        dest_path.to_path_buf()
-    } else {
-        base_path.join(dest_path)
-    };
-
-    if let Some(parent) = abs_path.parent() {
-        create_dir_all(parent)?;
-    }
-    std::fs::write(abs_path, content).map_err(Error::IoError)
-}
-
-fn copy_file<P: AsRef<Path>>(source_path: P, dest_path: P) -> Result<()> {
-    let dest_path = dest_path.as_ref();
-    let source_path = source_path.as_ref();
-    let base_path = std::env::current_dir().unwrap_or_default();
-    let abs_dest = if dest_path.is_absolute() {
-        dest_path.to_path_buf()
-    } else {
-        base_path.join(dest_path)
-    };
-
-    if let Some(parent) = abs_dest.parent() {
-        create_dir_all(parent)?;
-    }
-    std::fs::copy(source_path, abs_dest).map(|_| ()).map_err(Error::IoError)
-}
-
-pub fn read_from(
-    mut reader: impl std::io::Read,
-) -> Result<serde_json::Map<String, serde_json::Value>> {
-    let mut buf = String::new();
-    reader.read_to_string(&mut buf).map_err(Error::IoError)?;
-
-    let value = serde_json::from_str(&buf)
-        .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-
-    match value {
-        serde_json::Value::Object(map) => Ok(map),
-        _ => Ok(serde_json::Map::new()),
     }
 }
 
@@ -166,7 +93,7 @@ fn run(args: Args) -> Result<()> {
     for (key, question) in config.questions {
         let current_context = serde_json::Value::Object(answers.clone());
 
-        let rendered_question = question.render(&question, &current_context, &*engine);
+        let rendered_question = question.render(&current_context, &*engine);
 
         let before_answered_question = answers.get(&key);
 
