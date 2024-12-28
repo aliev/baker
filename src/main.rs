@@ -173,16 +173,14 @@ fn run(args: Args) -> Result<()> {
         let answer = if let Some(default_answer_value) = before_answered_question {
             // Gets default answer from whatever context
             default_answer_value.clone()
+        } else if rendered_question.ask_if {
+            // Asks answer
+            question.ask(
+                rendered_question.default,
+                rendered_question.help.unwrap_or_default(),
+            )?
         } else {
-            if rendered_question.ask_if {
-                // Asks answer
-                question.ask(
-                    rendered_question.default,
-                    rendered_question.help.unwrap_or_default(),
-                )?
-            } else {
-                rendered_question.default
-            }
+            rendered_question.default
         };
         answers.insert(key, answer);
     }

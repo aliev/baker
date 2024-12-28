@@ -248,7 +248,7 @@ mod tests {
         temp_file.write_all(b"{{greetings}}").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = Processor::new(
             &*engine,
             &template_root,
@@ -263,7 +263,7 @@ mod tests {
             FileOperation::Write { target, content, target_exists } => {
                 assert_eq!(target, output_root.join("hello_world.txt"));
                 assert_eq!(content, "Hello, World");
-                assert_eq!(target_exists, false);
+                assert!(!target_exists);
             }
             _ => panic!("Expected Write operation"),
         }
@@ -297,7 +297,7 @@ mod tests {
         temp_file.write_all(b"{{greetings}}").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = Processor::new(
             &*engine,
             &template_root,
@@ -312,7 +312,7 @@ mod tests {
             FileOperation::Write { target, content, target_exists } => {
                 assert_eq!(target, output_root.join("hello_world.txt"));
                 assert_eq!(content, "Hello, World");
-                assert_eq!(target_exists, false);
+                assert!(!target_exists);
             }
             _ => panic!("Expected Write operation"),
         }
@@ -344,7 +344,7 @@ mod tests {
         temp_file.write_all(b"Hello, World").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = Processor::new(
             &*engine,
             &template_root,
@@ -359,7 +359,7 @@ mod tests {
             FileOperation::Copy { source, target, target_exists } => {
                 assert_eq!(target, output_root.join("hello_world.txt"));
                 assert_eq!(source, template_root.join("hello_world.txt"));
-                assert_eq!(target_exists, false);
+                assert!(!target_exists);
             }
             _ => panic!("Expected Copy operation"),
         }
@@ -395,7 +395,7 @@ mod tests {
         temp_file.write_all(b"{{greetings}}").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = Processor::new(
             &*engine,
             &template_root,
@@ -410,7 +410,7 @@ mod tests {
             FileOperation::Write { content, target, target_exists } => {
                 assert_eq!(content, "Hello, World");
                 assert_eq!(target, output_root.join("hello").join("file_name.txt"));
-                assert_eq!(target_exists, false);
+                assert!(!target_exists);
             }
             _ => panic!("Expected Write operation"),
         }
@@ -445,7 +445,7 @@ mod tests {
         temp_file.write_all(b"{{greetings}}").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = Processor::new(
             &*engine,
             &template_root,
@@ -489,7 +489,7 @@ mod tests {
         let output_root = output_root.path();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = Processor::new(
             &*engine,
             &template_root,
@@ -502,7 +502,7 @@ mod tests {
         match result {
             FileOperation::CreateDirectory { target, target_exists } => {
                 assert_eq!(target, output_root.join("hello"));
-                assert_eq!(target_exists, false);
+                assert!(!target_exists);
             }
             _ => panic!("Expected CreateDirectory operation"),
         }
@@ -533,7 +533,7 @@ mod tests {
         let output_root = output_root.path();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = Processor::new(
             &*engine,
             &template_root,
@@ -584,7 +584,7 @@ mod tests {
         let output_root = output_root.path();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = Processor::new(
             &*engine,
             &template_root,
@@ -598,7 +598,7 @@ mod tests {
             FileOperation::Copy { source, target, target_exists } => {
                 assert_eq!(target, output_root.join("hello").join("file_name.txt"));
                 assert_eq!(source, file_path);
-                assert_eq!(target_exists, false);
+                assert!(!target_exists);
             }
             _ => panic!("Expected Copy operation"),
         }
@@ -632,7 +632,7 @@ mod tests {
         temp_file.write_all(b"{{greetings}}").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = Processor::new(
             &*engine,
             &template_root,
@@ -647,7 +647,7 @@ mod tests {
             FileOperation::Write { target, content, target_exists } => {
                 assert_eq!(target, output_root.join("hello_world.txt"));
                 assert_eq!(content, "Hello, World");
-                assert_eq!(target_exists, false);
+                assert!(!target_exists);
             }
             _ => panic!("Expected Write operation"),
         }
@@ -679,7 +679,7 @@ mod tests {
         temp_file.write_all(b"{{greetings}}").unwrap();
 
         let engine = Box::new(MiniJinjaRenderer::new());
-        let ignored_patterns = parse_bakerignore_file(&template_root).unwrap();
+        let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = Processor::new(
             &*engine,
             &template_root,
@@ -694,7 +694,7 @@ mod tests {
             FileOperation::Copy { target, source, target_exists } => {
                 assert_eq!(source, template_root.join("hello_world.j2"));
                 assert_eq!(target, output_root.join("hello_world.j2"));
-                assert_eq!(target_exists, false);
+                assert!(!target_exists);
             }
             _ => panic!("Expected Copy operation"),
         }

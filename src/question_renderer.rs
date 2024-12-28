@@ -19,7 +19,7 @@ pub trait QuestionRenderer<'a> {
         match question.question_type() {
             QuestionType::MultipleChoice => self.get_multiple_choice_default(question),
             QuestionType::SingleChoice => self.get_single_choice_default(question),
-            QuestionType::Text => self.get_text_default(question, &answers, engine),
+            QuestionType::Text => self.get_text_default(question, answers, engine),
             QuestionType::Boolean => self.get_yes_no_default(question),
         }
     }
@@ -35,11 +35,11 @@ pub trait QuestionRenderer<'a> {
         // Sometimes "help" contain the value with the template strings.
         // This function renders it and returns rendered value.
         let help = Some(
-            engine.render(&question.help, &answers).unwrap_or(question.help.clone()),
+            engine.render(&question.help, answers).unwrap_or(question.help.clone()),
         );
 
         let ask_if =
-            engine.execute_expression(&question.ask_if, &answers).unwrap_or(true);
+            engine.execute_expression(&question.ask_if, answers).unwrap_or(true);
 
         QuestionRendered { default, ask_if, help }
     }
@@ -125,4 +125,4 @@ pub trait QuestionRenderer<'a> {
     }
 }
 
-impl<'a> QuestionRenderer<'a> for Question {}
+impl QuestionRenderer<'_> for Question {}
