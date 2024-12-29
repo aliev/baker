@@ -4,49 +4,34 @@ use crate::{
 };
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
 
-pub trait QuestionPrompter: IntoQuestionType {
+pub trait QuestionPrompter {
     fn ask(
         &self,
         default_value: serde_json::Value,
         prompt: String,
-    ) -> Result<serde_json::Value> {
-        match self.into_question_type() {
-            QuestionType::MultipleChoice => self.multiple_choice(prompt, default_value),
-            QuestionType::SingleChoice => self.single_choice(prompt, default_value),
-            QuestionType::Text => self.string(prompt, default_value),
-            QuestionType::Boolean => self.boolean(prompt, default_value),
-        }
-    }
-    fn multiple_choice(
-        &self,
-        prompt: String,
-        default_value: serde_json::Value,
-    ) -> Result<serde_json::Value>;
-
-    fn single_choice(
-        &self,
-        prompt: String,
-        default_value: serde_json::Value,
-    ) -> Result<serde_json::Value>;
-
-    fn string(
-        &self,
-        prompt: String,
-        default_value: serde_json::Value,
-    ) -> Result<serde_json::Value>;
-
-    fn boolean(
-        &self,
-        prompt: String,
-        default_value: serde_json::Value,
     ) -> Result<serde_json::Value>;
 }
 
-impl QuestionPrompter for Question {
-    fn multiple_choice(
+trait PromptHandler {
+    fn handle_prompt(
         &self,
-        prompt: String,
+        question: &Question,
         default_value: serde_json::Value,
+        prompt: String,
+    ) -> Result<serde_json::Value>;
+}
+
+struct MultipleChoicePrompt;
+struct SingleChoicePrompt;
+struct TextPrompt;
+struct BooleanPrompt;
+
+impl PromptHandler for MultipleChoicePrompt {
+    fn handle_prompt(
+        &self,
+        question: &Question,
+        default_value: serde_json::Value,
+        prompt: String,
     ) -> Result<serde_json::Value> {
         let defaults = default_value
             .as_array()
@@ -57,39 +42,45 @@ impl QuestionPrompter for Question {
 
         let indices = MultiSelect::new()
             .with_prompt(prompt)
-            .items(&self.choices)
+            .items(&question.choices)
             .defaults(&defaults)
             .interact()
             .map_err(Error::PromptError)?;
 
         let selected: Vec<serde_json::Value> = indices
             .iter()
-            .map(|&i| serde_json::Value::String(self.choices[i].clone()))
+            .map(|&i| serde_json::Value::String(question.choices[i].clone()))
             .collect();
 
         Ok(serde_json::Value::Array(selected))
     }
+}
 
-    fn single_choice(
+impl PromptHandler for SingleChoicePrompt {
+    fn handle_prompt(
         &self,
-        prompt: String,
+        question: &Question,
         default_value: serde_json::Value,
+        prompt: String,
     ) -> Result<serde_json::Value> {
         let default_value: usize = default_value.as_u64().unwrap() as usize;
         let selection = Select::new()
             .with_prompt(prompt)
             .default(default_value)
-            .items(&self.choices)
+            .items(&question.choices)
             .interact()
             .map_err(Error::PromptError)?;
 
-        Ok(serde_json::Value::String(self.choices[selection].clone()))
+        Ok(serde_json::Value::String(question.choices[selection].clone()))
     }
+}
 
-    fn string(
+impl PromptHandler for TextPrompt {
+    fn handle_prompt(
         &self,
-        prompt: String,
+        question: &Question,
         default_value: serde_json::Value,
+        prompt: String,
     ) -> Result<serde_json::Value> {
         let default_str = match default_value {
             serde_json::Value::String(s) => s,
@@ -97,7 +88,7 @@ impl QuestionPrompter for Question {
             _ => default_value.to_string(),
         };
 
-        let input = if let Some(secret) = &self.secret {
+        let input = if let Some(secret) = &question.secret {
             let mut password = Password::new().with_prompt(&prompt);
 
             if secret.confirm {
@@ -122,11 +113,14 @@ impl QuestionPrompter for Question {
 
         Ok(serde_json::Value::String(input))
     }
+}
 
-    fn boolean(
+impl PromptHandler for BooleanPrompt {
+    fn handle_prompt(
         &self,
-        prompt: String,
+        _question: &Question,
         default_value: serde_json::Value,
+        prompt: String,
     ) -> Result<serde_json::Value> {
         let default_value = default_value.as_bool().unwrap();
         let result = Confirm::new()
@@ -136,5 +130,22 @@ impl QuestionPrompter for Question {
             .map_err(Error::PromptError)?;
 
         Ok(serde_json::Value::Bool(result))
+    }
+}
+
+impl QuestionPrompter for Question {
+    fn ask(
+        &self,
+        default_value: serde_json::Value,
+        prompt: String,
+    ) -> Result<serde_json::Value> {
+        let handler: Box<dyn PromptHandler> = match self.into_question_type() {
+            QuestionType::MultipleChoice => Box::new(MultipleChoicePrompt),
+            QuestionType::SingleChoice => Box::new(SingleChoicePrompt),
+            QuestionType::Text => Box::new(TextPrompt),
+            QuestionType::Boolean => Box::new(BooleanPrompt),
+        };
+
+        handler.handle_prompt(self, default_value, prompt)
     }
 }

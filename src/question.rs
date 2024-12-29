@@ -47,12 +47,7 @@ pub struct Question {
     pub ask_if: String,
 }
 
-pub struct RenderedQuestion {
-    pub ask_if: bool,
-    pub default: serde_json::Value,
-    pub help: Option<String>,
-}
-
+#[derive(Debug, PartialEq)]
 pub enum QuestionType {
     MultipleChoice,
     SingleChoice,
@@ -60,10 +55,12 @@ pub enum QuestionType {
     Boolean,
 }
 
+#[derive(Debug)]
 pub struct QuestionRendered {
     pub ask_if: bool,
     pub default: serde_json::Value,
     pub help: Option<String>,
+    pub r#type: QuestionType,
 }
 
 pub trait IntoQuestionType {
@@ -82,8 +79,8 @@ impl IntoQuestionType for Question {
 }
 
 /// Default value handler for different question types
-trait DefaultValueHandler {
-    fn handle_default(
+trait DefaultValue {
+    fn get_default(
         &self,
         question: &Question,
         answers: &serde_json::Value,
@@ -91,13 +88,13 @@ trait DefaultValueHandler {
     ) -> serde_json::Value;
 }
 
-struct SingleChoiceHandler;
-struct MultipleChoiceHandler;
-struct TextHandler;
-struct BooleanHandler;
+struct SingleChoice;
+struct MultipleChoice;
+struct Text;
+struct Boolean;
 
-impl DefaultValueHandler for SingleChoiceHandler {
-    fn handle_default(
+impl DefaultValue for SingleChoice {
+    fn get_default(
         &self,
         question: &Question,
         _answers: &serde_json::Value,
@@ -121,8 +118,8 @@ impl DefaultValueHandler for SingleChoiceHandler {
     }
 }
 
-impl DefaultValueHandler for MultipleChoiceHandler {
-    fn handle_default(
+impl DefaultValue for MultipleChoice {
+    fn get_default(
         &self,
         question: &Question,
         _answers: &serde_json::Value,
@@ -160,8 +157,8 @@ impl DefaultValueHandler for MultipleChoiceHandler {
     }
 }
 
-impl DefaultValueHandler for TextHandler {
-    fn handle_default(
+impl DefaultValue for Text {
+    fn get_default(
         &self,
         question: &Question,
         answers: &serde_json::Value,
@@ -181,8 +178,8 @@ impl DefaultValueHandler for TextHandler {
     }
 }
 
-impl DefaultValueHandler for BooleanHandler {
-    fn handle_default(
+impl DefaultValue for Boolean {
+    fn get_default(
         &self,
         question: &Question,
         _answers: &serde_json::Value,
@@ -204,14 +201,14 @@ impl<'a> Question {
         answers: &serde_json::Value,
         engine: &'a dyn TemplateRenderer,
     ) -> serde_json::Value {
-        let handler: Box<dyn DefaultValueHandler> = match self.into_question_type() {
-            QuestionType::SingleChoice => Box::new(SingleChoiceHandler),
-            QuestionType::MultipleChoice => Box::new(MultipleChoiceHandler),
-            QuestionType::Text => Box::new(TextHandler),
-            QuestionType::Boolean => Box::new(BooleanHandler),
+        let question: Box<dyn DefaultValue> = match self.into_question_type() {
+            QuestionType::SingleChoice => Box::new(SingleChoice),
+            QuestionType::MultipleChoice => Box::new(MultipleChoice),
+            QuestionType::Text => Box::new(Text),
+            QuestionType::Boolean => Box::new(Boolean),
         };
 
-        handler.handle_default(self, answers, engine)
+        question.get_default(self, answers, engine)
     }
 
     pub fn render(
@@ -227,6 +224,77 @@ impl<'a> Question {
 
         let ask_if = engine.execute_expression(&self.ask_if, answers).unwrap_or(true);
 
-        QuestionRendered { default, ask_if, help }
+        QuestionRendered { default, ask_if, help, r#type: self.into_question_type() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use crate::renderer::MiniJinjaRenderer;
+
+    use super::*;
+
+    #[test]
+    fn it_works_1() {
+        let question = Question {
+            help: "Hello, {{prev_answer}}".to_string(),
+            r#type: Type::Bool,
+            default: None,
+            ask_if: r#"prev_answer == "TEST""#.to_string(),
+            secret: None,
+            multiselect: false,
+            choices: vec![],
+        };
+        let engine = Box::new(MiniJinjaRenderer::new());
+
+        let answers = json!({
+            "prev_answer": "World"
+        });
+
+        let result = question.render(&answers, &*engine);
+        match result {
+            QuestionRendered { ask_if, help, default, r#type } => {
+                assert_eq!(ask_if, false);
+                assert_eq!(help, Some("Hello, World".to_string()));
+                assert_eq!(default, serde_json::Value::Bool(false));
+                assert_eq!(r#type, QuestionType::Boolean);
+            }
+        }
+    }
+
+    #[test]
+    fn it_works_2() {
+        let question = Question {
+            help: "{{question}}".to_string(),
+            r#type: Type::Str,
+            default: Some(json!(vec!["Python".to_string(), "Django".to_string()])),
+            ask_if: "".to_string(),
+            secret: None,
+            multiselect: true,
+            choices: vec![
+                "Python".to_string(),
+                "Django".to_string(),
+                "FastAPI".to_string(),
+                "Next.JS".to_string(),
+                "TypeScript".to_string(),
+            ],
+        };
+        let engine = Box::new(MiniJinjaRenderer::new());
+
+        let answers = json!({
+            "question": "Please select your stack"
+        });
+
+        let result = question.render(&answers, &*engine);
+        match result {
+            QuestionRendered { ask_if, help, default, r#type } => {
+                assert_eq!(ask_if, true);
+                assert_eq!(help, Some("Please select your stack".to_string()));
+                assert_eq!(default, json!(vec![true, true, false, false, false]));
+                assert_eq!(r#type, QuestionType::MultipleChoice);
+            }
+        }
     }
 }
