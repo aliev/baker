@@ -49,7 +49,7 @@ pub fn get_hook_files<P: AsRef<Path>>(template_dir: P) -> (PathBuf, PathBuf) {
     let template_dir = template_dir.as_ref();
     let hooks_dir = template_dir.join("hooks");
 
-    (hooks_dir.join("pre_gen_project"), hooks_dir.join("post_gen_project"))
+    (hooks_dir.join("pre"), hooks_dir.join("post"))
 }
 
 /// Executes a hook script with the provided context.
