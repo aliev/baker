@@ -9,7 +9,7 @@ pub mod cli;
 /// Configuration handling for Baker templates.
 /// Supports JSON and YAML formats (baker.json, baker.yml, baker.yaml).
 /// Handles variable interpolation and validation.
-pub mod config;
+// pub mod config;
 
 /// Error types and handling for the Baker application.
 /// Defines custom error types and results used throughout the application.
@@ -51,9 +51,9 @@ pub mod dialoguer;
 
 pub mod loader;
 
-pub mod question;
-
 pub mod ioutils;
 
 /// Core template processing orchestration.
 pub mod template;
+
+pub mod config;

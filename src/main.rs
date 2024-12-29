@@ -4,7 +4,7 @@
 
 use baker::{
     cli::{get_args, Args},
-    config::Config,
+    config::{Config, IntoQuestionType, QuestionType},
     dialoguer::{
         confirm, prompt_boolean, prompt_multiple_choice, prompt_single_choice,
         prompt_text,
@@ -14,7 +14,6 @@ use baker::{
     ignore::parse_bakerignore_file,
     ioutils::{copy_file, create_dir_all, get_output_dir, read_from, write_file},
     loader::TemplateSource,
-    question::{IntoQuestionType, QuestionType},
     renderer::{MiniJinjaRenderer, TemplateRenderer},
     template::{operation::TemplateOperation, processor::TemplateProcessor},
 };
@@ -63,12 +62,11 @@ fn run(args: Args) -> Result<()> {
     let template_root =
         TemplateSource::from_string(args.template.as_str(), args.skip_overwrite_check)?;
 
-    // TODO:
-    // Config::new()
-    // .from_json(path)
-    // .from_yaml(path)
-    // .from_yml(path);
-    let config = Config::from_file(&template_root)?;
+    let config = Config::new()
+        .from_json(&template_root.join("baker.json"))
+        .from_yaml(&template_root.join("baker.yaml"))
+        .from_yml(&template_root.join("baker.yml"))
+        .build()?;
 
     let execute_hooks = confirm_hook_execution(&template_root, args.skip_hooks_check)?;
 

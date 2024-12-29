@@ -3,8 +3,8 @@
 //! with support for variable interpolation.
 
 use crate::{
+    config::Question,
     error::{Error, Result},
-    question::Question,
 };
 
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
