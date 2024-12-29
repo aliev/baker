@@ -12,7 +12,6 @@ use baker::{
     ioutils::{copy_file, create_dir_all, get_output_dir, read_from, write_file},
     loader::TemplateSource,
     processor::{FileOperation, Processor},
-    question_prompter::QuestionPrompter,
     renderer::{MiniJinjaRenderer, TemplateRenderer},
 };
 use walkdir::WalkDir;
@@ -124,8 +123,8 @@ fn run(args: Args) -> Result<()> {
         let raw_entry = dir_entry.map_err(|e| Error::TemplateError(e.to_string()))?;
         let template_entry = raw_entry.path().to_path_buf();
         match processor.process(&template_entry) {
-            Ok(result) => {
-                match result {
+            Ok(file_operation) => {
+                let user_confirmed_overwrite = match &file_operation {
                     FileOperation::Copy { source, target, target_exists } => {
                         let skip_prompt = args.skip_overwrite_check || !target_exists;
                         let user_confirmed = confirm(
@@ -133,15 +132,11 @@ fn run(args: Args) -> Result<()> {
                             format!("Overwrite {}?", target.display()),
                         )?;
 
-                        if target_exists {
-                            println!("Overwrite: '{}'", target.display());
-                        } else {
-                            println!("Create: '{}'", target.display());
-                        }
-
                         if user_confirmed {
                             copy_file(&source, &target)?;
                         }
+
+                        user_confirmed
                     }
                     FileOperation::Write { target, content, target_exists } => {
                         let skip_prompt = args.skip_overwrite_check || !target_exists;
@@ -150,31 +145,22 @@ fn run(args: Args) -> Result<()> {
                             format!("Overwrite {}?", target.display()),
                         )?;
 
-                        if target_exists {
-                            println!("Overwrite: '{}'", target.display());
-                        } else {
-                            println!("Create: '{}'", target.display());
-                        }
-
                         if user_confirmed {
                             write_file(&content, &target)?;
                         }
+                        user_confirmed
                     }
                     FileOperation::CreateDirectory { target, target_exists } => {
-                        if target_exists {
-                            println!(
-                                "Skipping (target directory exists): '{}'",
-                                target.display()
-                            );
-                        } else {
-                            println!("Creating (directory): '{}'", target.display());
-                            create_dir_all(&target)?;
+                        if !target_exists {
+                            create_dir_all(target)?;
                         }
+                        true
                     }
-                    FileOperation::Skip { source } => {
-                        println!("Skipping (.bakerignore): '{}'", source.display());
-                    }
+                    FileOperation::Ignore { .. } => true,
                 };
+
+                let message = file_operation.get_message(user_confirmed_overwrite);
+                log::info!("{}", message);
             }
             Err(e) => match e {
                 Error::ProcessError { .. } => log::warn!("{}", e),

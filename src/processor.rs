@@ -13,7 +13,66 @@ pub enum FileOperation {
     Copy { source: PathBuf, target: PathBuf, target_exists: bool },
     Write { target: PathBuf, content: String, target_exists: bool },
     CreateDirectory { target: PathBuf, target_exists: bool },
-    Skip { source: PathBuf },
+    Ignore { source: PathBuf },
+}
+
+impl FileOperation {
+    pub fn get_message(&self, user_confirmed_overwrite: bool) -> String {
+        match self {
+            FileOperation::Copy { source, target, target_exists } => {
+                if *target_exists {
+                    if user_confirmed_overwrite {
+                        format!(
+                            "Copying '{}' to '{}' (overwriting existing file)",
+                            source.display(),
+                            target.display()
+                        )
+                    } else {
+                        format!(
+                            "Skipping copy of '{}' to '{}' (target already exists)",
+                            source.display(),
+                            target.display()
+                        )
+                    }
+                } else {
+                    format!("Copying '{}' to '{}'", source.display(), target.display())
+                }
+            }
+
+            FileOperation::CreateDirectory { target, target_exists } => {
+                if *target_exists {
+                    format!(
+                        "Skipping directory creation '{}' (already exists)",
+                        target.display()
+                    )
+                } else {
+                    format!("Creating directory '{}'", target.display())
+                }
+            }
+
+            FileOperation::Write { target, content: _, target_exists } => {
+                if *target_exists {
+                    if user_confirmed_overwrite {
+                        format!(
+                            "Writing to '{}' (overwriting existing file)",
+                            target.display()
+                        )
+                    } else {
+                        format!(
+                            "Skipping write to '{}' (target already exists)",
+                            target.display()
+                        )
+                    }
+                } else {
+                    format!("Writing to '{}'", target.display())
+                }
+            }
+
+            FileOperation::Ignore { source } => {
+                format!("Ignoring '{}' (matches ignore pattern)", source.display())
+            }
+        }
+    }
 }
 
 pub struct Processor<'a, P: AsRef<Path>> {
@@ -183,7 +242,7 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
 
         // Skip if entry is in .bakerignore
         if self.bakerignore.is_match(&template_entry) {
-            return Ok(FileOperation::Skip { source: rendered_entry });
+            return Ok(FileOperation::Ignore { source: rendered_entry });
         }
 
         // Handle different types of entries

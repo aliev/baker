@@ -62,4 +62,3 @@ pub mod loader;
 pub mod question;
 
 pub mod ioutils;
-pub mod question_prompter;

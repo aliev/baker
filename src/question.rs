@@ -1,9 +1,12 @@
 //! Configuration handling for Baker templates.
 //! This module provides functionality for loading and processing template configuration files
 //! with support for variable interpolation.
+use crate::{
+    error::{Error, Result},
+    renderer::TemplateRenderer,
+};
+use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
 use serde::Deserialize;
-
-use crate::renderer::TemplateRenderer;
 /// Type of question to be presented to the user
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -88,10 +91,126 @@ trait DefaultValue {
     ) -> serde_json::Value;
 }
 
+trait PromptHandler {
+    fn handle_prompt(
+        &self,
+        question: &Question,
+        default_value: serde_json::Value,
+        prompt: String,
+    ) -> Result<serde_json::Value>;
+}
+
 struct SingleChoice;
 struct MultipleChoice;
 struct Text;
 struct Boolean;
+
+impl PromptHandler for MultipleChoice {
+    fn handle_prompt(
+        &self,
+        question: &Question,
+        default_value: serde_json::Value,
+        prompt: String,
+    ) -> Result<serde_json::Value> {
+        let defaults = default_value
+            .as_array()
+            .map(|arr| {
+                arr.iter().map(|v| v.as_bool().unwrap_or(false)).collect::<Vec<bool>>()
+            })
+            .unwrap_or_default();
+
+        let indices = MultiSelect::new()
+            .with_prompt(prompt)
+            .items(&question.choices)
+            .defaults(&defaults)
+            .interact()
+            .map_err(Error::PromptError)?;
+
+        let selected: Vec<serde_json::Value> = indices
+            .iter()
+            .map(|&i| serde_json::Value::String(question.choices[i].clone()))
+            .collect();
+
+        Ok(serde_json::Value::Array(selected))
+    }
+}
+
+impl PromptHandler for SingleChoice {
+    fn handle_prompt(
+        &self,
+        question: &Question,
+        default_value: serde_json::Value,
+        prompt: String,
+    ) -> Result<serde_json::Value> {
+        let default_value: usize = default_value.as_u64().unwrap() as usize;
+        let selection = Select::new()
+            .with_prompt(prompt)
+            .default(default_value)
+            .items(&question.choices)
+            .interact()
+            .map_err(Error::PromptError)?;
+
+        Ok(serde_json::Value::String(question.choices[selection].clone()))
+    }
+}
+
+impl PromptHandler for Text {
+    fn handle_prompt(
+        &self,
+        question: &Question,
+        default_value: serde_json::Value,
+        prompt: String,
+    ) -> Result<serde_json::Value> {
+        let default_str = match default_value {
+            serde_json::Value::String(s) => s,
+            serde_json::Value::Null => String::new(),
+            _ => default_value.to_string(),
+        };
+
+        let input = if let Some(secret) = &question.secret {
+            let mut password = Password::new().with_prompt(&prompt);
+
+            if secret.confirm {
+                password = password.with_confirmation(
+                    format!("{} (confirm)", &prompt),
+                    if secret.mistmatch_err.is_empty() {
+                        "Mistmatch".to_string()
+                    } else {
+                        secret.mistmatch_err.clone()
+                    },
+                );
+            }
+
+            password.interact().map_err(Error::PromptError)?
+        } else {
+            Input::new()
+                .with_prompt(&prompt)
+                .default(default_str)
+                .interact_text()
+                .map_err(Error::PromptError)?
+        };
+
+        Ok(serde_json::Value::String(input))
+    }
+}
+
+impl PromptHandler for Boolean {
+    fn handle_prompt(
+        &self,
+        _question: &Question,
+        default_value: serde_json::Value,
+        prompt: String,
+    ) -> Result<serde_json::Value> {
+        let default_value = default_value.as_bool().unwrap();
+        let result = Confirm::new()
+            .with_prompt(prompt)
+            .default(default_value)
+            .interact()
+            .map_err(Error::PromptError)?;
+
+        Ok(serde_json::Value::Bool(result))
+    }
+}
 
 impl DefaultValue for SingleChoice {
     fn get_default(
@@ -201,14 +320,29 @@ impl<'a> Question {
         answers: &serde_json::Value,
         engine: &'a dyn TemplateRenderer,
     ) -> serde_json::Value {
-        let question: Box<dyn DefaultValue> = match self.into_question_type() {
+        let default_value: Box<dyn DefaultValue> = match self.into_question_type() {
             QuestionType::SingleChoice => Box::new(SingleChoice),
             QuestionType::MultipleChoice => Box::new(MultipleChoice),
             QuestionType::Text => Box::new(Text),
             QuestionType::Boolean => Box::new(Boolean),
         };
 
-        question.get_default(self, answers, engine)
+        default_value.get_default(self, answers, engine)
+    }
+
+    pub fn ask(
+        &self,
+        default_value: serde_json::Value,
+        prompt: String,
+    ) -> Result<serde_json::Value> {
+        let prompt_handler: Box<dyn PromptHandler> = match self.into_question_type() {
+            QuestionType::MultipleChoice => Box::new(MultipleChoice),
+            QuestionType::SingleChoice => Box::new(SingleChoice),
+            QuestionType::Text => Box::new(Text),
+            QuestionType::Boolean => Box::new(Boolean),
+        };
+
+        prompt_handler.handle_prompt(self, default_value, prompt)
     }
 
     pub fn render(
