@@ -5,12 +5,16 @@
 use baker::{
     cli::{get_args, Args},
     config::Config,
-    dialoguer::confirm,
+    dialoguer::{
+        confirm, prompt_boolean, prompt_multiple_choice, prompt_single_choice,
+        prompt_text,
+    },
     error::{default_error_handler, Error, Result},
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::parse_bakerignore_file,
     ioutils::{copy_file, create_dir_all, get_output_dir, read_from, write_file},
     loader::TemplateSource,
+    question::{IntoQuestionType, QuestionType},
     renderer::{MiniJinjaRenderer, TemplateRenderer},
     template::{operation::TemplateOperation, processor::TemplateProcessor},
 };
@@ -100,10 +104,27 @@ fn run(args: Args) -> Result<()> {
             default_answer_value.clone()
         } else if rendered_question.ask_if {
             // Asks answer
-            question.ask(
-                rendered_question.default,
-                rendered_question.help.unwrap_or_default(),
-            )?
+            match question.into_question_type() {
+                QuestionType::MultipleChoice => prompt_multiple_choice(
+                    question.choices,
+                    rendered_question.default,
+                    rendered_question.help.unwrap_or_default(),
+                )?,
+                QuestionType::Boolean => prompt_boolean(
+                    rendered_question.default,
+                    rendered_question.help.unwrap_or_default(),
+                )?,
+                QuestionType::SingleChoice => prompt_single_choice(
+                    question.choices,
+                    rendered_question.default,
+                    rendered_question.help.unwrap_or_default(),
+                )?,
+                QuestionType::Text => prompt_text(
+                    &question,
+                    rendered_question.default,
+                    rendered_question.help.unwrap_or_default(),
+                )?,
+            }
         } else {
             rendered_question.default
         };
