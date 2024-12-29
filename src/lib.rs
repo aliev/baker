@@ -27,14 +27,6 @@ pub mod hooks;
 /// Similar to .gitignore functionality but specific to Baker.
 pub mod ignore;
 
-/// Core template processing orchestration.
-/// Combines all components to generate the final output:
-/// - Template loading
-/// - Variable interpolation
-/// - File/directory creation
-/// - Hook execution
-pub mod processor;
-
 /// Template parsing and rendering functionality.
 /// Handles the actual template processing logic:
 /// - Local and Git template sources
@@ -62,3 +54,6 @@ pub mod loader;
 pub mod question;
 
 pub mod ioutils;
+
+/// Core template processing orchestration.
+pub mod template;

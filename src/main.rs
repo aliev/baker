@@ -11,8 +11,8 @@ use baker::{
     ignore::parse_bakerignore_file,
     ioutils::{copy_file, create_dir_all, get_output_dir, read_from, write_file},
     loader::TemplateSource,
-    processor::{FileOperation, Processor},
     renderer::{MiniJinjaRenderer, TemplateRenderer},
+    template::{operation::TemplateOperation, processor::TemplateProcessor},
 };
 use walkdir::WalkDir;
 
@@ -115,8 +115,13 @@ fn run(args: Args) -> Result<()> {
     // Process ignore patterns
     let bakerignore = parse_bakerignore_file(&template_root)?;
 
-    let processor =
-        Processor::new(&*engine, &template_root, &output_root, &answers, &bakerignore);
+    let processor = TemplateProcessor::new(
+        &*engine,
+        &template_root,
+        &output_root,
+        &answers,
+        &bakerignore,
+    );
 
     // Process template files
     for dir_entry in WalkDir::new(&template_root) {
@@ -125,7 +130,7 @@ fn run(args: Args) -> Result<()> {
         match processor.process(&template_entry) {
             Ok(file_operation) => {
                 let user_confirmed_overwrite = match &file_operation {
-                    FileOperation::Copy { source, target, target_exists } => {
+                    TemplateOperation::Copy { source, target, target_exists } => {
                         let skip_prompt = args.skip_overwrite_check || !target_exists;
                         let user_confirmed = confirm(
                             skip_prompt,
@@ -138,7 +143,7 @@ fn run(args: Args) -> Result<()> {
 
                         user_confirmed
                     }
-                    FileOperation::Write { target, content, target_exists } => {
+                    TemplateOperation::Write { target, content, target_exists } => {
                         let skip_prompt = args.skip_overwrite_check || !target_exists;
                         let user_confirmed = confirm(
                             skip_prompt,
@@ -150,13 +155,13 @@ fn run(args: Args) -> Result<()> {
                         }
                         user_confirmed
                     }
-                    FileOperation::CreateDirectory { target, target_exists } => {
+                    TemplateOperation::CreateDirectory { target, target_exists } => {
                         if !target_exists {
                             create_dir_all(target)?;
                         }
                         true
                     }
-                    FileOperation::Ignore { .. } => true,
+                    TemplateOperation::Ignore { .. } => true,
                 };
 
                 let message = file_operation.get_message(user_confirmed_overwrite);

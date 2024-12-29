@@ -8,74 +8,9 @@ use std::path::{Path, PathBuf};
 use crate::error::{Error, Result};
 use crate::renderer::TemplateRenderer;
 
-#[derive(Debug)]
-pub enum FileOperation {
-    Copy { source: PathBuf, target: PathBuf, target_exists: bool },
-    Write { target: PathBuf, content: String, target_exists: bool },
-    CreateDirectory { target: PathBuf, target_exists: bool },
-    Ignore { source: PathBuf },
-}
+use super::operation::TemplateOperation;
 
-impl FileOperation {
-    pub fn get_message(&self, user_confirmed_overwrite: bool) -> String {
-        match self {
-            FileOperation::Copy { source, target, target_exists } => {
-                if *target_exists {
-                    if user_confirmed_overwrite {
-                        format!(
-                            "Copying '{}' to '{}' (overwriting existing file)",
-                            source.display(),
-                            target.display()
-                        )
-                    } else {
-                        format!(
-                            "Skipping copy of '{}' to '{}' (target already exists)",
-                            source.display(),
-                            target.display()
-                        )
-                    }
-                } else {
-                    format!("Copying '{}' to '{}'", source.display(), target.display())
-                }
-            }
-
-            FileOperation::CreateDirectory { target, target_exists } => {
-                if *target_exists {
-                    format!(
-                        "Skipping directory creation '{}' (already exists)",
-                        target.display()
-                    )
-                } else {
-                    format!("Creating directory '{}'", target.display())
-                }
-            }
-
-            FileOperation::Write { target, content: _, target_exists } => {
-                if *target_exists {
-                    if user_confirmed_overwrite {
-                        format!(
-                            "Writing to '{}' (overwriting existing file)",
-                            target.display()
-                        )
-                    } else {
-                        format!(
-                            "Skipping write to '{}' (target already exists)",
-                            target.display()
-                        )
-                    }
-                } else {
-                    format!("Writing to '{}'", target.display())
-                }
-            }
-
-            FileOperation::Ignore { source } => {
-                format!("Ignoring '{}' (matches ignore pattern)", source.display())
-            }
-        }
-    }
-}
-
-pub struct Processor<'a, P: AsRef<Path>> {
+pub struct TemplateProcessor<'a, P: AsRef<Path>> {
     /// Dependencies
     engine: &'a dyn TemplateRenderer,
     bakerignore: &'a GlobSet,
@@ -86,7 +21,7 @@ pub struct Processor<'a, P: AsRef<Path>> {
     answers: &'a serde_json::Value,
 }
 
-impl<'a, P: AsRef<Path>> Processor<'a, P> {
+impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
     pub fn new(
         engine: &'a dyn TemplateRenderer,
         template_root: P,
@@ -234,7 +169,7 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
         Ok(self.output_root.as_ref().join(target_path))
     }
 
-    pub fn process(&self, template_entry: P) -> Result<FileOperation> {
+    pub fn process(&self, template_entry: P) -> Result<TemplateOperation> {
         let template_entry = template_entry.as_ref().to_path_buf();
         let rendered_entry = self.render_template_entry(&template_entry)?;
         let target_path = self.get_target_path(&rendered_entry, &template_entry)?;
@@ -242,7 +177,7 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
 
         // Skip if entry is in .bakerignore
         if self.bakerignore.is_match(&template_entry) {
-            return Ok(FileOperation::Ignore { source: rendered_entry });
+            return Ok(TemplateOperation::Ignore { source: rendered_entry });
         }
 
         // Handle different types of entries
@@ -253,18 +188,23 @@ impl<'a, P: AsRef<Path>> Processor<'a, P> {
                     fs::read_to_string(&template_entry).map_err(Error::IoError)?;
                 let content = self.engine.render(&template_content, self.answers)?;
 
-                Ok(FileOperation::Write { target: target_path, content, target_exists })
+                Ok(TemplateOperation::Write {
+                    target: target_path,
+                    content,
+                    target_exists,
+                })
             }
             // Regular file
-            (true, false) => Ok(FileOperation::Copy {
+            (true, false) => Ok(TemplateOperation::Copy {
                 source: template_entry,
                 target: target_path,
                 target_exists,
             }),
             // Directory
-            _ => {
-                Ok(FileOperation::CreateDirectory { target: target_path, target_exists })
-            }
+            _ => Ok(TemplateOperation::CreateDirectory {
+                target: target_path,
+                target_exists,
+            }),
         }
     }
 }
@@ -277,7 +217,10 @@ mod tests {
     use serde_json::json;
     use tempfile::TempDir;
 
-    use crate::{ignore::parse_bakerignore_file, renderer::MiniJinjaRenderer};
+    use crate::{
+        ignore::parse_bakerignore_file, renderer::MiniJinjaRenderer,
+        template::operation::TemplateOperation,
+    };
 
     use super::*;
 
@@ -308,7 +251,7 @@ mod tests {
 
         let engine = Box::new(MiniJinjaRenderer::new());
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
-        let processor = Processor::new(
+        let processor = TemplateProcessor::new(
             &*engine,
             &template_root,
             &output_root,
@@ -319,7 +262,7 @@ mod tests {
         let result = processor.process(&file_path.as_path()).unwrap();
 
         match result {
-            FileOperation::Write { target, content, target_exists } => {
+            TemplateOperation::Write { target, content, target_exists } => {
                 assert_eq!(target, output_root.join("hello_world.txt"));
                 assert_eq!(content, "Hello, World");
                 assert!(!target_exists);
@@ -357,7 +300,7 @@ mod tests {
 
         let engine = Box::new(MiniJinjaRenderer::new());
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
-        let processor = Processor::new(
+        let processor = TemplateProcessor::new(
             &*engine,
             &template_root,
             &output_root,
@@ -368,7 +311,7 @@ mod tests {
         let result = processor.process(&file_path.as_path()).unwrap();
 
         match result {
-            FileOperation::Write { target, content, target_exists } => {
+            TemplateOperation::Write { target, content, target_exists } => {
                 assert_eq!(target, output_root.join("hello_world.txt"));
                 assert_eq!(content, "Hello, World");
                 assert!(!target_exists);
@@ -404,7 +347,7 @@ mod tests {
 
         let engine = Box::new(MiniJinjaRenderer::new());
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
-        let processor = Processor::new(
+        let processor = TemplateProcessor::new(
             &*engine,
             &template_root,
             &output_root,
@@ -415,7 +358,7 @@ mod tests {
         let result = processor.process(&file_path.as_path()).unwrap();
 
         match result {
-            FileOperation::Copy { source, target, target_exists } => {
+            TemplateOperation::Copy { source, target, target_exists } => {
                 assert_eq!(target, output_root.join("hello_world.txt"));
                 assert_eq!(source, template_root.join("hello_world.txt"));
                 assert!(!target_exists);
@@ -455,7 +398,7 @@ mod tests {
 
         let engine = Box::new(MiniJinjaRenderer::new());
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
-        let processor = Processor::new(
+        let processor = TemplateProcessor::new(
             &*engine,
             &template_root,
             &output_root,
@@ -466,7 +409,7 @@ mod tests {
         let result = processor.process(&file_path.as_path()).unwrap();
 
         match result {
-            FileOperation::Write { content, target, target_exists } => {
+            TemplateOperation::Write { content, target, target_exists } => {
                 assert_eq!(content, "Hello, World");
                 assert_eq!(target, output_root.join("hello").join("file_name.txt"));
                 assert!(!target_exists);
@@ -505,7 +448,7 @@ mod tests {
 
         let engine = Box::new(MiniJinjaRenderer::new());
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
-        let processor = Processor::new(
+        let processor = TemplateProcessor::new(
             &*engine,
             &template_root,
             &output_root,
@@ -549,7 +492,7 @@ mod tests {
 
         let engine = Box::new(MiniJinjaRenderer::new());
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
-        let processor = Processor::new(
+        let processor = TemplateProcessor::new(
             &*engine,
             &template_root,
             &output_root,
@@ -559,7 +502,7 @@ mod tests {
 
         let result = processor.process(&nested_directory_path.as_path()).unwrap();
         match result {
-            FileOperation::CreateDirectory { target, target_exists } => {
+            TemplateOperation::CreateDirectory { target, target_exists } => {
                 assert_eq!(target, output_root.join("hello"));
                 assert!(!target_exists);
             }
@@ -593,7 +536,7 @@ mod tests {
 
         let engine = Box::new(MiniJinjaRenderer::new());
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
-        let processor = Processor::new(
+        let processor = TemplateProcessor::new(
             &*engine,
             &template_root,
             &output_root,
@@ -644,7 +587,7 @@ mod tests {
 
         let engine = Box::new(MiniJinjaRenderer::new());
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
-        let processor = Processor::new(
+        let processor = TemplateProcessor::new(
             &*engine,
             &template_root,
             &output_root,
@@ -654,7 +597,7 @@ mod tests {
 
         let result = processor.process(&file_path.as_path()).unwrap();
         match result {
-            FileOperation::Copy { source, target, target_exists } => {
+            TemplateOperation::Copy { source, target, target_exists } => {
                 assert_eq!(target, output_root.join("hello").join("file_name.txt"));
                 assert_eq!(source, file_path);
                 assert!(!target_exists);
@@ -692,7 +635,7 @@ mod tests {
 
         let engine = Box::new(MiniJinjaRenderer::new());
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
-        let processor = Processor::new(
+        let processor = TemplateProcessor::new(
             &*engine,
             &template_root,
             &output_root,
@@ -703,7 +646,7 @@ mod tests {
         let result = processor.process(&file_path.as_path()).unwrap();
 
         match result {
-            FileOperation::Write { target, content, target_exists } => {
+            TemplateOperation::Write { target, content, target_exists } => {
                 assert_eq!(target, output_root.join("hello_world.txt"));
                 assert_eq!(content, "Hello, World");
                 assert!(!target_exists);
@@ -739,7 +682,7 @@ mod tests {
 
         let engine = Box::new(MiniJinjaRenderer::new());
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
-        let processor = Processor::new(
+        let processor = TemplateProcessor::new(
             &*engine,
             &template_root,
             &output_root,
@@ -750,7 +693,7 @@ mod tests {
         let result = processor.process(&file_path.as_path()).unwrap();
 
         match result {
-            FileOperation::Copy { target, source, target_exists } => {
+            TemplateOperation::Copy { target, source, target_exists } => {
                 assert_eq!(source, template_root.join("hello_world.j2"));
                 assert_eq!(target, output_root.join("hello_world.j2"));
                 assert!(!target_exists);
