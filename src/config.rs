@@ -7,7 +7,6 @@ use crate::{
     renderer::TemplateRenderer,
 };
 use indexmap::IndexMap;
-use log::debug;
 use serde::Deserialize;
 use std::path::Path;
 
@@ -54,9 +53,6 @@ pub struct Question {
     pub ask_if: String,
 }
 
-/// Supported configuration file names
-pub const CONFIG_FILES: [&str; 3] = ["baker.json", "baker.yml", "baker.yaml"];
-
 /// Main configuration structure holding all questions
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -73,6 +69,12 @@ impl Config {
 
 pub struct ConfigBuilder {
     config: Option<Config>,
+}
+
+impl Default for ConfigBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ConfigBuilder {
@@ -324,7 +326,7 @@ mod tests {
         let result = question.render(&answers, &*engine);
         match result {
             QuestionRendered { ask_if, help, default, r#type } => {
-                assert_eq!(ask_if, false);
+                assert!(!ask_if);
                 assert_eq!(help, Some("Hello, World".to_string()));
                 assert_eq!(default, serde_json::Value::Bool(false));
                 assert_eq!(r#type, QuestionType::Boolean);
@@ -358,7 +360,7 @@ mod tests {
         let result = question.render(&answers, &*engine);
         match result {
             QuestionRendered { ask_if, help, default, r#type } => {
-                assert_eq!(ask_if, true);
+                assert!(ask_if);
                 assert_eq!(help, Some("Please select your stack".to_string()));
                 assert_eq!(default, json!(vec![true, true, false, false, false]));
                 assert_eq!(r#type, QuestionType::MultipleChoice);

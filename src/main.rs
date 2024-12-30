@@ -63,9 +63,9 @@ fn run(args: Args) -> Result<()> {
         TemplateSource::from_string(args.template.as_str(), args.skip_overwrite_check)?;
 
     let config = Config::new()
-        .from_json(&template_root.join("baker.json"))
-        .from_yaml(&template_root.join("baker.yaml"))
-        .from_yml(&template_root.join("baker.yml"))
+        .from_json(template_root.join("baker.json"))
+        .from_yaml(template_root.join("baker.yaml"))
+        .from_yml(template_root.join("baker.yml"))
         .build()?;
 
     let execute_hooks = confirm_hook_execution(&template_root, args.skip_hooks_check)?;
@@ -170,7 +170,7 @@ fn run(args: Args) -> Result<()> {
                         )?;
 
                         if user_confirmed {
-                            write_file(&content, &target)?;
+                            write_file(content, target)?;
                         }
                         user_confirmed
                     }
