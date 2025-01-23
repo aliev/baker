@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-#[derive(Debug)]
+use serde::Serialize;
+
+#[derive(Debug, Serialize, Clone)]
 pub enum TemplateOperation {
     Copy { source: PathBuf, target: PathBuf, target_exists: bool },
     Write { target: PathBuf, content: String, target_exists: bool },

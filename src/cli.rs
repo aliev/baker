@@ -163,7 +163,7 @@ pub fn run(args: Args) -> Result<()> {
 
     // Execute pre-generation hook
     let pre_hook_stdout = if execute_hooks && pre_hook_file.exists() {
-        run_hook(&template_root, &output_root, &pre_hook_file, None, true)?
+        run_hook(&template_root, &output_root, &pre_hook_file, None, None, true)?
     } else {
         None
     };
@@ -219,6 +219,8 @@ pub fn run(args: Args) -> Result<()> {
         &bakerignore,
     );
 
+    let mut operations = vec![];
+
     // Process template files
     for dir_entry in WalkDir::new(&template_root) {
         let template_entry = dir_entry?.path().to_path_buf();
@@ -259,9 +261,9 @@ pub fn run(args: Args) -> Result<()> {
                     }
                     TemplateOperation::Ignore { .. } => true,
                 };
-
-                let message = file_operation.get_message(user_confirmed_overwrite);
+                let message = &file_operation.get_message(user_confirmed_overwrite);
                 log::info!("{}", message);
+                operations.push(file_operation);
             }
             Err(e) => match e {
                 Error::ProcessError { .. } => log::warn!("{}", e),
@@ -272,7 +274,14 @@ pub fn run(args: Args) -> Result<()> {
 
     // Execute post-generation hook
     if execute_hooks && post_hook_file.exists() {
-        run_hook(&template_root, &output_root, &post_hook_file, Some(&answers), false)?;
+        run_hook(
+            &template_root,
+            &output_root,
+            &post_hook_file,
+            Some(&answers),
+            Some(operations),
+            false,
+        )?;
     }
 
     println!("Template generation completed successfully in {}.", output_root.display());
