@@ -6,6 +6,7 @@ use std::process::{ChildStdout, Command, Stdio};
 use crate::dialoguer::confirm;
 use crate::error::{Error, Result};
 use crate::ioutils::path_to_str;
+use crate::template::operation::TemplateOperation;
 
 /// Structure representing data passed to hook scripts.
 ///
@@ -18,6 +19,7 @@ pub struct Output<'a> {
     pub output_dir: &'a str,
     /// Context data for template rendering
     pub answers: Option<&'a serde_json::Value>,
+    pub operations: Option<Vec<TemplateOperation>>,
 }
 
 /// Returns the file path as a string if the file exists; otherwise, returns an empty string.
@@ -69,6 +71,7 @@ pub fn run_hook<P: AsRef<Path>>(
     output_dir: P,
     script_path: P,
     answers: Option<&serde_json::Value>,
+    operations: Option<Vec<TemplateOperation>>,
     is_piped_stdout: bool,
 ) -> Result<Option<ChildStdout>> {
     let script_path = script_path.as_ref();
@@ -76,7 +79,7 @@ pub fn run_hook<P: AsRef<Path>>(
     let template_dir = path_to_str(&template_dir)?;
     let output_dir = path_to_str(&output_dir)?;
 
-    let output = Output { template_dir, output_dir, answers };
+    let output = Output { template_dir, output_dir, answers, operations };
 
     let output_data = serde_json::to_vec(&output).unwrap();
 
