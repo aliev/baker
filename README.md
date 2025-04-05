@@ -24,6 +24,8 @@
   - [Yes / No](#yes--no)
   - [Single Choice](#single-choice)
   - [Multiple Choice](#multiple-choice)
+  - [JSON Complex Type](#json-complex-type)
+  - [YAML Complex Type](#yaml-complex-type)
   - [Conditional questions](#conditional-questions)
 - [Comparing Baker to other project generators](#comparing-baker-to-other-project-generators)
 
@@ -584,6 +586,129 @@ What are your favorite programming languages?:
   [ ] TypeScript
 ```
 
+### JSON Complex Type
+
+The JSON type allows you to collect structured data from the user in JSON format. This is useful for configuration files, environment settings, and other structured data.
+
+#### Example
+
+```yaml
+schemaVersion: v1
+
+questions:
+  database_config:
+    type: json
+    help: Configure your database settings
+    schema: |
+      {
+        "type": "object",
+        "required": ["engine", "host", "port"],
+        "properties": {
+          "engine": {
+            "type": "string",
+            "enum": ["postgresql", "mysql", "sqlite", "mongodb"]
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          }
+        }
+      }
+    default: |
+      {
+        "engine": "postgresql",
+        "host": "localhost",
+        "port": 5432
+      }
+```
+
+- **`type`**: Must be `json`.
+- **`help`**: Should be a string, optionally containing a `minijinja` template.
+- **`schema`**: Optional JSON Schema for validation. Follows the [JSON Schema standard](https://json-schema.org/).
+- **`default`**: JSON object, can be provided as a string or native YAML object.
+
+#### Result
+
+When prompted for JSON input, the user is given multiple options:
+
+1. Open in external text editor
+2. Enter multi-line input in console
+
+```
+Configure your database settings - Choose input method:
+> Use text editor
+  Enter inline
+```
+
+JSON data can be accessed in templates like any other nested structure:
+
+```
+Connection string: {{ database_config.engine }}://{{ database_config.host }}:{{ database_config.port }}
+```
+
+### YAML Complex Type
+
+The YAML type works similarly to the JSON type but uses YAML syntax, which is more readable and less verbose.
+
+#### Example
+
+```yaml
+schemaVersion: v1
+
+questions:
+  environments:
+    type: yaml
+    help: Configure your deployment environments
+    default:
+      development:
+        url: http://localhost:8000
+        debug: true
+      staging:
+        url: https://staging.example.com
+        debug: true
+      production:
+        url: https://example.com
+        debug: false
+```
+
+- **`type`**: Must be `yaml`.
+- **`help`**: Should be a string, optionally containing a `minijinja` template.
+- **`schema`**: Optional JSON Schema for validation (same format as for JSON type).
+- **`default`**: YAML data, can be provided as a string or native YAML object.
+
+#### Result
+
+Similar to JSON input, the user is prompted to choose an input method. YAML is particularly useful for configuration data due to its readability:
+
+```
+Define your environments:
+
+development:
+  url: http://localhost:8000
+  debug: true
+staging:
+  url: https://staging.example.com
+  debug: true
+production:
+  url: https://example.com
+  debug: false
+```
+
+Template usage:
+
+```
+{% for env_name, env_config in environments.items() %}
+[{{ env_name }}]
+URL={{ env_config.url }}
+DEBUG={{ env_config.debug }}
+
+{% endfor %}
+```
+
 ### Conditional questions
 
 The `ask_if` attribute is used to control the display of a question, using [expression language](https://docs.rs/minijinja/latest/minijinja/#expression-usage) from MiniJinja. It enables conditional logic to determine whether a question should be prompted based on user input or other contextual factors. In the following example, the `py_framework` question is only prompted if the user selects `Python` as the programming language in the `language` question:
@@ -616,6 +741,9 @@ questions:
 
 | Feature                                      | Baker                                                                          | Kickstart      | cargo-generate          | Copier                 | Cookiecutter              | Yeoman                        |
 | -------------------------------------------- | ------------------------------------------------------------------------------ | -------------- | ----------------------- | ---------------------- | ------------------------- | ----------------------------- |
+| 🟢 **Structured JSON/YAML input**            | ✅ Native support with validation and schema                                   | ❌             | ❌                      | ⚠️ Limited             | ❌                        | ⚠️ Custom logic required      |
+| 🟢 **JSON Schema validation**                | ✅ Enforce data validity with standard JSON Schema                             | ❌             | ❌                      | ❌                     | ❌                        | ⚠️ Custom logic required      |
+| 🟢 **Complex data editing modes**            | ✅ Editor/Console/File input for structured data                               | ❌             | ❌                      | ❌                     | ❌                        | ❌                            |
 | 🟢 **In-template debug() support**           | ✅ Use `{{ debug() }}` to inspect context                                      | ❌             | ❌                      | ❌                     | ❌                        | ⚠️ Only via console.log       |
 | 🟢 **Structured hook communication**         | ✅ pre/post hooks exchange structured JSON via stdin/stdout                    | ❌             | ❌                      | ❌                     | ❌                        | ❌                            |
 | 🟢 **Safe hook execution**                   | ✅ Warns before executing hooks                                                | ❌             | ❌                      | ❌                     | ❌                        | ⚠️ Depends on generator       |
@@ -636,4 +764,4 @@ questions:
 
 ### ℹ️ Disclaimer
 
-This comparison was made based on available documentation. If you notice any **inaccuracies or outdated information**, please [create an issue](https://github.com/aliev/baker/issues) — I’ll be happy to update the table accordingly.
+This comparison was made based on available documentation. If you notice any **inaccuracies or outdated information**, please [create an issue](https://github.com/aliev/baker/issues) — I'll be happy to update the table accordingly.

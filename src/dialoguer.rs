@@ -1,6 +1,10 @@
-use crate::{config::Question, error::Result};
+use crate::{
+    config::{Question, QuestionType},
+    error::Result,
+};
 
-use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
+use dialoguer::{Confirm, Editor, Input, MultiSelect, Password, Select};
+use jsonschema::JSONSchema;
 
 pub fn confirm(skip: bool, prompt: String) -> Result<bool> {
     if skip {
@@ -101,4 +105,113 @@ pub fn prompt_text(
     };
 
     Ok(serde_json::Value::String(input))
+}
+
+/// Asks user for input method for structured data
+fn prompt_for_input_method(prompt: &str, default_method: usize) -> Result<usize> {
+    let methods = vec!["Use text editor", "Enter inline"];
+
+    let selection = Select::new()
+        .with_prompt(format!("{} - Choose input method", prompt))
+        .default(default_method)
+        .items(&methods)
+        .interact()?;
+
+    Ok(selection)
+}
+
+/// Handle multiline console input for structured data
+fn get_data_from_console(is_yaml: bool, prompt: &str) -> Result<serde_json::Value> {
+    println!("{} (Enter empty line to finish):", prompt);
+    let mut lines = Vec::new();
+    loop {
+        let line: String =
+            Input::new().with_prompt(">").allow_empty(true).interact_text()?;
+        if line.is_empty() {
+            break;
+        }
+        lines.push(line);
+    }
+
+    let content = lines.join("\n");
+    if content.trim().is_empty() {
+        return Ok(serde_json::Value::Null);
+    }
+
+    if is_yaml {
+        Ok(serde_yaml::from_str(&content)?)
+    } else {
+        Ok(serde_json::from_str(&content)?)
+    }
+}
+
+/// Validate a value against a JSON schema.
+pub fn validate_with_schema(value: &serde_json::Value, schema: &str) -> Result<()> {
+    let schema_value: serde_json::Value = serde_json::from_str(schema)?;
+    let compiled = JSONSchema::compile(&schema_value).map_err(|e| {
+        crate::error::Error::Other(anyhow::anyhow!("Invalid JSON schema: {}", e))
+    })?;
+
+    let validation = compiled.validate(value);
+    if let Err(errors) = validation {
+        let error_msgs: Vec<String> = errors.into_iter().map(|e| e.to_string()).collect();
+        return Err(crate::error::Error::Other(anyhow::anyhow!(
+            "Validation failed: {}",
+            error_msgs.join(", ")
+        )));
+    }
+
+    Ok(())
+}
+
+/// Prompt for structured data (JSON or YAML)
+pub fn prompt_structured_data(
+    question: &Question,
+    default_value: serde_json::Value,
+    prompt: String,
+    question_type: QuestionType,
+) -> Result<serde_json::Value> {
+    let is_yaml = matches!(question_type, QuestionType::Yaml);
+    let extension = if is_yaml { ".yaml" } else { ".json" };
+    let input_method = prompt_for_input_method(&prompt, 0)?;
+
+    let result = match input_method {
+        0 => {
+            // Use editor
+            let default_str = if default_value.is_null() {
+                "{}".to_string()
+            } else if is_yaml {
+                serde_yaml::to_string(&default_value)?
+            } else {
+                serde_json::to_string_pretty(&default_value)?
+            };
+
+            if let Some(editor_result) =
+                Editor::new().extension(extension).edit(&default_str)?
+            {
+                if editor_result.trim().is_empty() {
+                    default_value
+                } else if is_yaml {
+                    serde_yaml::from_str(&editor_result)?
+                } else {
+                    serde_json::from_str(&editor_result)?
+                }
+            } else {
+                // User canceled editing
+                default_value
+            }
+        }
+        1 => {
+            // Enter inline
+            get_data_from_console(is_yaml, &prompt)?
+        }
+        _ => default_value,
+    };
+
+    // Validate against schema if provided
+    if let Some(schema) = &question.schema {
+        validate_with_schema(&result, schema)?;
+    }
+
+    Ok(result)
 }

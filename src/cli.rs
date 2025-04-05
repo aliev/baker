@@ -2,7 +2,7 @@ use crate::{
     config::{Config, IntoQuestionType, QuestionRendered, QuestionType},
     dialoguer::{
         confirm, prompt_boolean, prompt_multiple_choice, prompt_single_choice,
-        prompt_text,
+        prompt_structured_data, prompt_text,
     },
     error::{Error, Result},
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
@@ -219,6 +219,12 @@ pub fn run(args: Args) -> Result<()> {
                     prompt_single_choice(question.choices, default, help)?
                 }
                 QuestionType::Text => prompt_text(&question, default, help)?,
+                QuestionType::Json | QuestionType::Yaml => prompt_structured_data(
+                    &question,
+                    default,
+                    help,
+                    question.into_question_type(),
+                )?,
             }
         } else {
             default
