@@ -1,3 +1,4 @@
+use baker::cli::{run, Args, SkipConfirm::All};
 use baker::renderer::{MiniJinjaRenderer, TemplateRenderer};
 use serde_json::json;
 
@@ -79,4 +80,21 @@ fn test_regex_filter() {
 
     test_template("{{ '' | regex('.*') }}", "true");
     test_template("{{ '' | regex('.+') }}", "false");
+}
+
+#[test]
+fn test_demo_copy() {
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let args = Args {
+        template: "examples/demo".to_string(),
+        output_dir: tmp_dir.path().to_path_buf(),
+        force: true,
+        verbose: false,
+        answers: Some("{\"project_name\": \"demo\", \"project_author\": \"demo\", \"project_slug\": \"demo\", \"use_tests\": true}".to_string()),
+        skip_confirms: vec![All],
+        non_interactive: true,
+    };
+    run(args).unwrap();
+    assert!(!dir_diff::is_different(tmp_dir.path().to_path_buf(), "tests/expected/demo")
+        .unwrap());
 }

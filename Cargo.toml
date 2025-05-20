@@ -33,6 +33,7 @@ regex = "1.11.1"
 cruet = "0.15.0"
 
 [dev-dependencies]
+dir-diff = "0.3.3"
 tempfile = "3.15"
 
 # The profile that 'dist' will build with
