@@ -1,4 +1,4 @@
-use baker::cli::{run, SkipConfirm::All, Args};
+use baker::cli::{run, Args, SkipConfirm::All};
 use baker::renderer::{MiniJinjaRenderer, TemplateRenderer};
 use serde_json::json;
 
