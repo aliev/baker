@@ -105,3 +105,20 @@ fn test_demo_copy() {
     assert!(!dir_diff::is_different(tmp_dir.path().to_path_buf(), "tests/expected/demo")
         .unwrap());
 }
+
+#[test]
+fn test_demo_copy_use_tests_false() {
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let args = Args {
+        template: "examples/demo".to_string(),
+        output_dir: tmp_dir.path().to_path_buf(),
+        force: true,
+        verbose: false,
+        answers: Some("{\"project_name\": \"demo\", \"project_author\": \"demo\", \"project_slug\": \"demo\", \"use_tests\": false}".to_string()),
+        skip_confirms: vec![All],
+        non_interactive: true,
+    };
+    run(args).unwrap();
+    assert!(!dir_diff::is_different(tmp_dir.path().to_path_buf(), "tests/expected/demo")
+        .unwrap());
+}

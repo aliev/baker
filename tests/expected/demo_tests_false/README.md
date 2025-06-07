@@ -6,4 +6,4 @@ project_author: demo
 
 project_slug: demo
 
-use_tests: true
+use_tests: false
