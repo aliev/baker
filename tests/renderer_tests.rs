@@ -119,6 +119,9 @@ fn test_demo_copy_use_tests_false() {
         non_interactive: true,
     };
     run(args).unwrap();
-    assert!(!dir_diff::is_different(tmp_dir.path().to_path_buf(), "tests/expected/demo_tests_false")
-        .unwrap());
+    assert!(!dir_diff::is_different(
+        tmp_dir.path().to_path_buf(),
+        "tests/expected/demo_tests_false"
+    )
+    .unwrap());
 }
