@@ -208,6 +208,8 @@ const DEFAULT_IGNORE_PATTERNS: &[&str] = &[
     ".svn",
     "**/.DS_Store",
     ".bakerignore",
+    "templates",
+    "templates/**",
     "hooks",
     "hooks/**",
     "baker.yaml",
@@ -215,6 +217,41 @@ const DEFAULT_IGNORE_PATTERNS: &[&str] = &[
     "baker.json",
 ];
 ```
+
+## Templates
+
+By default, all files in the `templates` directory ending with `.jinja` are included in the template engine. You can organize your templates and macros as needed.
+
+### Importing and Including Templates
+
+To import a file (e.g., `templates/macros.jinja`) in your Jinja templates, use:
+
+```jinja
+{% import "macros.jinja" as macros -%}
+```
+
+You can also include templates:
+```jinja
+{% include "header.jinja" %}
+```
+
+### Customizing Template Directory and Extension
+
+- The template folder name can be set using the template_dir field in your configuration.
+- The template file extension can be set using the template_file_extension field.
+Example:
+```yaml
+schemaVersion: v1
+template_dir: "my_templates",
+template_file_extension": "tpl"
+
+questions:
+  project_name:
+    type: str
+    help: Please enter the name of your project
+```
+
+This will include all files ending with .tpl in the my_templates directory
 
 ## Recipes
 

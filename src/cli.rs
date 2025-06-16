@@ -157,16 +157,24 @@ pub fn run(args: Args) -> Result<()> {
     let config = Config::load_config(&template_root)?;
 
     let Config::V1(config) = config;
-    let template_patterns = config.settings.build_template_globset();
+    let template_dir = &template_root.join(config.template_dir);
+    debug!("Template dir: {:?}", template_dir);
 
-    WalkDir::new(&template_root)
+    WalkDir::new(template_dir)
         .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|entry| entry.path().is_file())
-        .filter(|entry| template_patterns.is_match(entry.path()))
+        .filter_map(Result::ok)
+        .filter(|e| {
+            e.file_type().is_file()
+                && e.path()
+                    .extension()
+                    .map(|ext| {
+                        ext.to_str().unwrap() == config.template_file_extension.as_str()
+                    })
+                    .unwrap_or(false)
+        })
         .filter_map(|entry| {
             let path = entry.path();
-            let rel_path = path.strip_prefix(&template_root).ok()?;
+            let rel_path = path.strip_prefix(template_dir).ok()?;
             let rel_path_str = rel_path.to_str()?;
             fs::read_to_string(path)
                 .ok()
