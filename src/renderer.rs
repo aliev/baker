@@ -16,6 +16,12 @@ use std::path::Path;
 
 /// Trait for template rendering engines.
 pub trait TemplateRenderer {
+    fn add_template(
+        &mut self,
+        name: &str,
+        template: &str,
+    ) -> Result<(), minijinja::Error>;
+
     /// Renders a template string with the given context.
     ///
     /// # Arguments
@@ -132,6 +138,14 @@ impl Default for MiniJinjaRenderer {
 }
 
 impl TemplateRenderer for MiniJinjaRenderer {
+    fn add_template(
+        &mut self,
+        name: &str,
+        template: &str,
+    ) -> Result<(), minijinja::Error> {
+        self.env.add_template_owned(name.to_string(), template.to_string())
+    }
+
     fn render(&self, template: &str, context: &serde_json::Value) -> Result<String> {
         self.render_internal(template, context)
     }

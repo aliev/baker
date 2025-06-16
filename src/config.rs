@@ -1,6 +1,8 @@
 use crate::error::{Error, Result};
 use crate::ioutils::path_to_str;
 use crate::renderer::TemplateRenderer;
+use globset::Glob;
+use globset::GlobSetBuilder;
 use indexmap::IndexMap;
 use serde::Deserialize;
 use std::path::Path;
@@ -74,10 +76,32 @@ pub struct Question {
     #[serde(default = "get_default_validation")]
     pub validation: Validation,
 }
+#[derive(Debug, Deserialize)]
+pub struct SettingsV1 {
+    pub template_globs: Vec<String>,
+}
+
+impl Default for SettingsV1 {
+    fn default() -> Self {
+        SettingsV1 { template_globs: vec!["**/*.jinja".to_string()] }
+    }
+}
+
+impl SettingsV1 {
+    pub fn build_template_globset(&self) -> globset::GlobSet {
+        let mut builder = GlobSetBuilder::new();
+        for pattern in &self.template_globs {
+            builder.add(Glob::new(pattern).unwrap());
+        }
+        builder.build().unwrap()
+    }
+}
 
 /// Main configuration structure holding all questions
 #[derive(Debug, Deserialize)]
 pub struct ConfigV1 {
+    #[serde(default)]
+    pub settings: SettingsV1,
     #[serde(default)]
     pub questions: IndexMap<String, Question>,
     #[serde(default = "get_default_post_hook_filename")]

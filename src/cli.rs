@@ -14,7 +14,9 @@ use crate::{
     validation::{validate_answer, ValidationError},
 };
 use clap::{error::ErrorKind, CommandFactory, Parser, ValueEnum};
+use log::debug;
 use serde_json::json;
+use std::fs;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
@@ -142,7 +144,7 @@ pub fn get_args() -> Args {
 }
 
 pub fn run(args: Args) -> Result<()> {
-    let engine: Box<dyn TemplateRenderer> = Box::new(MiniJinjaRenderer::new());
+    let mut engine: Box<dyn TemplateRenderer> = Box::new(MiniJinjaRenderer::new());
 
     let output_root = get_output_dir(args.output_dir, args.force)?;
 
@@ -155,6 +157,25 @@ pub fn run(args: Args) -> Result<()> {
     let config = Config::load_config(&template_root)?;
 
     let Config::V1(config) = config;
+    let template_patterns = config.settings.build_template_globset();
+
+    WalkDir::new(&template_root)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|entry| entry.path().is_file())
+        .filter(|entry| template_patterns.is_match(entry.path()))
+        .filter_map(|entry| {
+            let path = entry.path();
+            let rel_path = path.strip_prefix(&template_root).ok()?;
+            let rel_path_str = rel_path.to_str()?;
+            fs::read_to_string(path)
+                .ok()
+                .map(|content| (rel_path_str.to_owned(), content))
+        })
+        .for_each(|(filename, content)| {
+            debug!("Adding template: {}", filename);
+            engine.add_template(&filename, &content).unwrap();
+        });
 
     let pre_hook_filename = engine.render(&config.pre_hook_filename, &json!({}))?;
     let post_hook_filename = engine.render(&config.post_hook_filename, &json!({}))?;
