@@ -1,10 +1,12 @@
 // Re-export all public items from the cli submodules
-use crate::{cli_args, cli_runner};
+pub mod answers;
+pub mod args;
+pub mod hooks;
+pub mod runner;
 
-pub use cli_args::get_args;
-pub use cli_runner::run;
-
+pub use args::get_args;
 use clap::{Parser, ValueEnum};
+pub use runner::run;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, ValueEnum, Copy, PartialEq)]
@@ -104,10 +106,12 @@ impl Args {
     }
 
     pub fn should_skip_overwrite_confirms(&self) -> bool {
-        self.should_skip_all_confirms() || self.skip_confirms.contains(&SkipConfirm::Overwrite)
+        self.should_skip_all_confirms()
+            || self.skip_confirms.contains(&SkipConfirm::Overwrite)
     }
 
     pub fn should_skip_hook_confirms(&self) -> bool {
-        self.should_skip_all_confirms() || self.skip_confirms.contains(&SkipConfirm::Hooks)
+        self.should_skip_all_confirms()
+            || self.skip_confirms.contains(&SkipConfirm::Hooks)
     }
 }
