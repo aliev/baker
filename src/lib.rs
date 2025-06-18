@@ -27,6 +27,3 @@ pub mod template;
 
 /// Configuration handling for Baker templates.
 pub mod config;
-
-/// Answer validators
-pub mod validation;

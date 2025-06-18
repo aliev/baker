@@ -3,11 +3,35 @@ use crate::{
     error::Result,
     renderer::TemplateRenderer,
 };
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+pub struct Validation {
+    #[serde(default)]
+    pub condition: String,
+    #[serde(default = "get_default_error_message")]
+    pub error_message: String,
+}
 
 #[derive(Debug)]
 pub enum ValidationError {
     JsonSchema(String),
     FieldValidation(String),
+}
+
+fn get_default_condition() -> String {
+    "true".to_string()
+}
+
+fn get_default_error_message() -> String {
+    "Invalid answer".to_string()
+}
+
+pub fn get_default_validation() -> Validation {
+    Validation {
+        condition: get_default_condition(),
+        error_message: get_default_error_message(),
+    }
 }
 
 /// Validate a value against a JSON schema.
@@ -68,8 +92,9 @@ pub fn validate_answer(
 
 #[cfg(test)]
 mod tests {
+    use super::Validation;
     use super::*;
-    use crate::config::{Type, Validation};
+    use crate::config::Type;
     use crate::renderer::MiniJinjaRenderer;
     use serde_json::json;
 

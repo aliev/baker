@@ -1,10 +1,10 @@
 use crate::{
+    config::validation::{validate_answer, ValidationError},
     config::{Config, QuestionRendered},
     dialoguer::ask_question,
     error::{Error, Result},
     ioutils::{parse_string_to_json, read_from},
     renderer::TemplateRenderer,
-    validation::{validate_answer, ValidationError},
 };
 use serde_json::json;
 use std::process::ChildStdout;
@@ -17,10 +17,7 @@ pub struct AnswerProcessor<'a> {
 
 impl<'a> AnswerProcessor<'a> {
     pub fn new(renderer: &'a dyn TemplateRenderer, non_interactive: bool) -> Self {
-        Self {
-            renderer,
-            non_interactive,
-        }
+        Self { renderer, non_interactive }
     }
 
     /// Retrieves initial answers from command line arguments or pre-hook output

@@ -1,11 +1,6 @@
-use crate::error::{Error, Result};
-use crate::ioutils::path_to_str;
 use crate::renderer::TemplateRenderer;
-use indexmap::IndexMap;
 use serde::Deserialize;
-use std::path::Path;
-
-pub const CONFIG_LIST: &[&str] = &["baker.json", "baker.yaml", "baker.yml"];
+use super::validation::{Validation, get_default_validation};
 
 /// Type of question to be presented to the user
 #[derive(Debug, Deserialize)]
@@ -20,6 +15,7 @@ pub enum Type {
     /// YAML structured input type
     Yaml,
 }
+
 #[derive(Debug, Deserialize)]
 pub struct Secret {
     /// Whether the secret should have confirmation
@@ -27,22 +23,6 @@ pub struct Secret {
     pub confirm: bool,
     #[serde(default)]
     pub mistmatch_err: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Validation {
-    #[serde(default)]
-    pub condition: String,
-    #[serde(default = "get_default_error_message")]
-    pub error_message: String,
-}
-
-fn get_default_condition() -> String {
-    "true".to_string()
-}
-
-fn get_default_error_message() -> String {
-    "Invalid answer".to_string()
 }
 
 /// Represents a single question in the configuration
@@ -73,63 +53,6 @@ pub struct Question {
     pub schema: Option<String>,
     #[serde(default = "get_default_validation")]
     pub validation: Validation,
-}
-
-/// Main configuration structure holding all questions
-#[derive(Debug, Deserialize)]
-pub struct ConfigV1 {
-    #[serde(default)]
-    pub questions: IndexMap<String, Question>,
-    #[serde(default = "get_default_post_hook_filename")]
-    pub post_hook_filename: String,
-    #[serde(default = "get_default_pre_hook_filename")]
-    pub pre_hook_filename: String,
-}
-
-fn get_default_post_hook_filename() -> String {
-    "post".to_string()
-}
-
-fn get_default_pre_hook_filename() -> String {
-    "pre".to_string()
-}
-
-fn get_default_validation() -> Validation {
-    Validation {
-        condition: get_default_condition(),
-        error_message: get_default_error_message(),
-    }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "schemaVersion")]
-pub enum Config {
-    #[serde(rename = "v1")]
-    V1(ConfigV1),
-}
-
-impl Config {
-    pub fn load_config<P: AsRef<Path>>(template_root: P) -> Result<Self> {
-        let template_root = template_root.as_ref().to_path_buf();
-        let template_dir = path_to_str(&template_root)?.to_string();
-
-        for config_file_name in CONFIG_LIST.iter() {
-            let config_file_path = template_root.join(config_file_name);
-
-            if config_file_path.exists() {
-                let content = std::fs::read_to_string(config_file_path)?;
-                let config: Config = match *config_file_name {
-                    "baker.json" => serde_json::from_str(&content)?,
-                    "baker.yaml" | "baker.yml" => serde_yaml::from_str(&content)?,
-                    _ => unreachable!(),
-                };
-
-                return Ok(config);
-            }
-        }
-
-        Err(Error::ConfigNotFound { template_dir, config_files: CONFIG_LIST.join(", ") })
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -257,9 +180,7 @@ impl Question {
 #[cfg(test)]
 mod tests {
     use serde_json::json;
-
     use crate::renderer::MiniJinjaRenderer;
-
     use super::*;
 
     #[test]
@@ -344,6 +265,7 @@ mod tests {
         assert!(ask_if);
         assert_eq!(r#type, QuestionType::Text);
     }
+
     #[test]
     fn it_works_4() {
         let question = Question {
@@ -366,6 +288,7 @@ mod tests {
         assert!(!ask_if);
         assert_eq!(r#type, QuestionType::Text);
     }
+
     #[test]
     fn it_works_5() {
         let question = Question {
@@ -389,6 +312,7 @@ mod tests {
         assert_eq!(r#type, QuestionType::Text);
         assert_eq!(default, json!("This is a default value for the question1"));
     }
+
     #[test]
     fn it_works_6() {
         let question = Question {
