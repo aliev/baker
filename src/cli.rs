@@ -1,22 +1,11 @@
-use crate::{
-    config::{Config, QuestionRendered},
-    dialoguer::{ask_question, confirm},
-    error::{Error, Result},
-    hooks::{confirm_hook_execution, get_hook_files, run_hook},
-    ignore::parse_bakerignore_file,
-    ioutils::{
-        copy_file, create_dir_all, get_output_dir, parse_string_to_json, read_from,
-        write_file,
-    },
-    loader::TemplateSource,
-    renderer::{MiniJinjaRenderer, TemplateRenderer},
-    template::{operation::TemplateOperation, processor::TemplateProcessor},
-    validation::{validate_answer, ValidationError},
-};
-use clap::{error::ErrorKind, CommandFactory, Parser, ValueEnum};
-use serde_json::json;
+// Re-export all public items from the cli submodules
+use crate::{cli_args, cli_runner};
+
+pub use cli_args::get_args;
+pub use cli_runner::run;
+
+use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
-use walkdir::WalkDir;
 
 #[derive(Debug, Clone, ValueEnum, Copy, PartialEq)]
 #[value(rename_all = "lowercase")]
@@ -109,227 +98,16 @@ pub struct Args {
     pub non_interactive: bool,
 }
 
-/// Parses command line arguments and returns the Args structure.
-///
-/// # Returns
-/// * `Args` - Parsed command line arguments
-///
-/// # Exits
-/// * With status code 1 if required arguments are missing
-/// * With clap's default error handling for other argument errors
-pub fn get_args() -> Args {
-    match Args::try_parse() {
-        Ok(args) => args,
-        Err(e) => {
-            if e.kind() == ErrorKind::MissingRequiredArgument {
-                Args::command()
-                    .help_template(
-                        r#"{about-section}
-{usage-heading} {usage}
-
-{all-args}
-{after-help}
-"#,
-                    )
-                    .print_help()
-                    .unwrap();
-                std::process::exit(1);
-            } else {
-                e.exit();
-            }
-        }
-    }
-}
-
-pub fn run(args: Args) -> Result<()> {
-    let engine: Box<dyn TemplateRenderer> = Box::new(MiniJinjaRenderer::new());
-
-    let output_root = get_output_dir(args.output_dir, args.force)?;
-
-    let template_root = TemplateSource::from_string(
-        args.template.as_str(),
-        args.skip_confirms.contains(&crate::cli::SkipConfirm::All)
-            || args.skip_confirms.contains(&crate::cli::SkipConfirm::Overwrite),
-    )?;
-
-    let config = Config::load_config(&template_root)?;
-
-    let Config::V1(config) = config;
-
-    let pre_hook_filename = engine.render(&config.pre_hook_filename, &json!({}))?;
-    let post_hook_filename = engine.render(&config.post_hook_filename, &json!({}))?;
-
-    let execute_hooks = confirm_hook_execution(
-        &template_root,
-        args.skip_confirms.contains(&crate::cli::SkipConfirm::All)
-            || args.skip_confirms.contains(&crate::cli::SkipConfirm::Hooks),
-        &pre_hook_filename,
-        &post_hook_filename,
-    )?;
-
-    let (pre_hook_file, post_hook_file) =
-        get_hook_files(&template_root, &pre_hook_filename, &post_hook_filename);
-
-    // Execute pre-generation hook
-    let pre_hook_stdout = if execute_hooks && pre_hook_file.exists() {
-        log::debug!("Executing pre-hook: {}", pre_hook_file.display());
-        run_hook(&template_root, &output_root, &pre_hook_file, None)?
-    } else {
-        None
-    };
-
-    // Retrieves answers and parses them directly to avoid type incompatibility
-    let mut answers = if let Some(answers_arg) = args.answers {
-        // From command line argument
-        let answers_str =
-            if answers_arg == "-" { read_from(std::io::stdin())? } else { answers_arg };
-        parse_string_to_json(answers_str)?
-    } else if let Some(pre_hook_stdout) = pre_hook_stdout {
-        // Read and print the raw output
-        let result = read_from(pre_hook_stdout).unwrap_or_default();
-
-        log::debug!(
-            "Pre-hook stdout content (attempting to parse as JSON answers): {}",
-            result
-        );
-
-        serde_json::from_str::<serde_json::Value>(&result).map_or_else(
-            |e| {
-                log::warn!("Failed to parse hook output as JSON: {}", e);
-                serde_json::Map::new()
-            },
-            |value| match value {
-                serde_json::Value::Object(map) => map,
-                _ => serde_json::Map::new(),
-            },
-        )
-    } else {
-        serde_json::Map::new()
-    };
-
-    for (key, question) in config.questions {
-        loop {
-            let QuestionRendered { help, default, ask_if, .. } =
-                question.render(&key, &json!(answers), engine.as_ref());
-
-            // Determine if we should skip interactive prompting based on:
-            // 1. User explicitly requested non-interactive mode with --non-interactive flag, OR
-            // 2. The template's ask_if condition evaluated to false for this question
-            let skip_user_prompt = args.non_interactive || !ask_if;
-
-            if skip_user_prompt {
-                // Skip to the next question if an answer for this key is already provided
-                if answers.contains_key(&key) {
-                    break;
-                }
-
-                // Use the template's default value if one was specified
-                if !question.default.is_null() {
-                    answers.insert(key.clone(), default.clone());
-                    break;
-                }
-            }
-
-            let answer = match ask_question(&question, &default, help) {
-                Ok(answer) => answer,
-                Err(err) => match err {
-                    Error::JSONParseError(_) | Error::YAMLParseError(_) => {
-                        println!("{}", err);
-                        continue;
-                    }
-                    _ => return Err(err),
-                },
-            };
-
-            answers.insert(key.clone(), answer.clone());
-            let _answers = serde_json::Value::Object(answers.clone());
-
-            match validate_answer(&question, &answer, engine.as_ref(), &_answers) {
-                Ok(_) => break,
-                Err(err) => match err {
-                    ValidationError::JsonSchema(msg) => println!("{}", msg),
-                    ValidationError::FieldValidation(msg) => println!("{}", msg),
-                },
-            }
-        }
+impl Args {
+    pub fn should_skip_all_confirms(&self) -> bool {
+        self.skip_confirms.contains(&SkipConfirm::All)
     }
 
-    let answers = serde_json::Value::Object(answers);
-
-    // Process ignore patterns
-    let bakerignore = parse_bakerignore_file(&template_root)?;
-
-    let processor = TemplateProcessor::new(
-        engine.as_ref(),
-        &template_root,
-        &output_root,
-        &answers,
-        &bakerignore,
-    );
-
-    // Process template files
-    for dir_entry in WalkDir::new(&template_root) {
-        let template_entry = dir_entry?.path().to_path_buf();
-        match processor.process(&template_entry) {
-            Ok(file_operation) => {
-                let user_confirmed_overwrite = match &file_operation {
-                    TemplateOperation::Write { target, target_exists, .. }
-                    | TemplateOperation::Copy { target, target_exists, .. } => {
-                        let skip_prompt =
-                            args.skip_confirms.contains(&crate::cli::SkipConfirm::All)
-                                || args
-                                    .skip_confirms
-                                    .contains(&crate::cli::SkipConfirm::Overwrite)
-                                || !target_exists;
-                        let user_confirmed = confirm(
-                            skip_prompt,
-                            format!("Overwrite {}?", target.display()),
-                        )?;
-
-                        if user_confirmed {
-                            match &file_operation {
-                                TemplateOperation::Copy { source, .. } => {
-                                    copy_file(&source, &target)?
-                                }
-                                TemplateOperation::Write { content, .. } => {
-                                    write_file(content, target)?
-                                }
-                                _ => unreachable!(),
-                            };
-                        }
-                        user_confirmed
-                    }
-                    TemplateOperation::CreateDirectory { target, target_exists } => {
-                        if !target_exists {
-                            create_dir_all(target)?;
-                        }
-                        true
-                    }
-                    TemplateOperation::Ignore { .. } => true,
-                };
-
-                let message = file_operation.get_message(user_confirmed_overwrite);
-                log::info!("{}", message);
-            }
-            Err(e) => match e {
-                Error::ProcessError { .. } => log::warn!("{}", e),
-                _ => log::error!("{}", e),
-            },
-        }
+    pub fn should_skip_overwrite_confirms(&self) -> bool {
+        self.should_skip_all_confirms() || self.skip_confirms.contains(&SkipConfirm::Overwrite)
     }
 
-    // Execute post-generation hook
-    if execute_hooks && post_hook_file.exists() {
-        log::debug!("Executing post-hook: {}", post_hook_file.display());
-        let post_hook_stdout =
-            run_hook(&template_root, &output_root, &post_hook_file, Some(&answers))?;
-
-        if let Some(post_hook_stdout) = post_hook_stdout {
-            let result = read_from(post_hook_stdout).unwrap_or_default();
-            log::debug!("Post-hook stdout content: {}", result);
-        }
+    pub fn should_skip_hook_confirms(&self) -> bool {
+        self.should_skip_all_confirms() || self.skip_confirms.contains(&SkipConfirm::Hooks)
     }
-
-    println!("Template generation completed successfully in {}.", output_root.display());
-    Ok(())
 }

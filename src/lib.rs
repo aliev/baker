@@ -1,6 +1,12 @@
 /// Handles argument parsing.
 pub mod cli;
 
+mod cli_answers;
+/// CLI submodules
+mod cli_args;
+mod cli_hooks;
+mod cli_runner;
+
 /// Defines custom error types.
 pub mod error;
 
