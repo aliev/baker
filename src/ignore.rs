@@ -13,8 +13,6 @@ const DEFAULT_IGNORE_PATTERNS: &[&str] = &[
     ".svn",
     "**/.DS_Store",
     ".bakerignore",
-    "templates",
-    "templates/**",
     "hooks",
     "hooks/**",
     "baker.yaml",

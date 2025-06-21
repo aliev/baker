@@ -13,6 +13,7 @@
   - [Files with .baker.j2 extension](#files-with-bakerj2-extension)
   - [Templated File Names](#templated-file-names)
   - [.bakerignore File](#bakerignore-file)
+  - [Importing Jinja templates and macros](#importing-jinja-templates-and-macros)
 - [Recipes](#recipes)
   - [Passing Default Answers](#passing-default-answers)
   - [Non-Interactive Mode](#non-interactive-mode)
@@ -208,8 +209,6 @@ const DEFAULT_IGNORE_PATTERNS: &[&str] = &[
     ".svn",
     "**/.DS_Store",
     ".bakerignore",
-    "templates",
-    "templates/**",
     "hooks",
     "hooks/**",
     "baker.yaml",
@@ -218,40 +217,24 @@ const DEFAULT_IGNORE_PATTERNS: &[&str] = &[
 ];
 ```
 
-## Templates
+## Importing Jinja templates and macros
 
-By default, all files in the `templates` directory ending with `.jinja` are included in the template engine. You can organize your templates and macros as needed.
+You can specify multiple patterns for files to be included in the template engine. Then you can [include templates](https://jinja.palletsprojects.com/en/3.1.x/templates/#include) or [import macros](https://jinja.palletsprojects.com/en/3.1.x/templates/#import) in your templates.
 
-### Importing and Including Templates
+#### Example:
 
-To import a file (e.g., `templates/macros.jinja`) in your Jinja templates, use:
-
-```jinja
-{% import "macros.jinja" as macros -%}
-```
-
-You can also include templates:
-```jinja
-{% include "header.jinja" %}
-```
-
-### Customizing Template Directory and Extension
-
-- The template folder name can be set using the template_dir field in your configuration.
-- The template file extension can be set using the template_file_extension field.
-Example:
 ```yaml
 schemaVersion: v1
-template_dir: "my_templates",
-template_file_extension": "tpl"
-
+template_imports_patterns:
+  - "*.tpl"
+  - "*.jinja"
 questions:
   project_name:
     type: str
     help: Please enter the name of your project
 ```
 
-This will include all files ending with .tpl in the my_templates directory
+This will include all files ending with .tpl and .jinja in the template engine, allowing you to use them in your templates.
 
 ## Recipes
 

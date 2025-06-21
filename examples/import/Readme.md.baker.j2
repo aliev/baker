@@ -1,0 +1,4 @@
+{% import "macros.jinja" as macros -%}
+{% import "commons.tpl" as commons -%}
+{% set w = commons.world() -%}
+{{ macros.hello(w) }}

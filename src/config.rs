@@ -77,10 +77,8 @@ pub struct Question {
 /// Main configuration structure holding all questions
 #[derive(Debug, Deserialize)]
 pub struct ConfigV1 {
-    #[serde(default = "get_default_template_dir")]
-    pub template_dir: String,
-    #[serde(default = "get_default_template_file_extension")]
-    pub template_file_extension: String,
+    #[serde(default = "get_default_template_imports_patterns")]
+    pub template_imports_patterns: Vec<String>,
     #[serde(default)]
     pub questions: IndexMap<String, Question>,
     #[serde(default = "get_default_post_hook_filename")]
@@ -88,11 +86,9 @@ pub struct ConfigV1 {
     #[serde(default = "get_default_pre_hook_filename")]
     pub pre_hook_filename: String,
 }
-fn get_default_template_dir() -> String {
-    "templates".to_string()
-}
-fn get_default_template_file_extension() -> String {
-    "jinja".to_string()
+
+fn get_default_template_imports_patterns() -> Vec<String> {
+    Vec::new()
 }
 
 fn get_default_post_hook_filename() -> String {

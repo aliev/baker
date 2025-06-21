@@ -4,6 +4,7 @@ use crate::{
     error::{Error, Result},
     hooks::{confirm_hook_execution, get_hook_files, run_hook},
     ignore::parse_bakerignore_file,
+    import::add_templates_in_renderer,
     ioutils::{
         copy_file, create_dir_all, get_output_dir, parse_string_to_json, read_from,
         write_file,
@@ -14,9 +15,7 @@ use crate::{
     validation::{validate_answer, ValidationError},
 };
 use clap::{error::ErrorKind, CommandFactory, Parser, ValueEnum};
-use log::debug;
 use serde_json::json;
-use std::fs;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
@@ -157,33 +156,8 @@ pub fn run(args: Args) -> Result<()> {
     let config = Config::load_config(&template_root)?;
 
     let Config::V1(config) = config;
-    let template_dir = &template_root.join(config.template_dir);
-    debug!("Template dir: {:?}", template_dir);
 
-    WalkDir::new(template_dir)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| {
-            e.file_type().is_file()
-                && e.path()
-                    .extension()
-                    .map(|ext| {
-                        ext.to_str().unwrap() == config.template_file_extension.as_str()
-                    })
-                    .unwrap_or(false)
-        })
-        .filter_map(|entry| {
-            let path = entry.path();
-            let rel_path = path.strip_prefix(template_dir).ok()?;
-            let rel_path_str = rel_path.to_str()?;
-            fs::read_to_string(path)
-                .ok()
-                .map(|content| (rel_path_str.to_owned(), content))
-        })
-        .for_each(|(filename, content)| {
-            debug!("Adding template: {}", filename);
-            engine.add_template(&filename, &content).unwrap();
-        });
+    add_templates_in_renderer(&template_root, &config, engine.as_mut());
 
     let pre_hook_filename = engine.render(&config.pre_hook_filename, &json!({}))?;
     let post_hook_filename = engine.render(&config.post_hook_filename, &json!({}))?;
