@@ -170,3 +170,23 @@ fn test_jsonschema() {
     run(args).unwrap();
     assert!(!dir_diff::is_different(tmp_dir.path(), "tests/expected/jsonschema").unwrap());
 }
+
+#[test]
+fn test_import() {
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let args = Args {
+        template: "tests/templates/import".to_string(),
+        output_dir: tmp_dir.path().to_path_buf(),
+        force: true,
+        verbose: false,
+        answers: Some("{\"database_config\":{\"engine\":\"redis\",\"host\":\"localhost\",\"port\":6379}}".to_string()),
+        skip_confirms: vec![All],
+        non_interactive: true,
+    };
+    run(args).unwrap();
+    assert!(!dir_diff::is_different(
+        tmp_dir.path().to_path_buf(),
+        "tests/expected/import"
+    )
+    .unwrap());
+}
