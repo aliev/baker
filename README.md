@@ -219,13 +219,13 @@ const DEFAULT_IGNORE_PATTERNS: &[&str] = &[
 
 ## Importing Jinja templates and macros
 
-You can specify multiple patterns for files to be included in the template engine. Then you can [include templates](https://jinja.palletsprojects.com/en/3.1.x/templates/#include) or [import macros](https://jinja.palletsprojects.com/en/3.1.x/templates/#import) in your templates.
+You can specify multiple patterns for files to be included in the template engine. Then you can [include templates](https://docs.rs/minijinja/latest/minijinja/syntax/index.html#-include-) or [import macros](https://docs.rs/minijinja/latest/minijinja/syntax/index.html#-import-) in your templates.
 
 #### Example:
 
 ```yaml
 schemaVersion: v1
-template_imports_patterns:
+template_globs:
   - "*.tpl"
   - "*.jinja"
 questions:

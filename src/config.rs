@@ -77,8 +77,8 @@ pub struct Question {
 /// Main configuration structure holding all questions
 #[derive(Debug, Deserialize)]
 pub struct ConfigV1 {
-    #[serde(default = "get_default_template_imports_patterns")]
-    pub template_imports_patterns: Vec<String>,
+    #[serde(default = "get_default_template_globs")]
+    pub template_globs: Vec<String>,
     #[serde(default)]
     pub questions: IndexMap<String, Question>,
     #[serde(default = "get_default_post_hook_filename")]
@@ -87,7 +87,7 @@ pub struct ConfigV1 {
     pub pre_hook_filename: String,
 }
 
-fn get_default_template_imports_patterns() -> Vec<String> {
+fn get_default_template_globs() -> Vec<String> {
     Vec::new()
 }
 

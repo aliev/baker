@@ -26,13 +26,10 @@ pub fn add_templates_in_renderer(
     engine: &mut dyn TemplateRenderer,
 ) {
     let templates_import_globset =
-        build_templates_import_globset(template_root, &config.template_imports_patterns);
+        build_templates_import_globset(template_root, &config.template_globs);
 
     if let Some(globset) = templates_import_globset {
-        debug!(
-            "Adding templates from glob patterns: {:?}",
-            &config.template_imports_patterns
-        );
+        debug!("Adding templates from glob patterns: {:?}", &config.template_globs);
         WalkDir::new(template_root)
             .into_iter()
             .filter_map(|e| e.ok())
