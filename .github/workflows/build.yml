@@ -44,8 +44,8 @@ jobs:
       - name: Run clippy
         run: cargo clippy -- -D warnings
 
+      - name: Run tests
+        run: RUST_LOG=trace cargo test --verbose
+
       - name: Build Release
         run: cargo build --verbose --release
-
-      - name: Run tests
-        run: cargo test --verbose
