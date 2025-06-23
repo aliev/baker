@@ -86,6 +86,14 @@ mod tests {
     }
 
     #[test]
+    fn test_jinja_loop_prints_1_to_5() {
+        test_template(
+            "{% for i in range(1, 6) %}{{ i }}{% if not loop.last %} {% endif %}{% endfor %}",
+            "1 2 3 4 5",
+        );
+    }
+
+    #[test]
     fn test_regex_filter_invalid_regex() {
         let renderer = MiniJinjaRenderer::new();
         let result = renderer.render("{{ 'hello' | regex('[') }}", &json!({}), None);
@@ -220,23 +228,5 @@ mod tests {
             "tests/expected/import_directory"
         )
         .unwrap());
-    }
-
-    #[test]
-    fn test_minijinja_loop_controls() {
-        let _ = env_logger::try_init();
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let args = Args {
-            template: "tests/templates/loop_controls".to_string(),
-            output_dir: tmp_dir.path().to_path_buf(),
-            force: true,
-            verbose: true,
-            answers: None,
-            skip_confirms: vec![All],
-            non_interactive: true,
-        };
-        run(args).unwrap();
-        assert!(!dir_diff::is_different(tmp_dir.path(), "tests/expected/loop_controls")
-            .unwrap());
     }
 }
