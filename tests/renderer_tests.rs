@@ -221,4 +221,25 @@ mod tests {
         )
         .unwrap());
     }
+    
+    #[test]
+    fn test_minijinja_loop_controls() {
+        let _ = env_logger::try_init();
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let args = Args {
+            template: "tests/templates/loop_controls".to_string(),
+            output_dir: tmp_dir.path().to_path_buf(),
+            force: true,
+            verbose: true,
+            answers: None,
+            skip_confirms: vec![All],
+            non_interactive: true,
+        };
+        run(args).unwrap();
+        assert!(!dir_diff::is_different(
+            tmp_dir.path(),
+            "tests/expected/loop_controls"
+        )
+        .unwrap());
+    }
 }
