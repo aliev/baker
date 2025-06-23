@@ -86,10 +86,10 @@ mod tests {
     }
 
     #[test]
-    fn test_jinja_loop_prints_1_to_5() {
+    fn test_loop_controls() {
         test_template(
-            "{% for i in range(1, 6) %}{{ i }}{% if not loop.last %} {% endif %}{% endfor %}",
-            "1 2 3 4 5",
+            "{% for i in range(1, 6) %}{% if i == 4 %}{% break %}{% endif %}{{ i }}{% if not loop.last %} {% endif %}{% endfor %}",
+            "1 2 3 ",
         );
     }
 
