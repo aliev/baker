@@ -221,7 +221,7 @@ mod tests {
         )
         .unwrap());
     }
-    
+
     #[test]
     fn test_minijinja_loop_controls() {
         let _ = env_logger::try_init();
@@ -236,10 +236,7 @@ mod tests {
             non_interactive: true,
         };
         run(args).unwrap();
-        assert!(!dir_diff::is_different(
-            tmp_dir.path(),
-            "tests/expected/loop_controls"
-        )
-        .unwrap());
+        assert!(!dir_diff::is_different(tmp_dir.path(), "tests/expected/loop_controls")
+            .unwrap());
     }
 }
