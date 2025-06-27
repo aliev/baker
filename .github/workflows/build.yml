@@ -8,6 +8,7 @@ on:
       - "tests/**"
       - "examples/**"
       - "*.toml"
+      - "codecov.yml"
   pull_request:
     branches: ["main"]
     paths:
@@ -15,6 +16,7 @@ on:
       - "tests/**"
       - "examples/**"
       - "*.toml"
+      - "codecov.yml"
 
 env:
   CARGO_TERM_COLOR: always
