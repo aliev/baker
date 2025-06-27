@@ -48,6 +48,9 @@ jobs:
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
 
+      - name: Setup cargo-tarpaulin
+        uses: taiki-e/install-action@cargo-tarpaulin
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 
@@ -58,6 +61,20 @@ jobs:
         run: cargo test --verbose
         env:
           RUST_LOG: trace
+
+      - name: Run tests
+        run: |
+          cargo tarpaulin --out xml --verbose
+
+      - name: Upload reports to codecov
+        uses: codecov/codecov-action@v5
+        with:
+          name: code-coverage-report
+          file: cobertura.xml
+          flags: unit-tests
+          fail_ci_if_error: true
+          verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Build Release
         run: cargo build --verbose --release
