@@ -43,14 +43,12 @@ impl TemplateSource {
             Self::FileSystem(PathBuf::from(s))
         };
 
-        let loader: Box<dyn TemplateLoader> = match source {
+        match source {
             TemplateSource::Git(repo) => {
-                Box::new(GitLoader::new(repo, skip_overwrite_check))
+                GitLoader::new(repo, skip_overwrite_check).load()
             }
-            TemplateSource::FileSystem(path) => Box::new(LocalLoader::new(path)),
-        };
-
-        loader.load()
+            TemplateSource::FileSystem(path) => LocalLoader::new(path).load(),
+        }
     }
 
     /// Determines if a string represents a git repository URL.
