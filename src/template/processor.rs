@@ -214,8 +214,8 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::{
-        ignore::parse_bakerignore_file, renderer::MiniJinjaRenderer,
-        template::operation::TemplateOperation,
+        ignore::parse_bakerignore_file,
+        template::{get_template_engine, operation::TemplateOperation},
     };
 
     use super::*;
@@ -245,10 +245,10 @@ mod tests {
         let mut temp_file = File::create(&file_path).unwrap();
         temp_file.write_all(b"{{greetings}}").unwrap();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,
@@ -293,10 +293,10 @@ mod tests {
         let mut temp_file = File::create(&file_path).unwrap();
         temp_file.write_all(b"Hello, World").unwrap();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,
@@ -345,10 +345,10 @@ mod tests {
         let mut temp_file = File::create(&file_path).unwrap();
         temp_file.write_all(b"{{greetings}}").unwrap();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,
@@ -396,10 +396,10 @@ mod tests {
         let mut temp_file = File::create(&file_path).unwrap();
         temp_file.write_all(b"{{greetings}}").unwrap();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,
@@ -441,10 +441,10 @@ mod tests {
         let output_root = TempDir::new().unwrap();
         let output_root = output_root.path();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,
@@ -486,10 +486,10 @@ mod tests {
         let output_root = TempDir::new().unwrap();
         let output_root = output_root.path();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,
@@ -538,10 +538,10 @@ mod tests {
         let output_root = TempDir::new().unwrap();
         let output_root = output_root.path();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,
@@ -586,10 +586,10 @@ mod tests {
         let mut temp_file = File::create(&file_path).unwrap();
         temp_file.write_all(b"{{greetings}}").unwrap();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,
@@ -634,10 +634,10 @@ mod tests {
         let mut temp_file = File::create(&file_path).unwrap();
         temp_file.write_all(b"{{greetings}}").unwrap();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,
@@ -682,10 +682,10 @@ mod tests {
         let mut temp_file = File::create(&file_path).unwrap();
         temp_file.write_all(b"{{first_name}} {{last_name}}").unwrap();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,
@@ -730,10 +730,10 @@ mod tests {
         let mut temp_file = File::create(&file_path).unwrap();
         temp_file.write_all(b"{{first_name}} {{last_name}}").unwrap();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,
@@ -793,10 +793,10 @@ mod tests {
         let mut temp_file = File::create(&file_path).unwrap();
         temp_file.write_all(b"{{first_name}} {{last_name}}").unwrap();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,
@@ -836,10 +836,10 @@ mod tests {
         let mut temp_file = File::create(&file_path).unwrap();
         temp_file.write_all(b"{{first_name}} {{last_name}}").unwrap();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,
@@ -897,10 +897,10 @@ mod tests {
         let mut temp_file = File::create(&file_path).unwrap();
         temp_file.write_all(b"{{first_name}} {{last_name}}").unwrap();
 
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
         let ignored_patterns = parse_bakerignore_file(template_root).unwrap();
         let processor = TemplateProcessor::new(
-            engine.as_ref(),
+            &engine,
             &template_root,
             &output_root,
             &answers,

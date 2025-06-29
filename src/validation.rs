@@ -73,7 +73,7 @@ pub fn validate_answer(
 mod tests {
     use super::*;
     use crate::config::{Type, Validation};
-    use crate::renderer::MiniJinjaRenderer;
+    use crate::template::get_template_engine;
     use serde_json::json;
 
     #[test]
@@ -126,7 +126,7 @@ mod tests {
                 "error"
             );
         let answer = json!({"foo": "bar"});
-        let engine = MiniJinjaRenderer::new();
+        let engine = get_template_engine();
         let answers = json!({});
         assert!(validate_answer(&question, &answer, &engine, &answers).is_ok());
     }
@@ -139,7 +139,7 @@ mod tests {
                 "error"
             );
         let answer = json!({"foo": 123});
-        let engine = MiniJinjaRenderer::new();
+        let engine = get_template_engine();
         let answers = json!({});
         assert!(matches!(
             validate_answer(&question, &answer, &engine, &answers),
@@ -151,7 +151,7 @@ mod tests {
     fn test_validate_answer_field_validation_valid() {
         let question = make_question_json(None, "true", "error");
         let answer = json!("anything");
-        let engine = MiniJinjaRenderer::new();
+        let engine = get_template_engine();
         let answers = json!({});
         assert!(validate_answer(&question, &answer, &engine, &answers).is_ok());
     }
@@ -174,7 +174,7 @@ mod tests {
         };
 
         let answer = serde_json::json!("anything");
-        let engine = MiniJinjaRenderer::new();
+        let engine = get_template_engine();
         let answers = serde_json::json!({});
         let err = validate_answer(&question, &answer, &engine, &answers).unwrap_err();
         match err {

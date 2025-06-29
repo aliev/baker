@@ -8,10 +8,12 @@ use crate::{
         copy_file, create_dir_all, get_output_dir, parse_string_to_json, read_from,
         write_file,
     },
-    loader::TemplateSource,
+    loader::get_template,
     prompt::{ask_question, confirm},
-    renderer::{MiniJinjaRenderer, TemplateRenderer},
-    template::{operation::TemplateOperation, processor::TemplateProcessor},
+    renderer::TemplateRenderer,
+    template::{
+        get_template_engine, operation::TemplateOperation, processor::TemplateProcessor,
+    },
     validation::{validate_answer, ValidationError},
 };
 use clap::{error::ErrorKind, CommandFactory, Parser, ValueEnum};
@@ -143,11 +145,11 @@ pub fn get_args() -> Args {
 }
 
 pub fn run(args: Args) -> Result<()> {
-    let mut engine: Box<dyn TemplateRenderer> = Box::new(MiniJinjaRenderer::new());
+    let mut engine = get_template_engine();
 
     let output_root = get_output_dir(args.output_dir, args.force)?;
 
-    let template_root = TemplateSource::from_string(
+    let template_root = get_template(
         args.template.as_str(),
         args.skip_confirms.contains(&crate::cli::SkipConfirm::All)
             || args.skip_confirms.contains(&crate::cli::SkipConfirm::Overwrite),
@@ -158,7 +160,7 @@ pub fn run(args: Args) -> Result<()> {
     let Config::V1(config) = config;
     config.validate()?;
 
-    add_templates_in_renderer(&template_root, &config, engine.as_mut());
+    add_templates_in_renderer(&template_root, &config, &mut engine);
 
     let pre_hook_filename = engine.render(
         &config.pre_hook_filename,
@@ -222,7 +224,7 @@ pub fn run(args: Args) -> Result<()> {
     for (key, question) in config.questions {
         loop {
             let QuestionRendered { help, default, ask_if, .. } =
-                question.render(&key, &json!(answers), engine.as_ref());
+                question.render(&key, &json!(answers), &engine);
 
             // Determine if we should skip interactive prompting based on:
             // 1. User explicitly requested non-interactive mode with --non-interactive flag, OR
@@ -256,7 +258,7 @@ pub fn run(args: Args) -> Result<()> {
             answers.insert(key.clone(), answer.clone());
             let _answers = serde_json::Value::Object(answers.clone());
 
-            match validate_answer(&question, &answer, engine.as_ref(), &_answers) {
+            match validate_answer(&question, &answer, &engine, &_answers) {
                 Ok(_) => break,
                 Err(err) => match err {
                     ValidationError::JsonSchema(msg) => println!("{msg}"),
@@ -272,7 +274,7 @@ pub fn run(args: Args) -> Result<()> {
     let bakerignore = parse_bakerignore_file(&template_root)?;
 
     let processor = TemplateProcessor::new(
-        engine.as_ref(),
+        &engine,
         &template_root,
         &output_root,
         &answers,

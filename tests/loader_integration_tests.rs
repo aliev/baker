@@ -1,4 +1,7 @@
-use baker::loader::{LocalLoader, TemplateLoader, TemplateSource};
+use baker::loader::get_template;
+use baker::loader::git::GitLoader;
+use baker::loader::interface::TemplateLoader;
+use baker::loader::local::LocalLoader;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -35,14 +38,14 @@ fn test_template_source_from_string_local_path() {
     fs::write(template_path.join("baker.yaml"), "project_name: test").unwrap();
 
     // Test that local paths are correctly identified and loaded
-    let result = TemplateSource::from_string(template_path.to_str().unwrap(), true);
+    let result = get_template(template_path.to_str().unwrap(), true);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), template_path);
 }
 
 #[test]
 fn test_template_source_from_string_invalid_local_path() {
-    let result = TemplateSource::from_string("/path/that/does/not/exist", true);
+    let result = get_template("/path/that/does/not/exist", true);
     assert!(result.is_err());
 }
 
@@ -57,7 +60,11 @@ fn test_ssh_url_identification() {
     ];
 
     for url in ssh_urls {
-        assert!(TemplateSource::is_git_url(url), "Failed to identify {} as git URL", url);
+        assert!(
+            GitLoader::<&str>::is_git_url(url),
+            "Failed to identify {} as git URL",
+            url
+        );
     }
 }
 
@@ -72,7 +79,11 @@ fn test_https_url_identification() {
     ];
 
     for url in https_urls {
-        assert!(TemplateSource::is_git_url(url), "Failed to identify {} as git URL", url);
+        assert!(
+            GitLoader::<&str>::is_git_url(url),
+            "Failed to identify {} as git URL",
+            url
+        );
     }
 }
 
@@ -89,7 +100,7 @@ fn test_local_path_identification() {
 
     for path in local_paths {
         assert!(
-            !TemplateSource::is_git_url(path),
+            !GitLoader::<&str>::is_git_url(path),
             "Incorrectly identified {} as git URL",
             path
         );
