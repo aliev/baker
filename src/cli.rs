@@ -149,7 +149,7 @@ pub fn run(args: Args) -> Result<()> {
 
     let output_root = get_output_dir(args.output_dir, args.force)?;
 
-    let template_root = TemplateSource::from_string(
+    let template_root = TemplateSource::load_from_string(
         args.template.as_str(),
         args.skip_confirms.contains(&crate::cli::SkipConfirm::All)
             || args.skip_confirms.contains(&crate::cli::SkipConfirm::Overwrite),
