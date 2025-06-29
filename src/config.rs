@@ -286,9 +286,8 @@ impl Question {
 mod tests {
     use serde_json::json;
 
-    use crate::renderer::MiniJinjaRenderer;
-
     use super::*;
+    use crate::template::get_template_engine;
 
     #[test]
     fn it_works_1() {
@@ -303,13 +302,13 @@ mod tests {
             schema: None,
             validation: get_default_validation(),
         };
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
 
         let answers = json!({
             "prev_answer": "World"
         });
 
-        let result = question.render("question1".as_ref(), &answers, &*engine);
+        let result = question.render("question1".as_ref(), &answers, &engine);
         let QuestionRendered { ask_if, help, default, r#type } = result;
         assert!(!ask_if);
         assert_eq!(help, "Hello, World".to_string());
@@ -336,13 +335,13 @@ mod tests {
             schema: None,
             validation: get_default_validation(),
         };
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
 
         let answers = json!({
             "question": "Please select your stack"
         });
 
-        let result = question.render("question1".as_ref(), &answers, &*engine);
+        let result = question.render("question1".as_ref(), &answers, &engine);
         let QuestionRendered { ask_if, help, default, r#type } = result;
         assert!(ask_if);
         assert_eq!(help, "Please select your stack".to_string());
@@ -363,11 +362,11 @@ mod tests {
             schema: None,
             validation: get_default_validation(),
         };
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
 
         let answers = json!({});
 
-        let result = question.render("question1".as_ref(), &answers, &*engine);
+        let result = question.render("question1".as_ref(), &answers, &engine);
         let QuestionRendered { ask_if, r#type, .. } = result;
         assert!(ask_if);
         assert_eq!(r#type, QuestionType::Text);
@@ -385,11 +384,11 @@ mod tests {
             schema: None,
             validation: get_default_validation(),
         };
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
 
         let answers = json!({"answer": "Here is an answer"});
 
-        let result = question.render("question1".as_ref(), &answers, &*engine);
+        let result = question.render("question1".as_ref(), &answers, &engine);
         let QuestionRendered { ask_if, r#type, .. } = result;
         assert!(!ask_if);
         assert_eq!(r#type, QuestionType::Text);
@@ -407,11 +406,11 @@ mod tests {
             schema: None,
             validation: get_default_validation(),
         };
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
 
         let answers = json!({"question1": "This is a default value for the question1"});
 
-        let result = question.render("question1".as_ref(), &answers, &*engine);
+        let result = question.render("question1".as_ref(), &answers, &engine);
         let QuestionRendered { ask_if, r#type, default, .. } = result;
         assert!(!ask_if);
         assert_eq!(r#type, QuestionType::Text);
@@ -430,11 +429,11 @@ mod tests {
             schema: None,
             validation: get_default_validation(),
         };
-        let engine = Box::new(MiniJinjaRenderer::new());
+        let engine = get_template_engine();
 
         let answers = json!({});
 
-        let result = question.render("question1".as_ref(), &answers, &*engine);
+        let result = question.render("question1".as_ref(), &answers, &engine);
         let QuestionRendered { ask_if, r#type, default, .. } = result;
         assert!(ask_if);
         assert_eq!(r#type, QuestionType::Text);
