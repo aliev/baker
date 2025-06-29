@@ -8,7 +8,7 @@ use crate::{
         copy_file, create_dir_all, get_output_dir, parse_string_to_json, read_from,
         write_file,
     },
-    loader::TemplateSource,
+    loader::get_template,
     prompt::{ask_question, confirm},
     renderer::TemplateRenderer,
     template::{
@@ -149,7 +149,7 @@ pub fn run(args: Args) -> Result<()> {
 
     let output_root = get_output_dir(args.output_dir, args.force)?;
 
-    let template_root = TemplateSource::load_from_string(
+    let template_root = get_template(
         args.template.as_str(),
         args.skip_confirms.contains(&crate::cli::SkipConfirm::All)
             || args.skip_confirms.contains(&crate::cli::SkipConfirm::Overwrite),

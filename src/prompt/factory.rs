@@ -1,7 +1,7 @@
-//! Adapter layer for converting between old and new prompt systems
+//! Factory for creating and executing different types of prompts
 //!
-//! This module provides backward compatibility by adapting the existing
-//! prompt system to use the new interface-based architecture.
+//! This module provides a unified interface for prompt creation and execution,
+//! automatically selecting the appropriate prompt type based on input configuration.
 
 use super::interface::{
     ConfirmationConfig, MultipleChoiceConfig, PromptProvider, SecretConfig,
@@ -14,18 +14,18 @@ use crate::{
 };
 use serde_json::Value;
 
-/// Adapter that converts PromptContext to interface configurations
-pub struct PromptAdapter<P: PromptProvider> {
+/// Factory that creates and executes prompts based on context configuration
+pub struct PromptFactory<P: PromptProvider> {
     provider: P,
 }
 
-impl<P: PromptProvider> PromptAdapter<P> {
+impl<P: PromptProvider> PromptFactory<P> {
     pub fn new(provider: P) -> Self {
         Self { provider }
     }
 
-    /// Main prompt method that delegates to appropriate interface
-    pub fn prompt(&self, prompt_context: &PromptContext) -> Result<Value> {
+    /// Creates and executes a prompt based on the provided context
+    pub fn create_prompt(&self, prompt_context: &PromptContext) -> Result<Value> {
         match prompt_context.question.into_question_type() {
             QuestionType::Text => self.prompt_text(prompt_context),
             QuestionType::SingleChoice => self.prompt_single_choice(prompt_context),
@@ -429,13 +429,13 @@ mod tests {
     #[test]
     fn test_prompt_text_basic() {
         let mock = MockProvider::new().with_text_response("Alice".to_string());
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let question = create_text_question();
         let default_value = json!("John");
         let context = PromptContext::new(&question, &default_value, "Enter your name");
 
-        let result = adapter.prompt(&context).unwrap();
+        let result = adapter.create_prompt(&context).unwrap();
         assert_eq!(result, Value::String("Alice".to_string()));
 
         let calls = adapter.provider.get_text_calls();
@@ -448,12 +448,12 @@ mod tests {
     #[test]
     fn test_prompt_text_with_secret() {
         let mock = MockProvider::new().with_text_response("secret123".to_string());
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let question = create_secret_question();
         let context = PromptContext::new(&question, &Value::Null, "Enter password");
 
-        let result = adapter.prompt(&context).unwrap();
+        let result = adapter.create_prompt(&context).unwrap();
         assert_eq!(result, Value::String("secret123".to_string()));
 
         let calls = adapter.provider.get_text_calls();
@@ -470,12 +470,12 @@ mod tests {
     #[test]
     fn test_prompt_text_empty_default() {
         let mock = MockProvider::new().with_text_response("response".to_string());
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let question = create_text_question();
         let context = PromptContext::new(&question, &Value::Null, "Enter text");
 
-        let result = adapter.prompt(&context).unwrap();
+        let result = adapter.create_prompt(&context).unwrap();
         assert_eq!(result, Value::String("response".to_string()));
 
         let calls = adapter.provider.get_text_calls();
@@ -486,14 +486,14 @@ mod tests {
     #[test]
     fn test_prompt_single_choice() {
         let mock = MockProvider::new().with_single_choice_response(1);
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let question = create_single_choice_question();
         let default_value = json!("blue");
         let context =
             PromptContext::new(&question, &default_value, "Choose your favorite color");
 
-        let result = adapter.prompt(&context).unwrap();
+        let result = adapter.create_prompt(&context).unwrap();
         assert_eq!(result, Value::String("blue".to_string()));
 
         let calls = adapter.provider.get_single_choice_calls();
@@ -506,13 +506,13 @@ mod tests {
     #[test]
     fn test_prompt_single_choice_no_default() {
         let mock = MockProvider::new().with_single_choice_response(0);
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let question = create_single_choice_question();
         let context =
             PromptContext::new(&question, &Value::Null, "Choose your favorite color");
 
-        let result = adapter.prompt(&context).unwrap();
+        let result = adapter.create_prompt(&context).unwrap();
         assert_eq!(result, Value::String("red".to_string()));
 
         let calls = adapter.provider.get_single_choice_calls();
@@ -523,14 +523,14 @@ mod tests {
     #[test]
     fn test_prompt_multiple_choice() {
         let mock = MockProvider::new().with_multiple_choice_response(vec![0, 1]);
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let question = create_multiple_choice_question();
         let default_value = json!(["rust", "python"]);
         let context =
             PromptContext::new(&question, &default_value, "Select languages you know");
 
-        let result = adapter.prompt(&context).unwrap();
+        let result = adapter.create_prompt(&context).unwrap();
         assert_eq!(
             result,
             Value::Array(vec![
@@ -549,13 +549,13 @@ mod tests {
     #[test]
     fn test_prompt_multiple_choice_empty_defaults() {
         let mock = MockProvider::new().with_multiple_choice_response(vec![2]);
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let question = create_multiple_choice_question();
         let context =
             PromptContext::new(&question, &Value::Null, "Select languages you know");
 
-        let result = adapter.prompt(&context).unwrap();
+        let result = adapter.create_prompt(&context).unwrap();
         assert_eq!(result, Value::Array(vec![Value::String("go".to_string())]));
 
         let calls = adapter.provider.get_multiple_choice_calls();
@@ -566,13 +566,13 @@ mod tests {
     #[test]
     fn test_prompt_confirmation_true() {
         let mock = MockProvider::new().with_confirmation_response(true);
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let question = create_boolean_question();
         let context =
             PromptContext::new(&question, &json!(true), "Do you want to continue?");
 
-        let result = adapter.prompt(&context).unwrap();
+        let result = adapter.create_prompt(&context).unwrap();
         assert_eq!(result, Value::Bool(true));
 
         let calls = adapter.provider.get_confirmation_calls();
@@ -584,13 +584,13 @@ mod tests {
     #[test]
     fn test_prompt_confirmation_false() {
         let mock = MockProvider::new().with_confirmation_response(false);
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let question = create_boolean_question();
         let context =
             PromptContext::new(&question, &json!(false), "Do you want to continue?");
 
-        let result = adapter.prompt(&context).unwrap();
+        let result = adapter.create_prompt(&context).unwrap();
         assert_eq!(result, Value::Bool(false));
 
         let calls = adapter.provider.get_confirmation_calls();
@@ -601,13 +601,13 @@ mod tests {
     #[test]
     fn test_prompt_confirmation_null_default() {
         let mock = MockProvider::new().with_confirmation_response(true);
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let question = create_boolean_question();
         let context =
             PromptContext::new(&question, &Value::Null, "Do you want to continue?");
 
-        let result = adapter.prompt(&context).unwrap();
+        let result = adapter.create_prompt(&context).unwrap();
         assert_eq!(result, Value::Bool(true));
 
         let calls = adapter.provider.get_confirmation_calls();
@@ -620,13 +620,13 @@ mod tests {
         let response_data = json!({"name": "test", "value": 42});
         let mock =
             MockProvider::new().with_structured_data_response(response_data.clone());
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let question = create_json_question();
         let default_value = json!({"key": "value"});
         let context = PromptContext::new(&question, &default_value, "Enter JSON data");
 
-        let result = adapter.prompt(&context).unwrap();
+        let result = adapter.create_prompt(&context).unwrap();
         assert_eq!(result, response_data);
 
         let calls = adapter.provider.get_structured_data_calls();
@@ -642,13 +642,13 @@ mod tests {
         let response_data = json!({"name": "test", "value": 42});
         let mock =
             MockProvider::new().with_structured_data_response(response_data.clone());
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let question = create_yaml_question();
         let default_value = json!({"key": "value"});
         let context = PromptContext::new(&question, &default_value, "Enter YAML data");
 
-        let result = adapter.prompt(&context).unwrap();
+        let result = adapter.create_prompt(&context).unwrap();
         assert_eq!(result, response_data);
 
         let calls = adapter.provider.get_structured_data_calls();
@@ -662,7 +662,7 @@ mod tests {
     #[test]
     fn test_value_to_default_string() {
         let mock = MockProvider::new();
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         assert_eq!(adapter.value_to_default_string(&json!("test")), "test");
         assert_eq!(adapter.value_to_default_string(&Value::Null), "");
@@ -677,7 +677,7 @@ mod tests {
     #[test]
     fn test_find_default_choice_index() {
         let mock = MockProvider::new();
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let choices = vec!["red".to_string(), "blue".to_string(), "green".to_string()];
 
@@ -691,7 +691,7 @@ mod tests {
     #[test]
     fn test_extract_string_array() {
         let mock = MockProvider::new();
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         assert_eq!(
             adapter.extract_string_array(&json!(["a", "b", "c"])),
@@ -711,7 +711,7 @@ mod tests {
     #[test]
     fn test_create_choice_defaults() {
         let mock = MockProvider::new();
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let choices = vec!["rust".to_string(), "python".to_string(), "go".to_string()];
         let defaults = vec!["rust".to_string(), "go".to_string()];
@@ -723,7 +723,7 @@ mod tests {
     #[test]
     fn test_secret_config_with_empty_mismatch_error() {
         let mock = MockProvider::new().with_text_response("password".to_string());
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         let mut question = create_secret_question();
         question.secret = Some(Secret {
@@ -733,7 +733,7 @@ mod tests {
 
         let context = PromptContext::new(&question, &Value::Null, "Enter password");
 
-        let _result = adapter.prompt(&context).unwrap();
+        let _result = adapter.create_prompt(&context).unwrap();
 
         let calls = adapter.provider.get_text_calls();
         assert_eq!(calls.len(), 1);
@@ -745,7 +745,7 @@ mod tests {
     #[test]
     fn test_adapter_new() {
         let mock = MockProvider::new();
-        let adapter = PromptAdapter::new(mock);
+        let adapter = PromptFactory::new(mock);
 
         // Just verify we can create the adapter
         // The actual functionality is tested in other tests

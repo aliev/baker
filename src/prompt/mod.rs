@@ -6,7 +6,7 @@
 //! The module is structured in layers:
 //! - `interface`: Pure abstract interfaces independent of any UI library
 //! - `dialoguer`: Concrete implementation using the dialoguer library
-//! - `adapter`: Backward compatibility layer for existing code
+//! - `factory`: Factory for creating and executing prompts based on configuration
 
 use crate::{
     config::{Question, Type},
@@ -14,9 +14,8 @@ use crate::{
     prompt::dialoguer::DialoguerPrompter,
 };
 
-// New interface-based architecture
-pub mod adapter;
 pub mod dialoguer;
+pub mod factory;
 pub mod interface;
 pub mod parser;
 
@@ -58,8 +57,8 @@ pub fn ask_question(
 ) -> Result<serde_json::Value> {
     let context = PromptContext::new(question, default, &help);
     let provider = get_prompt_provider();
-    let adapter = adapter::PromptAdapter::new(provider);
-    adapter.prompt(&context)
+    let factory = factory::PromptFactory::new(provider);
+    factory.create_prompt(&context)
 }
 
 /// Simple confirmation function for backward compatibility
@@ -86,8 +85,8 @@ pub fn confirm(skip: bool, prompt: String) -> Result<bool> {
     let default_value = serde_json::Value::Bool(false);
     let context = PromptContext::new(&question, &default_value, &question.help);
     let provider = get_prompt_provider();
-    let adapter = adapter::PromptAdapter::new(provider);
-    let result = adapter.prompt(&context)?;
+    let factory = factory::PromptFactory::new(provider);
+    let result = factory.create_prompt(&context)?;
 
     Ok(result.as_bool().unwrap_or(false))
 }

@@ -1,7 +1,7 @@
+use baker::loader::get_template;
 use baker::loader::git::GitLoader;
 use baker::loader::interface::TemplateLoader;
 use baker::loader::local::LocalLoader;
-use baker::loader::TemplateSource;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -38,14 +38,14 @@ fn test_template_source_from_string_local_path() {
     fs::write(template_path.join("baker.yaml"), "project_name: test").unwrap();
 
     // Test that local paths are correctly identified and loaded
-    let result = TemplateSource::load_from_string(template_path.to_str().unwrap(), true);
+    let result = get_template(template_path.to_str().unwrap(), true);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), template_path);
 }
 
 #[test]
 fn test_template_source_from_string_invalid_local_path() {
-    let result = TemplateSource::load_from_string("/path/that/does/not/exist", true);
+    let result = get_template("/path/that/does/not/exist", true);
     assert!(result.is_err());
 }
 
