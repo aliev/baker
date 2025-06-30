@@ -14,12 +14,12 @@ use crate::{
 };
 use serde_json::Value;
 
-/// Factory that creates and executes prompts based on context configuration
-pub struct PromptFactory<P: PromptProvider> {
+/// Creates and executes prompts based on context configuration
+pub struct PromptHandler<P: PromptProvider> {
     provider: P,
 }
 
-impl<P: PromptProvider> PromptFactory<P> {
+impl<P: PromptProvider> PromptHandler<P> {
     pub fn new(provider: P) -> Self {
         Self { provider }
     }
@@ -429,7 +429,7 @@ mod tests {
     #[test]
     fn test_prompt_text_basic() {
         let mock = MockProvider::new().with_text_response("Alice".to_string());
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let question = create_text_question();
         let default_value = json!("John");
@@ -448,7 +448,7 @@ mod tests {
     #[test]
     fn test_prompt_text_with_secret() {
         let mock = MockProvider::new().with_text_response("secret123".to_string());
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let question = create_secret_question();
         let context = PromptContext::new(&question, &Value::Null, "Enter password");
@@ -470,7 +470,7 @@ mod tests {
     #[test]
     fn test_prompt_text_empty_default() {
         let mock = MockProvider::new().with_text_response("response".to_string());
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let question = create_text_question();
         let context = PromptContext::new(&question, &Value::Null, "Enter text");
@@ -486,7 +486,7 @@ mod tests {
     #[test]
     fn test_prompt_single_choice() {
         let mock = MockProvider::new().with_single_choice_response(1);
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let question = create_single_choice_question();
         let default_value = json!("blue");
@@ -506,7 +506,7 @@ mod tests {
     #[test]
     fn test_prompt_single_choice_no_default() {
         let mock = MockProvider::new().with_single_choice_response(0);
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let question = create_single_choice_question();
         let context =
@@ -523,7 +523,7 @@ mod tests {
     #[test]
     fn test_prompt_multiple_choice() {
         let mock = MockProvider::new().with_multiple_choice_response(vec![0, 1]);
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let question = create_multiple_choice_question();
         let default_value = json!(["rust", "python"]);
@@ -549,7 +549,7 @@ mod tests {
     #[test]
     fn test_prompt_multiple_choice_empty_defaults() {
         let mock = MockProvider::new().with_multiple_choice_response(vec![2]);
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let question = create_multiple_choice_question();
         let context =
@@ -566,7 +566,7 @@ mod tests {
     #[test]
     fn test_prompt_confirmation_true() {
         let mock = MockProvider::new().with_confirmation_response(true);
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let question = create_boolean_question();
         let context =
@@ -584,7 +584,7 @@ mod tests {
     #[test]
     fn test_prompt_confirmation_false() {
         let mock = MockProvider::new().with_confirmation_response(false);
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let question = create_boolean_question();
         let context =
@@ -601,7 +601,7 @@ mod tests {
     #[test]
     fn test_prompt_confirmation_null_default() {
         let mock = MockProvider::new().with_confirmation_response(true);
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let question = create_boolean_question();
         let context =
@@ -620,7 +620,7 @@ mod tests {
         let response_data = json!({"name": "test", "value": 42});
         let mock =
             MockProvider::new().with_structured_data_response(response_data.clone());
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let question = create_json_question();
         let default_value = json!({"key": "value"});
@@ -642,7 +642,7 @@ mod tests {
         let response_data = json!({"name": "test", "value": 42});
         let mock =
             MockProvider::new().with_structured_data_response(response_data.clone());
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let question = create_yaml_question();
         let default_value = json!({"key": "value"});
@@ -662,7 +662,7 @@ mod tests {
     #[test]
     fn test_value_to_default_string() {
         let mock = MockProvider::new();
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         assert_eq!(adapter.value_to_default_string(&json!("test")), "test");
         assert_eq!(adapter.value_to_default_string(&Value::Null), "");
@@ -677,7 +677,7 @@ mod tests {
     #[test]
     fn test_find_default_choice_index() {
         let mock = MockProvider::new();
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let choices = vec!["red".to_string(), "blue".to_string(), "green".to_string()];
 
@@ -691,7 +691,7 @@ mod tests {
     #[test]
     fn test_extract_string_array() {
         let mock = MockProvider::new();
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         assert_eq!(
             adapter.extract_string_array(&json!(["a", "b", "c"])),
@@ -711,7 +711,7 @@ mod tests {
     #[test]
     fn test_create_choice_defaults() {
         let mock = MockProvider::new();
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let choices = vec!["rust".to_string(), "python".to_string(), "go".to_string()];
         let defaults = vec!["rust".to_string(), "go".to_string()];
@@ -723,7 +723,7 @@ mod tests {
     #[test]
     fn test_secret_config_with_empty_mismatch_error() {
         let mock = MockProvider::new().with_text_response("password".to_string());
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         let mut question = create_secret_question();
         question.secret = Some(Secret {
@@ -745,7 +745,7 @@ mod tests {
     #[test]
     fn test_adapter_new() {
         let mock = MockProvider::new();
-        let adapter = PromptFactory::new(mock);
+        let adapter = PromptHandler::new(mock);
 
         // Just verify we can create the adapter
         // The actual functionality is tested in other tests

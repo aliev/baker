@@ -15,7 +15,7 @@ use crate::{
 };
 
 pub mod dialoguer;
-pub mod factory;
+pub mod handler;
 pub mod interface;
 pub mod parser;
 
@@ -57,7 +57,7 @@ pub fn ask_question(
 ) -> Result<serde_json::Value> {
     let context = PromptContext::new(question, default, &help);
     let provider = get_prompt_provider();
-    let factory = factory::PromptFactory::new(provider);
+    let factory = handler::PromptHandler::new(provider);
     factory.create_prompt(&context)
 }
 
@@ -85,7 +85,7 @@ pub fn confirm(skip: bool, prompt: String) -> Result<bool> {
     let default_value = serde_json::Value::Bool(false);
     let context = PromptContext::new(&question, &default_value, &question.help);
     let provider = get_prompt_provider();
-    let factory = factory::PromptFactory::new(provider);
+    let factory = handler::PromptHandler::new(provider);
     let result = factory.create_prompt(&context)?;
 
     Ok(result.as_bool().unwrap_or(false))
