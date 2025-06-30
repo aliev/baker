@@ -429,16 +429,16 @@ mod tests {
     #[test]
     fn test_prompt_text_basic() {
         let mock = MockProvider::new().with_text_response("Alice".to_string());
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let question = create_text_question();
         let default_value = json!("John");
         let context = PromptContext::new(&question, &default_value, "Enter your name");
 
-        let result = adapter.create_prompt(&context).unwrap();
+        let result = prompt_handler.create_prompt(&context).unwrap();
         assert_eq!(result, Value::String("Alice".to_string()));
 
-        let calls = adapter.provider.get_text_calls();
+        let calls = prompt_handler.provider.get_text_calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].prompt, "Enter your name");
         assert_eq!(calls[0].default, Some("John".to_string()));
@@ -448,15 +448,15 @@ mod tests {
     #[test]
     fn test_prompt_text_with_secret() {
         let mock = MockProvider::new().with_text_response("secret123".to_string());
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let question = create_secret_question();
         let context = PromptContext::new(&question, &Value::Null, "Enter password");
 
-        let result = adapter.create_prompt(&context).unwrap();
+        let result = prompt_handler.create_prompt(&context).unwrap();
         assert_eq!(result, Value::String("secret123".to_string()));
 
-        let calls = adapter.provider.get_text_calls();
+        let calls = prompt_handler.provider.get_text_calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].prompt, "Enter password");
         assert_eq!(calls[0].default, None);
@@ -470,15 +470,15 @@ mod tests {
     #[test]
     fn test_prompt_text_empty_default() {
         let mock = MockProvider::new().with_text_response("response".to_string());
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let question = create_text_question();
         let context = PromptContext::new(&question, &Value::Null, "Enter text");
 
-        let result = adapter.create_prompt(&context).unwrap();
+        let result = prompt_handler.create_prompt(&context).unwrap();
         assert_eq!(result, Value::String("response".to_string()));
 
-        let calls = adapter.provider.get_text_calls();
+        let calls = prompt_handler.provider.get_text_calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].default, None);
     }
@@ -486,17 +486,17 @@ mod tests {
     #[test]
     fn test_prompt_single_choice() {
         let mock = MockProvider::new().with_single_choice_response(1);
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let question = create_single_choice_question();
         let default_value = json!("blue");
         let context =
             PromptContext::new(&question, &default_value, "Choose your favorite color");
 
-        let result = adapter.create_prompt(&context).unwrap();
+        let result = prompt_handler.create_prompt(&context).unwrap();
         assert_eq!(result, Value::String("blue".to_string()));
 
-        let calls = adapter.provider.get_single_choice_calls();
+        let calls = prompt_handler.provider.get_single_choice_calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].prompt, "Choose your favorite color");
         assert_eq!(calls[0].choices, vec!["red", "blue", "green"]);
@@ -506,16 +506,16 @@ mod tests {
     #[test]
     fn test_prompt_single_choice_no_default() {
         let mock = MockProvider::new().with_single_choice_response(0);
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let question = create_single_choice_question();
         let context =
             PromptContext::new(&question, &Value::Null, "Choose your favorite color");
 
-        let result = adapter.create_prompt(&context).unwrap();
+        let result = prompt_handler.create_prompt(&context).unwrap();
         assert_eq!(result, Value::String("red".to_string()));
 
-        let calls = adapter.provider.get_single_choice_calls();
+        let calls = prompt_handler.provider.get_single_choice_calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].default_index, None);
     }
@@ -523,14 +523,14 @@ mod tests {
     #[test]
     fn test_prompt_multiple_choice() {
         let mock = MockProvider::new().with_multiple_choice_response(vec![0, 1]);
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let question = create_multiple_choice_question();
         let default_value = json!(["rust", "python"]);
         let context =
             PromptContext::new(&question, &default_value, "Select languages you know");
 
-        let result = adapter.create_prompt(&context).unwrap();
+        let result = prompt_handler.create_prompt(&context).unwrap();
         assert_eq!(
             result,
             Value::Array(vec![
@@ -539,7 +539,7 @@ mod tests {
             ])
         );
 
-        let calls = adapter.provider.get_multiple_choice_calls();
+        let calls = prompt_handler.provider.get_multiple_choice_calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].prompt, "Select languages you know");
         assert_eq!(calls[0].choices, vec!["rust", "python", "go", "java"]);
@@ -549,16 +549,16 @@ mod tests {
     #[test]
     fn test_prompt_multiple_choice_empty_defaults() {
         let mock = MockProvider::new().with_multiple_choice_response(vec![2]);
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let question = create_multiple_choice_question();
         let context =
             PromptContext::new(&question, &Value::Null, "Select languages you know");
 
-        let result = adapter.create_prompt(&context).unwrap();
+        let result = prompt_handler.create_prompt(&context).unwrap();
         assert_eq!(result, Value::Array(vec![Value::String("go".to_string())]));
 
-        let calls = adapter.provider.get_multiple_choice_calls();
+        let calls = prompt_handler.provider.get_multiple_choice_calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].defaults, vec![false, false, false, false]);
     }
@@ -566,16 +566,16 @@ mod tests {
     #[test]
     fn test_prompt_confirmation_true() {
         let mock = MockProvider::new().with_confirmation_response(true);
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let question = create_boolean_question();
         let context =
             PromptContext::new(&question, &json!(true), "Do you want to continue?");
 
-        let result = adapter.create_prompt(&context).unwrap();
+        let result = prompt_handler.create_prompt(&context).unwrap();
         assert_eq!(result, Value::Bool(true));
 
-        let calls = adapter.provider.get_confirmation_calls();
+        let calls = prompt_handler.provider.get_confirmation_calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].prompt, "Do you want to continue?");
         assert_eq!(calls[0].default, true);
@@ -584,16 +584,16 @@ mod tests {
     #[test]
     fn test_prompt_confirmation_false() {
         let mock = MockProvider::new().with_confirmation_response(false);
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let question = create_boolean_question();
         let context =
             PromptContext::new(&question, &json!(false), "Do you want to continue?");
 
-        let result = adapter.create_prompt(&context).unwrap();
+        let result = prompt_handler.create_prompt(&context).unwrap();
         assert_eq!(result, Value::Bool(false));
 
-        let calls = adapter.provider.get_confirmation_calls();
+        let calls = prompt_handler.provider.get_confirmation_calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].default, false);
     }
@@ -601,16 +601,16 @@ mod tests {
     #[test]
     fn test_prompt_confirmation_null_default() {
         let mock = MockProvider::new().with_confirmation_response(true);
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let question = create_boolean_question();
         let context =
             PromptContext::new(&question, &Value::Null, "Do you want to continue?");
 
-        let result = adapter.create_prompt(&context).unwrap();
+        let result = prompt_handler.create_prompt(&context).unwrap();
         assert_eq!(result, Value::Bool(true));
 
-        let calls = adapter.provider.get_confirmation_calls();
+        let calls = prompt_handler.provider.get_confirmation_calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].default, false); // should default to false for null
     }
@@ -620,16 +620,16 @@ mod tests {
         let response_data = json!({"name": "test", "value": 42});
         let mock =
             MockProvider::new().with_structured_data_response(response_data.clone());
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let question = create_json_question();
         let default_value = json!({"key": "value"});
         let context = PromptContext::new(&question, &default_value, "Enter JSON data");
 
-        let result = adapter.create_prompt(&context).unwrap();
+        let result = prompt_handler.create_prompt(&context).unwrap();
         assert_eq!(result, response_data);
 
-        let calls = adapter.provider.get_structured_data_calls();
+        let calls = prompt_handler.provider.get_structured_data_calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].prompt, "Enter JSON data");
         assert_eq!(calls[0].default_value, json!({"key": "value"}));
@@ -642,16 +642,16 @@ mod tests {
         let response_data = json!({"name": "test", "value": 42});
         let mock =
             MockProvider::new().with_structured_data_response(response_data.clone());
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let question = create_yaml_question();
         let default_value = json!({"key": "value"});
         let context = PromptContext::new(&question, &default_value, "Enter YAML data");
 
-        let result = adapter.create_prompt(&context).unwrap();
+        let result = prompt_handler.create_prompt(&context).unwrap();
         assert_eq!(result, response_data);
 
-        let calls = adapter.provider.get_structured_data_calls();
+        let calls = prompt_handler.provider.get_structured_data_calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].prompt, "Enter YAML data");
         assert_eq!(calls[0].default_value, json!({"key": "value"}));
@@ -662,14 +662,14 @@ mod tests {
     #[test]
     fn test_value_to_default_string() {
         let mock = MockProvider::new();
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
-        assert_eq!(adapter.value_to_default_string(&json!("test")), "test");
-        assert_eq!(adapter.value_to_default_string(&Value::Null), "");
-        assert_eq!(adapter.value_to_default_string(&json!(42)), "42");
-        assert_eq!(adapter.value_to_default_string(&json!(true)), "true");
+        assert_eq!(prompt_handler.value_to_default_string(&json!("test")), "test");
+        assert_eq!(prompt_handler.value_to_default_string(&Value::Null), "");
+        assert_eq!(prompt_handler.value_to_default_string(&json!(42)), "42");
+        assert_eq!(prompt_handler.value_to_default_string(&json!(true)), "true");
         assert_eq!(
-            adapter.value_to_default_string(&json!({"key": "value"})),
+            prompt_handler.value_to_default_string(&json!({"key": "value"})),
             r#"{"key":"value"}"#
         );
     }
@@ -677,33 +677,39 @@ mod tests {
     #[test]
     fn test_find_default_choice_index() {
         let mock = MockProvider::new();
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let choices = vec!["red".to_string(), "blue".to_string(), "green".to_string()];
 
-        assert_eq!(adapter.find_default_choice_index(&choices, &json!("blue")), 1);
-        assert_eq!(adapter.find_default_choice_index(&choices, &json!("red")), 0);
-        assert_eq!(adapter.find_default_choice_index(&choices, &json!("yellow")), 0);
-        assert_eq!(adapter.find_default_choice_index(&choices, &Value::Null), 0);
-        assert_eq!(adapter.find_default_choice_index(&choices, &json!(42)), 0);
+        assert_eq!(prompt_handler.find_default_choice_index(&choices, &json!("blue")), 1);
+        assert_eq!(prompt_handler.find_default_choice_index(&choices, &json!("red")), 0);
+        assert_eq!(
+            prompt_handler.find_default_choice_index(&choices, &json!("yellow")),
+            0
+        );
+        assert_eq!(prompt_handler.find_default_choice_index(&choices, &Value::Null), 0);
+        assert_eq!(prompt_handler.find_default_choice_index(&choices, &json!(42)), 0);
     }
 
     #[test]
     fn test_extract_string_array() {
         let mock = MockProvider::new();
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         assert_eq!(
-            adapter.extract_string_array(&json!(["a", "b", "c"])),
+            prompt_handler.extract_string_array(&json!(["a", "b", "c"])),
             vec!["a", "b", "c"]
         );
         assert_eq!(
-            adapter.extract_string_array(&json!(["a", 42, "c"])),
+            prompt_handler.extract_string_array(&json!(["a", 42, "c"])),
             vec!["a", "c"] // Should skip non-string values
         );
-        assert_eq!(adapter.extract_string_array(&Value::Null), Vec::<String>::new());
         assert_eq!(
-            adapter.extract_string_array(&json!("not an array")),
+            prompt_handler.extract_string_array(&Value::Null),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            prompt_handler.extract_string_array(&json!("not an array")),
             Vec::<String>::new()
         );
     }
@@ -711,19 +717,19 @@ mod tests {
     #[test]
     fn test_create_choice_defaults() {
         let mock = MockProvider::new();
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let choices = vec!["rust".to_string(), "python".to_string(), "go".to_string()];
         let defaults = vec!["rust".to_string(), "go".to_string()];
 
-        let result = adapter.create_choice_defaults(&choices, &defaults);
+        let result = prompt_handler.create_choice_defaults(&choices, &defaults);
         assert_eq!(result, vec![true, false, true]);
     }
 
     #[test]
     fn test_secret_config_with_empty_mismatch_error() {
         let mock = MockProvider::new().with_text_response("password".to_string());
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
         let mut question = create_secret_question();
         question.secret = Some(Secret {
@@ -733,9 +739,9 @@ mod tests {
 
         let context = PromptContext::new(&question, &Value::Null, "Enter password");
 
-        let _result = adapter.create_prompt(&context).unwrap();
+        let _result = prompt_handler.create_prompt(&context).unwrap();
 
-        let calls = adapter.provider.get_text_calls();
+        let calls = prompt_handler.provider.get_text_calls();
         assert_eq!(calls.len(), 1);
 
         let secret = calls[0].secret.as_ref().unwrap();
@@ -743,12 +749,15 @@ mod tests {
     }
 
     #[test]
-    fn test_adapter_new() {
+    fn test_prompt_handler_new() {
         let mock = MockProvider::new();
-        let adapter = PromptHandler::new(mock);
+        let prompt_handler = PromptHandler::new(mock);
 
-        // Just verify we can create the adapter
+        // Just verify we can create the prompt_handler
         // The actual functionality is tested in other tests
-        assert_eq!(std::mem::size_of_val(&adapter), std::mem::size_of::<MockProvider>());
+        assert_eq!(
+            std::mem::size_of_val(&prompt_handler),
+            std::mem::size_of::<MockProvider>()
+        );
     }
 }
