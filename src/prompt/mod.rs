@@ -57,8 +57,8 @@ pub fn ask_question(
 ) -> Result<serde_json::Value> {
     let context = PromptContext::new(question, default, &help);
     let provider = get_prompt_provider();
-    let factory = handler::PromptHandler::new(provider);
-    factory.create_prompt(&context)
+    let prompt_handler = handler::PromptHandler::new(provider);
+    prompt_handler.create_prompt(&context)
 }
 
 /// Simple confirmation function for backward compatibility
@@ -85,8 +85,8 @@ pub fn confirm(skip: bool, prompt: String) -> Result<bool> {
     let default_value = serde_json::Value::Bool(false);
     let context = PromptContext::new(&question, &default_value, &question.help);
     let provider = get_prompt_provider();
-    let factory = handler::PromptHandler::new(provider);
-    let result = factory.create_prompt(&context)?;
+    let prompt_handler = handler::PromptHandler::new(provider);
+    let result = prompt_handler.create_prompt(&context)?;
 
     Ok(result.as_bool().unwrap_or(false))
 }
