@@ -33,3 +33,5 @@ pub mod validation;
 
 /// Importing templates from a directory into renderer.
 pub mod import;
+
+pub mod metadata;

@@ -1,0 +1,10 @@
+{
+  "directory": "examples/import",
+  "answers": {
+    "database_config": {
+      "engine": "redis",
+      "host": "localhost",
+      "port": 6379
+    }
+  }
+}

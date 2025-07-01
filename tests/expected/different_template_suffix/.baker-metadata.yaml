@@ -1,0 +1,6 @@
+{
+  "directory": "tests/templates/different_template_suffix",
+  "answers": {
+    "message": "world!"
+  }
+}

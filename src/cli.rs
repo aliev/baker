@@ -1,3 +1,4 @@
+use crate::metadata::GenerationMetadata;
 use crate::{
     config::{Config, QuestionRendered},
     error::{Error, Result},
@@ -149,12 +150,13 @@ pub fn run(args: Args) -> Result<()> {
 
     let output_root = get_output_dir(args.output_dir, args.force)?;
 
-    let template_root = get_template(
+    let template = get_template(
         args.template.as_str(),
         args.skip_confirms.contains(&crate::cli::SkipConfirm::All)
             || args.skip_confirms.contains(&crate::cli::SkipConfirm::Overwrite),
     )?;
-
+    let template_root = template.0;
+    let template_metadata = template.1;
     let config = Config::load_config(&template_root)?;
 
     let Config::V1(config) = config;
@@ -269,6 +271,11 @@ pub fn run(args: Args) -> Result<()> {
     }
 
     let answers = serde_json::Value::Object(answers);
+    let metadata = GenerationMetadata::new(template_metadata, answers.clone());
+
+    metadata
+        .save_to_file(&output_root.join(&config.metadata_file))
+        .map_err(|e| Error::Other(anyhow::anyhow!(e)))?;
 
     // Process ignore patterns
     let bakerignore = parse_bakerignore_file(&template_root)?;

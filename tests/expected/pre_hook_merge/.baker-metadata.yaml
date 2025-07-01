@@ -1,0 +1,7 @@
+{
+  "directory": "tests/templates/pre_hook_merge",
+  "answers": {
+    "password": "hookpass",
+    "username": "cliuser"
+  }
+}

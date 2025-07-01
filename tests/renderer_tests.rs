@@ -2,8 +2,13 @@
 mod tests {
     use baker::cli::{run, Args, SkipConfirm::All};
     use baker::renderer::{MiniJinjaRenderer, TemplateRenderer};
+    use log::debug;
+    use minijinja::functions::debug;
     use serde_json::json;
+    use std::fs;
+    use std::path::Path;
     use test_log::test;
+    use walkdir::WalkDir;
 
     fn test_template(template: &str, expected: &str) {
         let renderer = MiniJinjaRenderer::new();
@@ -12,52 +17,16 @@ mod tests {
     }
 
     #[test]
-    fn test_camel_case_filter() {
+    fn test_string_conversion_case_filters() {
         test_template("{{ 'hello world' | camel_case }}", "helloWorld");
-    }
-
-    #[test]
-    fn test_kebab_case_filter() {
         test_template("{{ 'hello world' | kebab_case }}", "hello-world");
-    }
-
-    #[test]
-    fn test_pascal_case_filter() {
         test_template("{{ 'hello world' | pascal_case }}", "HelloWorld");
-    }
-
-    #[test]
-    fn test_screaming_snake_case_filter() {
         test_template("{{ 'hello world' | screaming_snake_case }}", "HELLO_WORLD");
-    }
-
-    #[test]
-    fn test_snake_case_filter() {
         test_template("{{ 'hello world' | snake_case }}", "hello_world");
-    }
-
-    #[test]
-    fn test_table_case_filter() {
         test_template("{{ 'Hello World' | table_case }}", "hello_worlds");
-    }
-
-    #[test]
-    fn test_train_case_filter() {
         test_template("{{ 'hello world' | train_case }}", "Hello-World");
-    }
-
-    #[test]
-    fn test_plural_filter() {
         test_template("{{ 'car' | plural }}", "cars");
-    }
-
-    #[test]
-    fn test_singular_filter() {
         test_template("{{ 'cars' | singular }}", "car");
-    }
-
-    #[test]
-    fn test_foreign_key_filter() {
         test_template("{{ 'User' | foreign_key }}", "user_id");
         test_template("{{ 'Order Item' | foreign_key }}", "order_item_id");
         test_template("{{ 'orderItem' | foreign_key }}", "order_item_id");
@@ -73,16 +42,14 @@ mod tests {
         test_template("{{ 'hello world' | regex('^hello') }}", "true");
         test_template("{{ 'hello world' | regex('^hello.*') }}", "true");
         test_template("{{ 'goodbye world' | regex('^hello.*') }}", "false");
-
         test_template("{{ 'Hello World' | regex('hello') }}", "false");
         test_template("{{ 'Hello World' | regex('(?i)hello') }}", "true");
-
         test_template(r"{{ 'a+b=c' | regex('\\+') }}", "true");
         test_template(r"{{ 'a+b=c' | regex('\\=') }}", "true");
         test_template("{{ 'a+b=c' | regex('d') }}", "false");
-
         test_template("{{ '' | regex('.*') }}", "true");
         test_template("{{ '' | regex('.+') }}", "false");
+        test_template("{{ 'hello' | regex('[') }}", "false");
     }
 
     #[test]
@@ -93,162 +60,132 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_regex_filter_invalid_regex() {
-        let renderer = MiniJinjaRenderer::new();
-        let result = renderer.render("{{ 'hello' | regex('[') }}", &json!({}), None);
-        assert_eq!(result.unwrap(), "false");
+    fn print_dir_diff(dir1: &Path, dir2: &Path) {
+        let mut files1 = std::collections::HashSet::new();
+        let mut files2 = std::collections::HashSet::new();
+
+        for entry in WalkDir::new(dir1)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file())
+        {
+            let rel = entry.path().strip_prefix(dir1).unwrap().to_path_buf();
+            files1.insert(rel);
+        }
+        for entry in WalkDir::new(dir2)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file())
+        {
+            let rel = entry.path().strip_prefix(dir2).unwrap().to_path_buf();
+            files2.insert(rel);
+        }
+
+        for file in files1.difference(&files2) {
+            debug!("Only in {:?}: {:?}", dir1, file);
+        }
+        for file in files2.difference(&files1) {
+            debug!("Only in {:?}: {:?}", dir2, file);
+        }
+        for file in files1.intersection(&files2) {
+            let path1 = dir1.join(file);
+            let path2 = dir2.join(file);
+            let content1 = fs::read(&path1).unwrap();
+            let content2 = fs::read(&path2).unwrap();
+            if content1 != content2 {
+                debug!("File differs: {:?}", file);
+                debug!("Content in {:?}:\n{:?}", dir1, String::from_utf8(content1));
+                debug!("Content in {:?}:\n{:?}", dir2, String::from_utf8(content2));
+            }
+        }
+    }
+
+    fn run_and_assert(template: &str, expected_dir: &str, answers: Option<&str>) {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let args = Args {
+            template: template.to_string(),
+            output_dir: tmp_dir.path().to_path_buf(),
+            force: true,
+            verbose: true,
+            answers: answers.map(|a| a.to_string()),
+            skip_confirms: vec![All],
+            non_interactive: true,
+        };
+        run(args).unwrap();
+        print_dir_diff(tmp_dir.path(), expected_dir.as_ref());
+        assert!(!dir_diff::is_different(tmp_dir.path(), expected_dir).unwrap());
     }
 
     #[test]
     fn test_demo_copy() {
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let args = Args {
-            template: "examples/demo".to_string(),
-            output_dir: tmp_dir.path().to_path_buf(),
-            force: true,
-            verbose: true,
-            answers: Some("{\"project_name\": \"demo\", \"project_author\": \"demo\", \"project_slug\": \"demo\", \"use_tests\": true}".to_string()),
-            skip_confirms: vec![All],
-            non_interactive: true,
-        };
-        run(args).unwrap();
-        assert!(!dir_diff::is_different(tmp_dir.path(), "tests/expected/demo").unwrap());
+        run_and_assert(
+            "examples/demo",
+            "tests/expected/demo",
+            Some("{\"project_name\": \"demo\", \"project_author\": \"demo\", \"project_slug\": \"demo\", \"use_tests\": true}")
+        );
     }
 
     #[test]
     fn test_demo_copy_use_tests_false() {
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let args = Args {
-            template: "examples/demo".to_string(),
-            output_dir: tmp_dir.path().to_path_buf(),
-            force: true,
-            verbose: true,
-            answers: Some("{\"project_name\": \"demo\", \"project_author\": \"demo\", \"project_slug\": \"demo\", \"use_tests\": false}".to_string()),
-            skip_confirms: vec![All],
-            non_interactive: true,
-        };
-        run(args).unwrap();
-        assert!(!dir_diff::is_different(
-            tmp_dir.path(),
-            "tests/expected/demo_tests_false"
-        )
-        .unwrap());
+        run_and_assert(
+            "examples/demo",
+            "tests/expected/demo_tests_false",
+            Some("{\"project_name\": \"demo\", \"project_author\": \"demo\", \"project_slug\": \"demo\", \"use_tests\": false}")
+        );
     }
 
     #[test]
     fn test_filters_example() {
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let args = Args {
-            template: "examples/filters".to_string(),
-            output_dir: tmp_dir.path().to_path_buf(),
-            force: true,
-            verbose: true,
-            answers: Some("{\"project_name\": \"project name is filters\"}".to_string()),
-            skip_confirms: vec![All],
-            non_interactive: true,
-        };
-        run(args).unwrap();
-        assert!(
-            !dir_diff::is_different(tmp_dir.path(), "tests/expected/filters").unwrap()
+        run_and_assert(
+            "examples/filters",
+            "tests/expected/filters",
+            Some("{\"project_name\": \"project name is filters\"}"),
         );
     }
 
     #[test]
     fn test_jsonschema_default() {
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let args = Args {
-            template: "tests/templates/jsonschema".to_string(),
-            output_dir: tmp_dir.path().to_path_buf(),
-            force: true,
-            verbose: true,
-            answers: None,
-            skip_confirms: vec![All],
-            non_interactive: true,
-        };
-        run(args).unwrap();
-        assert!(!dir_diff::is_different(
-            tmp_dir.path(),
-            "tests/expected/jsonschema-default"
-        )
-        .unwrap());
+        run_and_assert(
+            "tests/templates/jsonschema",
+            "tests/expected/jsonschema-default",
+            None,
+        );
     }
 
     #[test]
     fn test_jsonschema() {
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let args = Args {
-            template: "tests/templates/jsonschema".to_string(),
-            output_dir: tmp_dir.path().to_path_buf(),
-            force: true,
-            verbose: true,
-            answers: Some("{\"database_config\":{\"engine\":\"redis\",\"host\":\"localhost\",\"port\":6379}}".to_string()),
-            skip_confirms: vec![All],
-            non_interactive: true,
-        };
-        run(args).unwrap();
-        assert!(
-            !dir_diff::is_different(tmp_dir.path(), "tests/expected/jsonschema").unwrap()
+        run_and_assert(
+            "tests/templates/jsonschema",
+            "tests/expected/jsonschema",
+            Some("{\"database_config\":{\"engine\":\"redis\",\"host\":\"localhost\",\"port\":6379}}")
         );
     }
 
     #[test]
     fn test_import() {
-        let _ = env_logger::try_init();
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let args = Args {
-            template: "examples/import".to_string(),
-            output_dir: tmp_dir.path().to_path_buf(),
-            force: true,
-            verbose: true,
-            answers: Some("{\"database_config\":{\"engine\":\"redis\",\"host\":\"localhost\",\"port\":6379}}".to_string()),
-            skip_confirms: vec![All],
-            non_interactive: true,
-        };
-        run(args).unwrap();
-        assert!(!dir_diff::is_different(tmp_dir.path(), "tests/expected/import").unwrap());
+        run_and_assert(
+            "examples/import",
+            "tests/expected/import",
+            Some("{\"database_config\":{\"engine\":\"redis\",\"host\":\"localhost\",\"port\":6379}}")
+        );
     }
 
     #[test]
     fn test_import_directory() {
-        let _ = env_logger::try_init();
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let args = Args {
-            template: "examples/import_directory".to_string(),
-            output_dir: tmp_dir.path().to_path_buf(),
-            force: true,
-            verbose: true,
-            answers: None,
-            skip_confirms: vec![All],
-            non_interactive: true,
-        };
-        run(args).unwrap();
-        assert!(!dir_diff::is_different(
-            tmp_dir.path(),
-            "tests/expected/import_directory"
-        )
-        .unwrap());
+        run_and_assert(
+            "examples/import_directory",
+            "tests/expected/import_directory",
+            None,
+        );
     }
 
     #[test]
     fn test_different_template_suffix() {
-        let _ = env_logger::try_init();
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let args = Args {
-            template: "tests/templates/different_template_suffix".to_string(),
-            output_dir: tmp_dir.path().to_path_buf(),
-            force: true,
-            verbose: true,
-            answers: None,
-            skip_confirms: vec![All],
-            non_interactive: true,
-        };
-        run(args).unwrap();
-        assert!(!dir_diff::is_different(
-            tmp_dir.path(),
-            "tests/expected/different_template_suffix"
-        )
-        .unwrap());
+        run_and_assert(
+            "tests/templates/different_template_suffix",
+            "tests/expected/different_template_suffix",
+            None,
+        );
     }
 
     #[test]
@@ -256,18 +193,7 @@ mod tests {
         expected = "called `Result::unwrap()` on an `Err` value: ConfigValidation(\"template_suffix must start with '.' and have at least 1 character after it\")"
     )]
     fn test_wrong_template_suffix() {
-        let _ = env_logger::try_init();
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let args = Args {
-            template: "tests/templates/wrong_template_suffix".to_string(),
-            output_dir: tmp_dir.path().to_path_buf(),
-            force: true,
-            verbose: true,
-            answers: None,
-            skip_confirms: vec![All],
-            non_interactive: true,
-        };
-        run(args).unwrap();
+        run_and_assert("tests/templates/wrong_template_suffix", "", None);
     }
 
     #[test]
@@ -275,36 +201,16 @@ mod tests {
         expected = "called `Result::unwrap()` on an `Err` value: ConfigValidation(\"template_suffix must not be empty\")"
     )]
     fn test_empty_template_suffix() {
-        let _ = env_logger::try_init();
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let args = Args {
-            template: "tests/templates/empty_template_suffix".to_string(),
-            output_dir: tmp_dir.path().to_path_buf(),
-            force: true,
-            verbose: true,
-            answers: None,
-            skip_confirms: vec![All],
-            non_interactive: true,
-        };
-        run(args).unwrap();
+        run_and_assert("tests/templates/empty_template_suffix", "", None);
     }
 
     #[test]
     #[cfg(not(target_os = "windows"))]
     fn test_pre_hook_cli_merge() {
-        let _ = env_logger::try_init();
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let args = Args {
-            template: "tests/templates/pre_hook_merge".to_string(),
-            output_dir: tmp_dir.path().to_path_buf(),
-            force: true,
-            verbose: true,
-            answers: Some("{\"username\":\"cliuser\"}".to_string()),
-            skip_confirms: vec![All],
-            non_interactive: true,
-        };
-        run(args).unwrap();
-        assert!(!dir_diff::is_different(tmp_dir.path(), "tests/expected/pre_hook_merge")
-            .unwrap());
+        run_and_assert(
+            "tests/templates/pre_hook_merge",
+            "tests/expected/pre_hook_merge",
+            Some("{\"username\":\"cliuser\"}"),
+        );
     }
 }

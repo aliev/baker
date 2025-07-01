@@ -79,6 +79,8 @@ pub struct Question {
 pub struct ConfigV1 {
     #[serde(default = "get_default_template_suffix")]
     pub template_suffix: String,
+    #[serde(default = "get_default_metadata_file")]
+    pub metadata_file: String,
     #[serde(default = "get_default_template_globs")]
     pub template_globs: Vec<String>,
     #[serde(default)]
@@ -107,6 +109,9 @@ fn get_default_template_suffix() -> String {
     ".baker.j2".to_string()
 }
 
+fn get_default_metadata_file() -> String {
+    ".baker-metadata.yaml".to_string()
+}
 fn get_default_template_globs() -> Vec<String> {
     Vec::new()
 }
