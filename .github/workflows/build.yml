@@ -60,13 +60,9 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo tarpaulin --out xml --verbose
         env:
           RUST_LOG: trace
-
-      - name: Run tests
-        run: |
-          cargo tarpaulin --out xml --verbose
 
       - name: Upload reports to codecov
         uses: codecov/codecov-action@v5
