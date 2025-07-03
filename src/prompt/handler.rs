@@ -578,7 +578,7 @@ mod tests {
         let calls = prompt_handler.provider.get_confirmation_calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].prompt, "Do you want to continue?");
-        assert_eq!(calls[0].default, true);
+        assert!(calls[0].default);
     }
 
     #[test]
@@ -595,7 +595,7 @@ mod tests {
 
         let calls = prompt_handler.provider.get_confirmation_calls();
         assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].default, false);
+        assert!(!calls[0].default);
     }
 
     #[test]
@@ -612,7 +612,7 @@ mod tests {
 
         let calls = prompt_handler.provider.get_confirmation_calls();
         assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].default, false); // should default to false for null
+        assert!(!calls[0].default); // should default to false for null
     }
 
     #[test]

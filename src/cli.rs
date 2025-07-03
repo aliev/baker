@@ -320,7 +320,7 @@ pub fn run(args: Args) -> Result<()> {
                         }
                         true
                     }
-                    TemplateOperation::Ignore { .. } => true,
+                    TemplateOperation::Ignore { .. } => continue,
                 };
 
                 let message = file_operation.get_message(user_confirmed_overwrite);
