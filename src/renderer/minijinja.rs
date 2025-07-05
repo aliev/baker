@@ -1,68 +1,8 @@
-use crate::{error::Result, ioutils::path_to_str};
-pub use cruet::{
-    case::{
-        camel::to_camel_case, kebab::to_kebab_case, pascal::to_pascal_case,
-        screaming_snake::to_screaming_snake_case, snake::to_snake_case,
-        table::to_table_case, train::to_train_case,
-    },
-    string::{pluralize::to_plural, singularize::to_singular},
-    suffix::foreign_key::to_foreign_key,
-};
-use log::warn;
+use super::filters::*;
+use crate::{error::Result, ioutils::path_to_str, renderer::interface::TemplateRenderer};
 use minijinja::Environment;
-use regex::Regex;
 use serde_json::json;
 use std::path::Path;
-
-/// Trait for template rendering engines.
-pub trait TemplateRenderer {
-    fn add_template(
-        &mut self,
-        name: &str,
-        template: &str,
-    ) -> Result<(), minijinja::Error>;
-
-    /// Renders a template string with the given context.
-    ///
-    /// # Arguments
-    /// * `template` - Template string to render
-    /// * `context` - Context variables for rendering
-    /// * `template_name` - Optional name for the template (used in error messages)
-    ///
-    /// # Returns
-    /// * `Result<String>` - Rendered template string
-    fn render(
-        &self,
-        template: &str,
-        context: &serde_json::Value,
-        template_name: Option<&str>,
-    ) -> Result<String>;
-
-    /// Renders a path with the given context.
-    ///
-    /// # Arguments
-    /// * `template_path` - Path to render
-    /// * `context` - Context variables for rendering
-    ///
-    /// # Returns
-    /// * `Result<String>` - Rendered path as string
-    fn render_path(
-        &self,
-        template_path: &Path,
-        context: &serde_json::Value,
-    ) -> Result<String>;
-
-    /// Executes a template expression and returns whether it evaluates to true.
-    ///
-    /// # Arguments
-    /// * `expr` - Expression to evaluate
-    /// * `context` - Context variables for evaluation
-    ///
-    /// # Returns
-    /// * `Result<bool>` - Whether the expression evaluates to true
-    fn execute_expression(&self, expr: &str, context: &serde_json::Value)
-        -> Result<bool>;
-}
 
 /// MiniJinja-based template rendering engine.
 pub struct MiniJinjaRenderer {
@@ -72,18 +12,8 @@ pub struct MiniJinjaRenderer {
     default_context: serde_json::Value,
 }
 
-fn regex_filter(val: &str, re: &str) -> bool {
-    match Regex::new(re) {
-        Ok(re) => re.is_match(val),
-        Err(err) => {
-            warn!("Invalid regex '{re}': {err}");
-            false
-        }
-    }
-}
-
 impl MiniJinjaRenderer {
-    /// Creates a new MiniJinjaEngine instance with default environment.
+    /// Creates a new MiniJinjaRenderer instance with default environment.
     pub fn new() -> Self {
         let mut env = Environment::new();
         let default_context = json!({
@@ -94,6 +24,7 @@ impl MiniJinjaRenderer {
             }
         });
 
+        // Add all the custom filters
         env.add_filter("camel_case", to_camel_case);
         env.add_filter("kebab_case", to_kebab_case);
         env.add_filter("pascal_case", to_pascal_case);
@@ -109,7 +40,7 @@ impl MiniJinjaRenderer {
         Self { env, default_context }
     }
 
-    /// Internal helper to render templates
+    /// Internal helper to render templates with context merging
     fn render_internal(
         &self,
         template: &str,

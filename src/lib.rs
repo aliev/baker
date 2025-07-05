@@ -27,9 +27,3 @@ pub mod template;
 
 /// Configuration handling for Baker templates.
 pub mod config;
-
-/// Answer validators
-pub mod validation;
-
-/// Importing templates from a directory into renderer.
-pub mod import;

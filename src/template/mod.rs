@@ -4,12 +4,12 @@
 //! - `operation`: Defines operations to be performed on templates
 //! - `processor`: Contains the logic for processing template files and directories
 
-use crate::renderer::{MiniJinjaRenderer, TemplateRenderer};
+use crate::renderer::{new_renderer, TemplateRenderer};
 
 pub mod operation;
 pub mod processor;
 
 /// Convenience function to create the default template engine
 pub fn get_template_engine() -> impl TemplateRenderer {
-    MiniJinjaRenderer::new()
+    new_renderer()
 }
