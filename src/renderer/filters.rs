@@ -31,3 +31,23 @@ pub fn regex_filter(val: &str, re: &str) -> bool {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_regex_filter_matches() {
+        assert!(regex_filter("hello123", r"hello\d+"));
+    }
+
+    #[test]
+    fn test_regex_filter_no_match() {
+        assert!(!regex_filter("hello", r"\d+"));
+    }
+
+    #[test]
+    fn test_regex_filter_invalid_regex() {
+        assert!(!regex_filter("anything", r"([unclosed"));
+    }
+}

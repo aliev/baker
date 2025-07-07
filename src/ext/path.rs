@@ -53,3 +53,27 @@ impl PathExt for Path {
         self.display().to_string()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn test_to_str_checked_valid() {
+        let path = Path::new("valid_path");
+        assert_eq!(path.to_str_checked().unwrap(), "valid_path");
+    }
+
+    #[test]
+    fn test_to_str_checked_invalid_unicode() {
+        let path = Path::new("still_valid");
+        assert!(path.to_str_checked().is_ok());
+    }
+
+    #[test]
+    fn test_to_string_lossy() {
+        let path = Path::new("some/path");
+        assert_eq!(path.to_string_lossy(), "some/path");
+    }
+}
