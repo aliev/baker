@@ -68,6 +68,7 @@ pub fn run_and_assert(template: &str, expected_dir: &str, answers: Option<&str>)
         answers: answers.map(|a| a.to_string()),
         skip_confirms: vec![All],
         non_interactive: true,
+        dry_run: false,
     };
     run(args).unwrap();
     let result = dir_diff::is_different(tmp_dir.path(), expected_dir);

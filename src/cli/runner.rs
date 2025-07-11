@@ -34,7 +34,7 @@ impl Runner {
     pub fn run(self) -> Result<()> {
         let mut engine = get_template_engine();
 
-        let output_root = self.get_output_dir(&self.args.output_dir, self.args.force)?;
+        let output_root = self.get_output_dir(&self.args.output_dir, self.args.force, self.args.dry_run)?;
 
         let template_root = get_template(
             self.args.template.as_str(),
@@ -53,7 +53,7 @@ impl Runner {
             &template_root,
             &output_root,
             &pre_hook_file,
-            execute_hooks,
+            execute_hooks && !self.args.dry_run,
         )?;
 
         // Collect answers from all sources
@@ -74,13 +74,20 @@ impl Runner {
             &output_root,
             &post_hook_file,
             &answers,
-            execute_hooks,
+            execute_hooks && !self.args.dry_run,
         )?;
 
-        println!(
-            "Template generation completed successfully in {}.",
-            output_root.display()
-        );
+        if self.args.dry_run {
+            println!(
+                "[DRY RUN] Template processing completed. No files were actually created in {}.",
+                output_root.display()
+            );
+        } else {
+            println!(
+                "Template generation completed successfully in {}.",
+                output_root.display()
+            );
+        }
         Ok(())
     }
 
@@ -134,9 +141,16 @@ impl Runner {
         pre_hook_file: &PathBuf,
         execute_hooks: bool,
     ) -> Result<Option<String>> {
-        if execute_hooks && pre_hook_file.exists() {
-            log::debug!("Executing pre-hook: {}", pre_hook_file.display());
-            run_hook(template_root, output_root, pre_hook_file, None)
+        if pre_hook_file.exists() {
+            if self.args.dry_run {
+                log::info!("[DRY RUN] Would execute pre-hook: {}", pre_hook_file.display());
+                Ok(None)
+            } else if execute_hooks {
+                log::debug!("Executing pre-hook: {}", pre_hook_file.display());
+                run_hook(template_root, output_root, pre_hook_file, None)
+            } else {
+                Ok(None)
+            }
         } else {
             Ok(None)
         }
@@ -173,7 +187,7 @@ impl Runner {
             config.template_suffix.as_str(),
         );
 
-        let file_processor = FileProcessor::new(processor, &self.args.skip_confirms);
+        let file_processor = FileProcessor::new(processor, &self.args.skip_confirms, self.args.dry_run);
         file_processor.process_all_files(template_root)
     }
 
@@ -186,13 +200,17 @@ impl Runner {
         answers: &serde_json::Value,
         execute_hooks: bool,
     ) -> Result<()> {
-        if execute_hooks && post_hook_file.exists() {
-            log::debug!("Executing post-hook: {}", post_hook_file.display());
-            let post_hook_stdout =
-                run_hook(template_root, output_root, post_hook_file, Some(answers))?;
+        if post_hook_file.exists() {
+            if self.args.dry_run {
+                log::info!("[DRY RUN] Would execute post-hook: {}", post_hook_file.display());
+            } else if execute_hooks {
+                log::debug!("Executing post-hook: {}", post_hook_file.display());
+                let post_hook_stdout =
+                    run_hook(template_root, output_root, post_hook_file, Some(answers))?;
 
-            if let Some(result) = post_hook_stdout {
-                log::debug!("Post-hook stdout content: {result}");
+                if let Some(result) = post_hook_stdout {
+                    log::debug!("Post-hook stdout content: {result}");
+                }
             }
         }
         Ok(())
@@ -215,12 +233,16 @@ impl Runner {
         &self,
         output_dir: P,
         force: bool,
+        dry_run: bool,
     ) -> Result<PathBuf> {
         let output_dir = output_dir.as_ref();
-        if output_dir.exists() && !force {
+        if output_dir.exists() && !force && !dry_run {
             return Err(Error::OutputDirectoryExistsError {
                 output_dir: output_dir.display().to_string(),
             });
+        }
+        if dry_run {
+            log::info!("[DRY RUN] Would use output directory: {}", output_dir.display());
         }
         Ok(output_dir.to_path_buf())
     }

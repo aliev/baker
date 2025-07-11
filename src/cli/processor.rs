@@ -11,14 +11,16 @@ use walkdir::WalkDir;
 pub struct FileProcessor<'a> {
     processor: TemplateProcessor<'a, PathBuf>,
     skip_confirms: &'a [SkipConfirm],
+    dry_run: bool,
 }
 
 impl<'a> FileProcessor<'a> {
     pub fn new(
         processor: TemplateProcessor<'a, PathBuf>,
         skip_confirms: &'a [SkipConfirm],
+        dry_run: bool,
     ) -> Self {
-        Self { processor, skip_confirms }
+        Self { processor, skip_confirms, dry_run }
     }
 
     /// Processes all files in the template directory
@@ -37,7 +39,7 @@ impl<'a> FileProcessor<'a> {
                             }
                         },
                     };
-                    let message = file_operation.get_message(user_confirmed_overwrite);
+                    let message = file_operation.get_message(user_confirmed_overwrite, self.dry_run);
                     log::info!("{message}");
                 }
                 Err(e) => match e {
@@ -87,6 +89,10 @@ impl<'a> FileProcessor<'a> {
     fn copy_file<P: AsRef<Path>>(&self, source_path: P, dest_path: P) -> Result<()> {
         let dest_path = dest_path.as_ref();
 
+        if self.dry_run {
+            return Ok(());
+        }
+
         // Ensure parent directory exists
         if let Some(parent) = dest_path.parent() {
             self.create_dir_all(parent)?;
@@ -99,6 +105,10 @@ impl<'a> FileProcessor<'a> {
     fn write_file<P: AsRef<Path>>(&self, content: &str, dest_path: P) -> Result<()> {
         let dest_path = dest_path.as_ref();
 
+        if self.dry_run {
+            return Ok(());
+        }
+
         // Ensure parent directory exists
         if let Some(parent) = dest_path.parent() {
             self.create_dir_all(parent)?;
@@ -109,6 +119,10 @@ impl<'a> FileProcessor<'a> {
 
     /// Create directory and all parent directories if they don't exist.
     fn create_dir_all<P: AsRef<Path>>(&self, dest_path: P) -> Result<()> {
+        if self.dry_run {
+            return Ok(());
+        }
+
         std::fs::create_dir_all(dest_path.as_ref()).map_err(Error::from)
     }
 

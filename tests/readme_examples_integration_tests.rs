@@ -138,6 +138,7 @@ fn test_non_interactive_mode_with_defaults() {
         answers: None, // Test default values being used
         skip_confirms: vec![All],
         non_interactive: true,
+        dry_run: false,
     };
     run(args).unwrap();
 
@@ -169,6 +170,7 @@ fn test_nested_answer_context() {
         answers: Some(r#"{"project_name": "Test Project", "project_author": "Test Author", "project_slug": "test_project", "use_tests": true}"#.to_string()),
         skip_confirms: vec![All],
         non_interactive: true,
+        dry_run: false,
     };
     run(args).unwrap();
 
