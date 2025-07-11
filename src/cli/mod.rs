@@ -137,6 +137,12 @@ pub struct Args {
     /// Use with --answers to create a fully non-interactive workflow
     #[arg(long = "non-interactive")]
     pub non_interactive: bool,
+
+    /// Show what would be done without actually executing any file operations
+    /// In dry-run mode, Baker will process templates and show all operations
+    /// that would be performed, but won't create directories, copy files, or write content
+    #[arg(long = "dry-run")]
+    pub dry_run: bool,
 }
 
 /// Parses command line arguments and returns the Args structure.

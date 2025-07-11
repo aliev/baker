@@ -13,39 +13,50 @@ impl TemplateOperation {
     ///
     /// # Arguments
     /// * `user_confirmed_overwrite` - Whether the user has confirmed overwriting existing files
+    /// * `dry_run` - Whether this is a dry run (no actual file operations)
     ///
     /// # Returns
     /// * `String` - A descriptive message about the operation
-    pub fn get_message(&self, user_confirmed_overwrite: bool) -> String {
+    pub fn get_message(&self, user_confirmed_overwrite: bool, dry_run: bool) -> String {
+        let prefix = if dry_run { "[DRY RUN] " } else { "" };
+
         match self {
             TemplateOperation::Copy { source, target, target_exists } => {
                 if *target_exists {
                     if user_confirmed_overwrite {
                         format!(
-                            "Copying '{}' to '{}' (overwriting existing file)",
+                            "{}Copying '{}' to '{}' (overwriting existing file)",
+                            prefix,
                             source.display(),
                             target.display()
                         )
                     } else {
                         format!(
-                            "Skipping copy of '{}' to '{}' (target already exists)",
+                            "{}Skipping copy of '{}' to '{}' (target already exists)",
+                            prefix,
                             source.display(),
                             target.display()
                         )
                     }
                 } else {
-                    format!("Copying '{}' to '{}'", source.display(), target.display())
+                    format!(
+                        "{}Copying '{}' to '{}'",
+                        prefix,
+                        source.display(),
+                        target.display()
+                    )
                 }
             }
 
             TemplateOperation::CreateDirectory { target, target_exists } => {
                 if *target_exists {
                     format!(
-                        "Skipping directory creation '{}' (already exists)",
+                        "{}Skipping directory creation '{}' (already exists)",
+                        prefix,
                         target.display()
                     )
                 } else {
-                    format!("Creating directory '{}'", target.display())
+                    format!("{}Creating directory '{}'", prefix, target.display())
                 }
             }
 
@@ -53,22 +64,28 @@ impl TemplateOperation {
                 if *target_exists {
                     if user_confirmed_overwrite {
                         format!(
-                            "Writing to '{}' (overwriting existing file)",
+                            "{}Writing to '{}' (overwriting existing file)",
+                            prefix,
                             target.display()
                         )
                     } else {
                         format!(
-                            "Skipping write to '{}' (target already exists)",
+                            "{}Skipping write to '{}' (target already exists)",
+                            prefix,
                             target.display()
                         )
                     }
                 } else {
-                    format!("Writing to '{}'", target.display())
+                    format!("{}Writing to '{}'", prefix, target.display())
                 }
             }
 
             TemplateOperation::Ignore { source } => {
-                format!("Ignoring '{}' (matches ignore pattern)", source.display())
+                format!(
+                    "{}Ignoring '{}' (matches ignore pattern)",
+                    prefix,
+                    source.display()
+                )
             }
         }
     }
@@ -90,7 +107,7 @@ mod tests {
         );
 
         let copy = TemplateOperation::Copy { source, target, target_exists: true };
-        let actual = copy.get_message(user_confirmed_overwrite);
+        let actual = copy.get_message(user_confirmed_overwrite, false);
         assert_eq!(actual, expected);
     }
 
@@ -106,7 +123,7 @@ mod tests {
         );
 
         let copy = TemplateOperation::Copy { source, target, target_exists: true };
-        let actual = copy.get_message(user_confirmed_overwrite);
+        let actual = copy.get_message(user_confirmed_overwrite, false);
         assert_eq!(actual, expected);
     }
 
@@ -119,7 +136,7 @@ mod tests {
             format!("Copying '{}' to '{}'", &source.display(), &target.display());
 
         let copy = TemplateOperation::Copy { source, target, target_exists: false };
-        let actual = copy.get_message(user_confirmed_overwrite);
+        let actual = copy.get_message(user_confirmed_overwrite, false);
         assert_eq!(actual, expected);
     }
     #[test]
@@ -132,7 +149,7 @@ mod tests {
         );
 
         let copy = TemplateOperation::CreateDirectory { target, target_exists: true };
-        let actual = copy.get_message(user_confirmed_overwrite);
+        let actual = copy.get_message(user_confirmed_overwrite, false);
         assert_eq!(actual, expected);
     }
     #[test]
@@ -142,7 +159,7 @@ mod tests {
         let expected = format!("Creating directory '{}'", &target.display());
 
         let copy = TemplateOperation::CreateDirectory { target, target_exists: false };
-        let actual = copy.get_message(user_confirmed_overwrite);
+        let actual = copy.get_message(user_confirmed_overwrite, false);
         assert_eq!(actual, expected);
     }
     #[test]
@@ -157,7 +174,7 @@ mod tests {
             target_exists: true,
             content: "".to_string(),
         };
-        let actual = copy.get_message(user_confirmed_overwrite);
+        let actual = copy.get_message(user_confirmed_overwrite, false);
         assert_eq!(actual, expected);
     }
     #[test]
@@ -172,7 +189,7 @@ mod tests {
             target_exists: true,
             content: "".to_string(),
         };
-        let actual = copy.get_message(user_confirmed_overwrite);
+        let actual = copy.get_message(user_confirmed_overwrite, false);
         assert_eq!(actual, expected);
     }
     #[test]
@@ -186,7 +203,7 @@ mod tests {
             target_exists: false,
             content: "".to_string(),
         };
-        let actual = copy.get_message(user_confirmed_overwrite);
+        let actual = copy.get_message(user_confirmed_overwrite, false);
         assert_eq!(actual, expected);
     }
     #[test]
@@ -197,7 +214,21 @@ mod tests {
             format!("Ignoring '{}' (matches ignore pattern)", &source.display());
 
         let copy = TemplateOperation::Ignore { source };
-        let actual = copy.get_message(user_confirmed_overwrite);
+        let actual = copy.get_message(user_confirmed_overwrite, false);
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_dry_run_messages() {
+        let source = PathBuf::from("/tmp/test/file.txt");
+        let target = PathBuf::from("/tmp/test/target.txt");
+
+        let copy = TemplateOperation::Copy { source, target, target_exists: false };
+        let dry_run_message = copy.get_message(false, true);
+        let normal_message = copy.get_message(false, false);
+
+        assert!(dry_run_message.starts_with("[DRY RUN] "));
+        assert!(!normal_message.starts_with("[DRY RUN] "));
+        assert_eq!(dry_run_message, format!("[DRY RUN] {}", normal_message));
     }
 }
