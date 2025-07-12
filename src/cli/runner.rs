@@ -34,7 +34,11 @@ impl Runner {
     pub fn run(self) -> Result<()> {
         let mut engine = get_template_engine();
 
-        let output_root = self.get_output_dir(&self.args.output_dir, self.args.force, self.args.dry_run)?;
+        let output_root = self.get_output_dir(
+            &self.args.output_dir,
+            self.args.force,
+            self.args.dry_run,
+        )?;
 
         let template_root = get_template(
             self.args.template.as_str(),
@@ -143,7 +147,10 @@ impl Runner {
     ) -> Result<Option<String>> {
         if pre_hook_file.exists() {
             if self.args.dry_run {
-                log::info!("[DRY RUN] Would execute pre-hook: {}", pre_hook_file.display());
+                log::info!(
+                    "[DRY RUN] Would execute pre-hook: {}",
+                    pre_hook_file.display()
+                );
                 Ok(None)
             } else if execute_hooks {
                 log::debug!("Executing pre-hook: {}", pre_hook_file.display());
@@ -187,7 +194,8 @@ impl Runner {
             config.template_suffix.as_str(),
         );
 
-        let file_processor = FileProcessor::new(processor, &self.args.skip_confirms, self.args.dry_run);
+        let file_processor =
+            FileProcessor::new(processor, &self.args.skip_confirms, self.args.dry_run);
         file_processor.process_all_files(template_root)
     }
 
@@ -202,7 +210,10 @@ impl Runner {
     ) -> Result<()> {
         if post_hook_file.exists() {
             if self.args.dry_run {
-                log::info!("[DRY RUN] Would execute post-hook: {}", post_hook_file.display());
+                log::info!(
+                    "[DRY RUN] Would execute post-hook: {}",
+                    post_hook_file.display()
+                );
             } else if execute_hooks {
                 log::debug!("Executing post-hook: {}", post_hook_file.display());
                 let post_hook_stdout =

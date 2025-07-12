@@ -39,7 +39,8 @@ impl<'a> FileProcessor<'a> {
                             }
                         },
                     };
-                    let message = file_operation.get_message(user_confirmed_overwrite, self.dry_run);
+                    let message = file_operation
+                        .get_message(user_confirmed_overwrite, self.dry_run);
                     log::info!("{message}");
                 }
                 Err(e) => match e {
