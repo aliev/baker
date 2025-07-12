@@ -19,6 +19,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use walkdir::WalkDir;
+use crate::metadata::GenerationMetadata;
 
 /// Main CLI runner that orchestrates the entire template generation workflow
 pub struct Runner {
@@ -36,10 +37,13 @@ impl Runner {
 
         let output_root = self.get_output_dir(&self.args.output_dir, self.args.force)?;
 
-        let template_root = get_template(
+        let template = get_template(
             self.args.template.as_str(),
             self.should_skip_overwrite_prompts(),
         )?;
+
+        let template_root = template.0;
+        let template_metadata = template.1;
 
         let config = self.load_and_validate_config(&template_root)?;
 
@@ -76,6 +80,12 @@ impl Runner {
             &answers,
             execute_hooks,
         )?;
+
+        let metadata = GenerationMetadata::new(template_metadata, answers.clone());
+
+        metadata
+            .save_to_file(&output_root.join(&config.metadata_file))
+            .map_err(|e| Error::Other(anyhow::anyhow!(e)))?;
 
         println!(
             "Template generation completed successfully in {}.",

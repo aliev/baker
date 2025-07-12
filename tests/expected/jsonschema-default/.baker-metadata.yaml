@@ -1,0 +1,10 @@
+{
+  "directory": "tests/templates/jsonschema",
+  "answers": {
+    "database_config": {
+      "engine": "postgresql",
+      "host": "localhost",
+      "port": 5432
+    }
+  }
+}

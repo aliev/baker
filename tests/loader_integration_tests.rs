@@ -18,7 +18,7 @@ fn test_local_loader_existing_directory() {
     let loader = LocalLoader::new(&template_path);
     let result = loader.load();
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), template_path);
+    assert_eq!(result.unwrap().0, template_path);
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn test_template_source_from_string_local_path() {
     // Test that local paths are correctly identified and loaded
     let result = get_template(template_path.to_str().unwrap(), true);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), template_path);
+    assert_eq!(result.unwrap().0, template_path);
 }
 
 #[test]

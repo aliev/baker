@@ -1,7 +1,11 @@
+use crate::metadata::TemplateMetadata;
 use crate::{
     error::{Error, Result},
     prompt::confirm,
 };
+use git2;
+use log;
+use std::default::Default;
 use std::fs;
 use std::path::PathBuf;
 use url::Url;
@@ -106,7 +110,7 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
     ///
     /// # Returns
     /// * `Result<PathBuf>` - Path to the cloned repository
-    fn load(&self) -> Result<PathBuf> {
+    fn load(&self) -> Result<(PathBuf, TemplateMetadata)> {
         let repo_url = self.repo.as_ref();
 
         log::debug!("Cloning repository '{repo_url}'");
@@ -123,7 +127,14 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
                 fs::remove_dir_all(&clone_path)?;
             } else {
                 log::debug!("Using existing directory '{}'", clone_path.display());
-                return Ok(clone_path);
+
+                return Ok((
+                    clone_path.clone(),
+                    TemplateMetadata {
+                        directory: clone_path.clone().to_str().map(|s| s.to_string()),
+                        ..Default::default()
+                    },
+                ));
             }
         }
 
@@ -151,10 +162,25 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
         let mut builder = git2::build::RepoBuilder::new();
         builder.fetch_options(fetch_opts);
 
-        match builder.clone(repo_url, &clone_path) {
-            Ok(_) => Ok(clone_path),
-            Err(e) => Err(Error::Git2Error(e)),
-        }
+        let repo = match builder.clone(repo_url, &clone_path) {
+            Ok(repo) => repo,
+            Err(e) => return Err(Error::Git2Error(e)),
+        };
+        let head = repo.head()?;
+        let commit_id = head
+            .target()
+            .map(|oid| oid.to_string())
+            .ok_or(Error::Other(anyhow::anyhow!("HEAD does not point to a commit")))?;
+        let branch_name = head.shorthand().unwrap_or("main");
+        let template_metadata = TemplateMetadata {
+            template_url: Some(repo_url.to_string()),
+            branch: Some(branch_name.to_string()),
+            tag: Some("".to_string()),
+            commit: Some(commit_id),
+            directory: None,
+        };
+
+        Ok((clone_path, template_metadata))
     }
 }
 

@@ -1,6 +1,7 @@
 use crate::error::Result;
 use crate::loader::interface::TemplateLoader;
 use crate::loader::{git::GitLoader, local::LocalLoader};
+use crate::metadata::TemplateMetadata;
 use std::path::PathBuf;
 
 pub mod git;
@@ -34,7 +35,10 @@ impl std::fmt::Display for TemplateSource {
 ///
 /// # Returns
 /// * `Result<PathBuf>` - Path to the loaded template
-pub fn get_template(s: &str, skip_overwrite_check: bool) -> Result<PathBuf> {
+pub fn get_template(
+    s: &str,
+    skip_overwrite_check: bool,
+) -> Result<(PathBuf, TemplateMetadata)> {
     // Check if this is a git repository URL
     let source = if GitLoader::<&str>::is_git_url(s) {
         TemplateSource::Git(s.to_string())

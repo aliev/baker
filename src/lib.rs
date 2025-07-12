@@ -49,3 +49,5 @@ pub mod config;
 
 /// Extension traits for built-in Rust types.
 pub mod ext;
+
+pub mod metadata;
