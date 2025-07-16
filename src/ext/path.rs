@@ -67,13 +67,44 @@ mod tests {
 
     #[test]
     fn test_to_str_checked_invalid_unicode() {
-        let path = Path::new("still_valid");
-        assert!(path.to_str_checked().is_ok());
+        #[cfg(unix)]
+        {
+            use std::ffi::OsStr;
+            use std::os::unix::ffi::OsStrExt;
+            let invalid_bytes = b"valid\xFF";
+            let path = Path::new(OsStr::from_bytes(invalid_bytes));
+            let result = path.to_str_checked();
+            assert!(result.is_err());
+        }
+        #[cfg(windows)]
+        {
+            // On Windows, OsStr is always valid Unicode, so this test is not applicable.
+            // You may skip or assert true here.
+            assert!(true);
+        }
     }
 
     #[test]
-    fn test_to_string_lossy() {
-        let path = Path::new("some/path");
-        assert_eq!(path.to_string_lossy(), "some/path");
+    fn test_to_string_lossy_valid_and_invalid_unicode() {
+        // Valid Unicode
+        let path = Path::new("valid_path");
+        assert_eq!(path.to_string_lossy(), "valid_path");
+
+        // Invalid Unicode (Unix only)
+        #[cfg(unix)]
+        {
+            use std::ffi::OsStr;
+            use std::os::unix::ffi::OsStrExt;
+            let invalid_bytes = b"foo\xFFbar";
+            let path = Path::new(OsStr::from_bytes(invalid_bytes));
+            let result = path.to_string_lossy();
+            // Should contain valid parts and replacement char
+            assert!(result.contains("foo") && result.contains("bar"));
+        }
+        #[cfg(windows)]
+        {
+            // On Windows, OsStr is always valid Unicode, so this test is not applicable.
+            assert!(true);
+        }
     }
 }

@@ -3,12 +3,12 @@ pub mod hooks;
 pub mod processor;
 pub mod runner;
 
+use crate::constants::{exit_codes, verbosity};
 use clap::{error::ErrorKind, CommandFactory, Parser, ValueEnum};
 /// Pre and post generation hook processing.
 use log::LevelFilter;
+use std::fmt::Display;
 use std::path::PathBuf;
-
-use crate::constants::{exit_codes, verbosity};
 
 pub use runner::run;
 
@@ -39,6 +39,17 @@ pub enum SkipConfirm {
     Overwrite,
     /// Skip confirmation when executing pre/post hooks
     Hooks,
+}
+
+impl Display for SkipConfirm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            SkipConfirm::All => "all",
+            SkipConfirm::Overwrite => "overwrite",
+            SkipConfirm::Hooks => "hooks",
+        };
+        write!(f, "{}", s)
+    }
 }
 
 /// Command-line arguments structure for Baker.
@@ -154,15 +165,76 @@ pub struct Args {
 /// * With status code 1 if required arguments are missing
 /// * With clap's default error handling for other argument errors
 pub fn get_args() -> Args {
-    match Args::try_parse() {
-        Ok(args) => args,
-        Err(e) => {
-            if e.kind() == ErrorKind::MissingRequiredArgument {
-                Args::command().help_template(HELP_TEMPLATE).print_help().unwrap();
-                std::process::exit(exit_codes::FAILURE);
-            } else {
-                e.exit();
-            }
+    Args::try_parse().unwrap_or_else(|e| {
+        if e.kind() == ErrorKind::MissingRequiredArgument {
+            Args::command().help_template(HELP_TEMPLATE).print_help().unwrap();
+            std::process::exit(exit_codes::FAILURE);
+        } else {
+            e.exit();
         }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_log_level_from_verbose() {
+        use crate::constants::verbosity;
+        use log::LevelFilter;
+        assert_eq!(get_log_level_from_verbose(verbosity::OFF), LevelFilter::Error);
+        assert_eq!(get_log_level_from_verbose(verbosity::INFO), LevelFilter::Info);
+        assert_eq!(get_log_level_from_verbose(verbosity::DEBUG), LevelFilter::Debug);
+        assert_eq!(get_log_level_from_verbose(verbosity::TRACE), LevelFilter::Trace);
+        // Test for values above TRACE
+        assert_eq!(get_log_level_from_verbose(verbosity::TRACE + 1), LevelFilter::Trace);
+    }
+
+    #[test]
+    fn test_args_parsing() {
+        use super::Args;
+        use clap::Parser;
+        let args = Args::parse_from(["baker", "template_dir", "output_dir", "--force"]);
+        assert_eq!(args.template, "template_dir");
+        assert_eq!(args.output_dir, std::path::PathBuf::from("output_dir"));
+        assert!(args.force);
+    }
+
+    #[test]
+    fn test_skip_confirm_display() {
+        use super::SkipConfirm;
+        assert_eq!(format!("{}", SkipConfirm::All), "all");
+        assert_eq!(format!("{}", SkipConfirm::Overwrite), "overwrite");
+        assert_eq!(format!("{}", SkipConfirm::Hooks), "hooks");
+    }
+
+    #[test]
+    fn test_args_parsing_with_all_flags() {
+        use super::Args;
+        use super::SkipConfirm;
+        use clap::Parser;
+        let args = Args::parse_from([
+            "baker",
+            "template_dir",
+            "output_dir",
+            "--force",
+            "-vvv",
+            "--answers",
+            "{\"name\":\"John\"}",
+            "--skip-confirms",
+            "all,overwrite",
+            "--non-interactive",
+            "--dry-run",
+        ]);
+        assert_eq!(args.template, "template_dir");
+        assert_eq!(args.output_dir, std::path::PathBuf::from("output_dir"));
+        assert!(args.force);
+        assert_eq!(args.verbose, 3);
+        assert_eq!(args.answers, Some("{\"name\":\"John\"}".to_string()));
+        assert!(args.skip_confirms.contains(&SkipConfirm::All));
+        assert!(args.skip_confirms.contains(&SkipConfirm::Overwrite));
+        assert!(args.non_interactive);
+        assert!(args.dry_run);
     }
 }

@@ -169,4 +169,19 @@ mod tests {
         test_template("{{ '' | regex('.+') }}", "false");
         test_template("{{ 'hello' | regex('[') }}", "false");
     }
+
+    #[test]
+    fn test_render_internal_non_object_context() {
+        use crate::renderer::MiniJinjaRenderer;
+        use serde_json::Value;
+        let renderer = MiniJinjaRenderer::new();
+        let template = "{{ value }}";
+        let context = Value::String("test_value".to_string());
+        let result = renderer.render(template, &context, None).unwrap();
+        assert_eq!(result, "test_value");
+        let context = Value::Number(42.into());
+        let template = "{{ this }}";
+        let result = renderer.render(template, &context, None).unwrap();
+        assert_eq!(result, "42");
+    }
 }

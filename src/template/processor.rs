@@ -917,4 +917,129 @@ mod tests {
             _ => panic!("Expected ProcessError"),
         }
     }
+
+    #[test]
+    fn test_remove_template_suffix() {
+        use std::path::Path;
+        let engine = crate::renderer::MiniJinjaRenderer::new();
+        let bakerignore = globset::GlobSetBuilder::new().build().unwrap();
+        let answers = serde_json::json!({});
+        let processor = super::TemplateProcessor::new(
+            &engine,
+            Path::new("/template_root"),
+            Path::new("/output_root"),
+            &answers,
+            &bakerignore,
+            ".baker.j2",
+        );
+
+        // Case 1: Path ends with suffix
+        let path_with_suffix = Path::new("foo/bar.baker.j2");
+        let result = processor.remove_template_suffix(path_with_suffix).unwrap();
+        assert_eq!(result, Path::new("foo/bar"));
+
+        // Case 2: Path does not end with suffix
+        let path_without_suffix = Path::new("foo/bar.txt");
+        let result = processor.remove_template_suffix(path_without_suffix).unwrap();
+        assert_eq!(result, Path::new("foo/bar.txt"));
+    }
+
+    #[test]
+    fn test_get_target_path_strip_prefix_error() {
+        use std::path::Path;
+        let engine = crate::renderer::MiniJinjaRenderer::new();
+        let bakerignore = globset::GlobSetBuilder::new().build().unwrap();
+        let answers = serde_json::json!({});
+        let processor = super::TemplateProcessor::new(
+            &engine,
+            Path::new("/template_root"),
+            Path::new("/output_root"),
+            &answers,
+            &bakerignore,
+            ".baker.j2",
+        );
+        // rendered_entry does not start with template_root, so strip_prefix will fail
+        let rendered_entry = Path::new("/not_template_root/file.txt");
+        let template_entry = Path::new("/template_root/file.txt");
+        let result = processor.get_target_path(rendered_entry, template_entry);
+        match result {
+            Err(crate::error::Error::ProcessError { source_path, e }) => {
+                assert_eq!(source_path, template_entry.display().to_string());
+                assert!(e.contains("prefix"));
+            }
+            _ => panic!("Expected ProcessError from strip_prefix failure"),
+        }
+    }
+
+    #[test]
+    fn test_process_template_file_write_operation() {
+        use crate::renderer::MiniJinjaRenderer;
+        use crate::template::operation::TemplateOperation;
+        use std::io::Write;
+        use tempfile::TempDir;
+        let answers = serde_json::json!({"name": "test"});
+        let template_root = TempDir::new().unwrap();
+        let template_root = template_root.path();
+        let output_root = TempDir::new().unwrap();
+        let output_root = output_root.path();
+        let bakerignore = globset::GlobSetBuilder::new().build().unwrap();
+        let engine = MiniJinjaRenderer::new();
+        let processor = super::TemplateProcessor::new(
+            &engine,
+            template_root,
+            output_root,
+            &answers,
+            &bakerignore,
+            ".baker.j2",
+        );
+        // Create a template file ending with .baker.j2
+        let file_path = template_root.join("test.txt.baker.j2");
+        let mut temp_file = std::fs::File::create(&file_path).unwrap();
+        temp_file.write_all(b"{{ name }}").unwrap();
+        // Process the template file
+        let result = processor.process(&file_path).unwrap();
+        match result {
+            TemplateOperation::Write { target, content, target_exists } => {
+                assert_eq!(target, output_root.join("test.txt"));
+                assert_eq!(content, "test");
+                assert!(!target_exists);
+            }
+            _ => panic!("Expected Write operation for template file"),
+        }
+    }
+
+    #[test]
+    fn test_process_true_true_write_branch() {
+        use crate::renderer::MiniJinjaRenderer;
+        use crate::template::operation::TemplateOperation;
+        use std::io::Write;
+        use tempfile::TempDir;
+        let answers = serde_json::json!({"username": "copilot"});
+        let template_root = TempDir::new().unwrap();
+        let template_root = template_root.path();
+        let output_root = TempDir::new().unwrap();
+        let output_root = output_root.path();
+        let bakerignore = globset::GlobSetBuilder::new().build().unwrap();
+        let engine = MiniJinjaRenderer::new();
+        let processor = super::TemplateProcessor::new(
+            &engine,
+            template_root,
+            output_root,
+            &answers,
+            &bakerignore,
+            ".baker.j2",
+        );
+        let file_path = template_root.join("user.txt.baker.j2");
+        let mut temp_file = std::fs::File::create(&file_path).unwrap();
+        temp_file.write_all(b"{{ username }}").unwrap();
+        let result = processor.process(&file_path).unwrap();
+        match result {
+            TemplateOperation::Write { target, content, target_exists } => {
+                assert_eq!(target, output_root.join("user.txt"));
+                assert_eq!(content, "copilot");
+                assert!(!target_exists);
+            }
+            _ => panic!("Expected Write operation for (true, true) match branch"),
+        }
+    }
 }
