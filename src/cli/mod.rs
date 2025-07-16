@@ -48,7 +48,7 @@ impl Display for SkipConfirm {
             SkipConfirm::Overwrite => "overwrite",
             SkipConfirm::Hooks => "hooks",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
