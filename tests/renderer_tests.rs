@@ -4,6 +4,7 @@ use utils::run_and_assert;
 #[cfg(test)]
 mod tests {
     use crate::run_and_assert;
+    use test_log::test;
 
     #[test]
     fn test_demo_copy() {
@@ -100,6 +101,17 @@ mod tests {
             "tests/templates/pre_hook_merge",
             "tests/expected/pre_hook_merge",
             Some("{\"username\":\"cliuser\"}"),
+        );
+    }
+
+    #[test]
+    fn test_loop_example() {
+        run_and_assert(
+            "examples/loop",
+            "tests/expected/loop",
+            Some(
+                "{\"nested\":true,\"items\":[{\"name\":\"item1\"},{\"name\":\"item2\"}]}",
+            ),
         );
     }
 }

@@ -1,0 +1,31 @@
+schemaVersion: v1
+
+questions:
+  items:
+    type: json
+    schema: |
+      {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              ]
+            }
+          },
+          "required": [
+            "items"
+          ]
+      }

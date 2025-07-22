@@ -6,6 +6,12 @@ pub const CONFIG_FILENAMES: &[&str] = &["baker.json", "baker.yaml", "baker.yml"]
 /// Default template file suffix
 pub const DEFAULT_TEMPLATE_SUFFIX: &str = ".baker.j2";
 
+/// Default template file loop separator
+pub const DEFAULT_LOOP_SEPARATOR: &str = "---";
+
+/// Default template file loop content separator
+pub const DEFAULT_LOOP_CONTENT_SEPARATOR: &str = "***+++***";
+
 /// Default pre-hook filename
 pub const DEFAULT_PRE_HOOK: &str = "pre";
 

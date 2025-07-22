@@ -2,7 +2,8 @@
 
 use crate::config::question::Question;
 use crate::constants::{
-    CONFIG_FILENAMES, DEFAULT_POST_HOOK, DEFAULT_PRE_HOOK, DEFAULT_TEMPLATE_SUFFIX,
+    CONFIG_FILENAMES, DEFAULT_LOOP_CONTENT_SEPARATOR, DEFAULT_LOOP_SEPARATOR,
+    DEFAULT_POST_HOOK, DEFAULT_PRE_HOOK, DEFAULT_TEMPLATE_SUFFIX,
 };
 use crate::error::{Error, Result};
 use crate::ext::PathExt;
@@ -15,6 +16,10 @@ use std::path::Path;
 pub struct ConfigV1 {
     #[serde(default = "get_default_template_suffix")]
     pub template_suffix: String,
+    #[serde(default = "get_default_loop_separator")]
+    pub loop_separator: String,
+    #[serde(default = "get_default_loop_content_separator")]
+    pub loop_content_separator: String,
     #[serde(default = "get_default_template_globs")]
     pub template_globs: Vec<String>,
     #[serde(default)]
@@ -87,4 +92,12 @@ fn get_default_post_hook_filename() -> String {
 
 fn get_default_pre_hook_filename() -> String {
     DEFAULT_PRE_HOOK.to_string()
+}
+
+fn get_default_loop_separator() -> String {
+    DEFAULT_LOOP_SEPARATOR.to_string()
+}
+
+fn get_default_loop_content_separator() -> String {
+    DEFAULT_LOOP_CONTENT_SEPARATOR.to_string()
 }

@@ -83,6 +83,21 @@ impl<'a> FileProcessor<'a> {
                 Ok(true)
             }
             TemplateOperation::Ignore { .. } => Ok(true),
+            TemplateOperation::MultipleWrite { writes, .. } => {
+                for write in writes {
+                    let skip_prompt =
+                        self.should_skip_overwrite_prompt(write.target_exists);
+                    let user_confirmed = confirm(
+                        skip_prompt,
+                        format!("Overwrite {}?", write.target.display()),
+                    )?;
+
+                    if user_confirmed {
+                        self.write_file(&write.content, &write.target)?;
+                    }
+                }
+                Ok(true)
+            }
         }
     }
 

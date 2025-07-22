@@ -1,3 +1,4 @@
+use crate::template::processor::TemplateConfig;
 use crate::{
     cli::{
         answers::AnswerCollector, hooks::run_hook, processor::FileProcessor, Args,
@@ -191,7 +192,11 @@ impl Runner {
             output_root.to_path_buf(),
             answers,
             &bakerignore,
-            config.template_suffix.as_str(),
+            TemplateConfig {
+                template_suffix: config.template_suffix.as_str(),
+                loop_separator: config.loop_separator.as_str(),
+                loop_content_separator: config.loop_content_separator.as_str(),
+            },
         );
 
         let file_processor =

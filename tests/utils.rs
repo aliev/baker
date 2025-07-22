@@ -76,6 +76,7 @@ pub fn run_and_assert(template: &str, expected_dir: &str, answers: Option<&str>)
         Ok(different) => {
             if different {
                 print_dir_diff(tmp_dir.path(), expected_dir.as_ref());
+                panic!("Directories differ. See above for details.");
             }
         }
         Err(e) => {

@@ -6,6 +6,14 @@ pub enum TemplateOperation {
     Write { target: PathBuf, content: String, target_exists: bool },
     CreateDirectory { target: PathBuf, target_exists: bool },
     Ignore { source: PathBuf },
+    MultipleWrite { writes: Vec<WriteOp> },
+}
+
+#[derive(Debug)]
+pub struct WriteOp {
+    pub target: PathBuf,
+    pub content: String,
+    pub target_exists: bool,
 }
 
 impl TemplateOperation {
@@ -86,6 +94,27 @@ impl TemplateOperation {
                     prefix,
                     source.display()
                 )
+            }
+
+            TemplateOperation::MultipleWrite { writes } => {
+                let overwriting: Vec<_> = writes
+                    .iter()
+                    .filter(|w| w.target_exists)
+                    .map(|w| w.target.display().to_string())
+                    .collect();
+                let writing: Vec<_> = writes
+                    .iter()
+                    .filter(|w| !w.target_exists)
+                    .map(|w| w.target.display().to_string())
+                    .collect();
+                let mut msg = String::new();
+                if !overwriting.is_empty() {
+                    msg.push_str(&format!("Overwriting: {}.", overwriting.join(", ")));
+                }
+                if !writing.is_empty() {
+                    msg.push_str(&format!("Writing: {}.", writing.join(", ")));
+                }
+                msg.trim_end().to_string()
             }
         }
     }
