@@ -387,6 +387,7 @@ A detailed description of the `ask_if` key can be found in the [Conditional Ques
 
 Since Baker uses MiniJinja, it benefits from all MiniJinja features, including debugging. You can use the `debug()` function to inspect the current context.
 
+
 **Example**
 
 ```yaml
