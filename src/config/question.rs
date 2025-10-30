@@ -32,6 +32,9 @@ pub struct Question {
     /// JSON Schema for validation (for Json and Yaml types)
     #[serde(default)]
     pub schema: Option<String>,
+    /// Path to a file containing JSON Schema for validation (for Json and Yaml types)
+    #[serde(default)]
+    pub schema_file: Option<String>,
     #[serde(default = "get_default_validation")]
     pub validation: Validation,
 }
@@ -199,6 +202,7 @@ mod tests {
             secret: None,
             ask_if: String::new(),
             schema: None,
+            schema_file: None,
             validation: get_default_validation(),
         }
     }

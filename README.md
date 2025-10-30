@@ -812,7 +812,63 @@ questions:
 - **`type`**: Must be `json`.
 - **`help`**: Should be a string, optionally containing a `minijinja` template.
 - **`schema`**: Optional JSON Schema for validation. Follows the [JSON Schema standard](https://json-schema.org/).
+- **`schema_file`**: Optional path to an external JSON Schema file (relative to template root). Takes precedence over inline `schema`.
 - **`default`**: JSON object, can be provided as a string or native YAML object.
+
+#### Loading Schema from External File
+
+For better organization and reusability, you can store your JSON Schema in a separate file:
+
+```yaml
+schemaVersion: v1
+
+questions:
+  database_config:
+    type: json
+    help: Configure your database settings
+    schema_file: database.schema.json
+    default: |
+      {
+        "engine": "postgresql",
+        "host": "localhost",
+        "port": 5432
+      }
+```
+
+**database.schema.json:**
+```json
+{
+  "type": "object",
+  "required": ["engine", "host", "port"],
+  "properties": {
+    "engine": {
+      "type": "string",
+      "enum": ["postgresql", "mysql", "sqlite", "mongodb"]
+    },
+    "host": {
+      "type": "string"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    }
+  }
+}
+```
+
+**Benefits of using external schema files:**
+- **Separation of concerns**: Keep large schemas in separate files for better maintainability
+- **Reusability**: Share schemas across multiple templates or questions
+- **Version control**: Better diff viewing for schema changes
+- **Editor support**: Most editors provide JSON Schema validation and autocompletion
+
+**Note:** Don't forget to add schema files to your `.bakerignore` to prevent them from being copied to the output:
+
+```
+# .bakerignore
+*.schema.json
+```
 
 #### Result
 
@@ -861,7 +917,10 @@ questions:
 - **`type`**: Must be `yaml`.
 - **`help`**: Should be a string, optionally containing a `minijinja` template.
 - **`schema`**: Optional JSON Schema for validation (same format as for JSON type).
+- **`schema_file`**: Optional path to an external JSON Schema file (relative to template root). Takes precedence over inline `schema`.
 - **`default`**: YAML data, can be provided as a string or native YAML object.
+
+Like the JSON type, YAML questions also support external schema files using `schema_file`. See the [JSON Complex Type](#json-complex-type) section for details on using external schema files.
 
 #### Result
 

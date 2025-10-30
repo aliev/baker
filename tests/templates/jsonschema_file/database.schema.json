@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "required": ["engine", "host", "port"],
+  "properties": {
+    "engine": {
+      "type": "string",
+      "enum": ["postgresql", "mysql", "sqlite", "mongodb"]
+    },
+    "host": {
+      "type": "string"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "ssl": {
+      "type": "boolean"
+    }
+  }
+}
+

@@ -1,0 +1,3 @@
+# Ignore schema files
+*.schema.json
+

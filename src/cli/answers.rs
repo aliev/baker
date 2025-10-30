@@ -6,11 +6,13 @@ use crate::{
     renderer::TemplateRenderer,
 };
 use serde_json::{json, Map, Value};
+use std::path::Path;
 
 /// Collects answers from various sources: pre-hook output, command line arguments, and user prompts
 pub struct AnswerCollector<'a> {
     engine: &'a dyn TemplateRenderer,
     non_interactive: bool,
+    template_root: &'a Path,
 }
 
 #[derive(Debug)]
@@ -20,8 +22,12 @@ pub enum ValidationError {
 }
 
 impl<'a> AnswerCollector<'a> {
-    pub fn new(engine: &'a dyn TemplateRenderer, non_interactive: bool) -> Self {
-        Self { engine, non_interactive }
+    pub fn new(
+        engine: &'a dyn TemplateRenderer,
+        non_interactive: bool,
+        template_root: &'a Path,
+    ) -> Self {
+        Self { engine, non_interactive, template_root }
     }
 
     /// Read content from a reader into a string.
@@ -97,6 +103,21 @@ impl<'a> AnswerCollector<'a> {
             if skip_user_prompt {
                 // Skip to the next question if an answer for this key is already provided
                 if answers.contains_key(key) {
+                    // Validate the pre-provided answer
+                    let answer = answers.get(key).unwrap();
+                    let _answers = Value::Object(answers.clone());
+                    if let Err(err) =
+                        self.validate_answer(question, answer, self.engine, &_answers)
+                    {
+                        return match err {
+                            ValidationError::JsonSchema(msg) => Err(Error::Other(
+                                anyhow::anyhow!("JSON Schema validation error: {}", msg),
+                            )),
+                            ValidationError::FieldValidation(msg) => Err(Error::Other(
+                                anyhow::anyhow!("Validation error: {}", msg),
+                            )),
+                        };
+                    }
                     break;
                 }
 
@@ -155,8 +176,22 @@ impl<'a> AnswerCollector<'a> {
     ) -> Result<(), ValidationError> {
         match question.into_question_type() {
             QuestionType::Json | QuestionType::Yaml => {
-                if let Some(schema) = &question.schema {
-                    self.validate_with_schema(answer, schema).map_err(|e| {
+                // Load schema from file if schema_file is specified, otherwise use inline schema
+                let schema_content = if let Some(schema_file) = &question.schema_file {
+                    let schema_path = self.template_root.join(schema_file);
+                    Some(std::fs::read_to_string(&schema_path).map_err(|e| {
+                        ValidationError::JsonSchema(format!(
+                            "Failed to read schema file '{}': {}",
+                            schema_path.display(),
+                            e
+                        ))
+                    })?)
+                } else {
+                    question.schema.clone()
+                };
+
+                if let Some(schema) = schema_content {
+                    self.validate_with_schema(answer, &schema).map_err(|e| {
                         ValidationError::JsonSchema(format!(
                             "JSON Schema validation error: {e}"
                         ))
@@ -244,7 +279,8 @@ mod tests {
     #[test]
     fn test_validate_with_schema_invalid_schema() {
         let engine = get_template_engine();
-        let collector = AnswerCollector::new(&engine, false);
+        let temp_dir = std::env::temp_dir();
+        let collector = AnswerCollector::new(&engine, false, &temp_dir);
         let value = json!({"name": "test"});
         let invalid_schema =
             r#"{"type": "object", "properties": {"name": {"type": "string"}}"#;
@@ -253,7 +289,8 @@ mod tests {
     #[test]
     fn test_validate_with_schema_valid_value() {
         let engine = get_template_engine();
-        let collector = AnswerCollector::new(&engine, false);
+        let temp_dir = std::env::temp_dir();
+        let collector = AnswerCollector::new(&engine, false, &temp_dir);
         let value = json!({"name": "test"});
         let schema = r#"{"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}"#;
         assert!(collector.test_validate_with_schema(&value, schema).is_ok());
@@ -262,7 +299,8 @@ mod tests {
     #[test]
     fn test_validate_with_schema_invalid_value() {
         let engine = get_template_engine();
-        let collector = AnswerCollector::new(&engine, false);
+        let temp_dir = std::env::temp_dir();
+        let collector = AnswerCollector::new(&engine, false, &temp_dir);
         let value = json!({"name": 123});
         let schema = r#"{"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}"#;
         assert!(collector.test_validate_with_schema(&value, schema).is_err());
@@ -282,6 +320,7 @@ mod tests {
             secret: None,
             ask_if: String::new(),
             schema,
+            schema_file: None,
             validation: Validation {
                 condition: condition.to_string(),
                 error_message: error_message.to_string(),
@@ -298,7 +337,8 @@ mod tests {
             );
         let answer = json!({"foo": "bar"});
         let engine = get_template_engine();
-        let collector = AnswerCollector::new(&engine, false);
+        let temp_dir = std::env::temp_dir();
+        let collector = AnswerCollector::new(&engine, false, &temp_dir);
         let answers = json!({});
         assert!(collector
             .test_validate_answer(&question, &answer, &engine, &answers)
@@ -314,7 +354,8 @@ mod tests {
             );
         let answer = json!({"foo": 123});
         let engine = get_template_engine();
-        let collector = AnswerCollector::new(&engine, false);
+        let temp_dir = std::env::temp_dir();
+        let collector = AnswerCollector::new(&engine, false, &temp_dir);
         let answers = json!({});
         assert!(matches!(
             collector.test_validate_answer(&question, &answer, &engine, &answers),
@@ -327,7 +368,8 @@ mod tests {
         let question = make_question_json(None, "true", "error");
         let answer = json!("anything");
         let engine = get_template_engine();
-        let collector = AnswerCollector::new(&engine, false);
+        let temp_dir = std::env::temp_dir();
+        let collector = AnswerCollector::new(&engine, false, &temp_dir);
         let answers = json!({});
         assert!(collector
             .test_validate_answer(&question, &answer, &engine, &answers)
@@ -345,6 +387,7 @@ mod tests {
             secret: None,
             ask_if: String::new(),
             schema: None,
+            schema_file: None,
             validation: Validation {
                 condition: "false".to_string(),
                 error_message: "custom error".to_string(),
@@ -353,7 +396,8 @@ mod tests {
 
         let answer = serde_json::json!("anything");
         let engine = get_template_engine();
-        let collector = AnswerCollector::new(&engine, false);
+        let temp_dir = std::env::temp_dir();
+        let collector = AnswerCollector::new(&engine, false, &temp_dir);
         let answers = serde_json::json!({});
         let err = collector
             .test_validate_answer(&question, &answer, &engine, &answers)
@@ -362,5 +406,141 @@ mod tests {
             ValidationError::FieldValidation(msg) => assert_eq!(msg, "custom error"),
             _ => panic!("Expected FieldValidation error"),
         }
+    }
+
+    #[test]
+    fn test_validate_answer_schema_file_valid() {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        let temp_dir = temp_file.path().parent().unwrap();
+        let schema_filename =
+            temp_file.path().file_name().unwrap().to_string_lossy().to_string();
+        let schema = r#"{"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}"#;
+        std::fs::write(temp_file.path(), schema).unwrap();
+
+        let question = Question {
+            help: String::new(),
+            r#type: Type::Json,
+            default: serde_json::Value::Null,
+            choices: vec![],
+            multiselect: false,
+            secret: None,
+            ask_if: String::new(),
+            schema: None,
+            schema_file: Some(schema_filename),
+            validation: Validation {
+                condition: "true".to_string(),
+                error_message: "error".to_string(),
+            },
+        };
+
+        let answer = json!({"name": "test"});
+        let engine = get_template_engine();
+        let collector = AnswerCollector::new(&engine, false, temp_dir);
+        let answers = json!({});
+        assert!(collector
+            .test_validate_answer(&question, &answer, &engine, &answers)
+            .is_ok());
+    }
+
+    #[test]
+    fn test_validate_answer_schema_file_invalid() {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        let temp_dir = temp_file.path().parent().unwrap();
+        let schema_filename =
+            temp_file.path().file_name().unwrap().to_string_lossy().to_string();
+        let schema = r#"{"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}"#;
+        std::fs::write(temp_file.path(), schema).unwrap();
+
+        let question = Question {
+            help: String::new(),
+            r#type: Type::Json,
+            default: serde_json::Value::Null,
+            choices: vec![],
+            multiselect: false,
+            secret: None,
+            ask_if: String::new(),
+            schema: None,
+            schema_file: Some(schema_filename),
+            validation: Validation {
+                condition: "true".to_string(),
+                error_message: "error".to_string(),
+            },
+        };
+
+        let answer = json!({"name": 123}); // Invalid: name should be string
+        let engine = get_template_engine();
+        let collector = AnswerCollector::new(&engine, false, temp_dir);
+        let answers = json!({});
+        assert!(matches!(
+            collector.test_validate_answer(&question, &answer, &engine, &answers),
+            Err(ValidationError::JsonSchema(_))
+        ));
+    }
+
+    #[test]
+    fn test_validate_answer_schema_file_missing() {
+        let question = Question {
+            help: String::new(),
+            r#type: Type::Json,
+            default: serde_json::Value::Null,
+            choices: vec![],
+            multiselect: false,
+            secret: None,
+            ask_if: String::new(),
+            schema: None,
+            schema_file: Some("nonexistent_schema.json".to_string()),
+            validation: Validation {
+                condition: "true".to_string(),
+                error_message: "error".to_string(),
+            },
+        };
+
+        let answer = json!({"name": "test"});
+        let engine = get_template_engine();
+        let temp_dir = std::env::temp_dir();
+        let collector = AnswerCollector::new(&engine, false, &temp_dir);
+        let answers = json!({});
+        assert!(matches!(
+            collector.test_validate_answer(&question, &answer, &engine, &answers),
+            Err(ValidationError::JsonSchema(_))
+        ));
+    }
+
+    #[test]
+    fn test_validate_answer_schema_file_takes_precedence() {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        let temp_dir = temp_file.path().parent().unwrap();
+        let schema_filename =
+            temp_file.path().file_name().unwrap().to_string_lossy().to_string();
+        // Schema from file requires "name" field
+        let file_schema = r#"{"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}"#;
+        std::fs::write(temp_file.path(), file_schema).unwrap();
+
+        let question = Question {
+            help: String::new(),
+            r#type: Type::Json,
+            default: serde_json::Value::Null,
+            choices: vec![],
+            multiselect: false,
+            secret: None,
+            ask_if: String::new(),
+            // Inline schema is different (requires "age" field) but should be ignored
+            schema: Some(r#"{"type": "object", "properties": {"age": {"type": "number"}}, "required": ["age"]}"#.to_string()),
+            schema_file: Some(schema_filename),
+            validation: Validation {
+                condition: "true".to_string(),
+                error_message: "error".to_string(),
+            },
+        };
+
+        // This answer has "name" but not "age", so it should pass file_schema but fail inline schema
+        let answer = json!({"name": "test"});
+        let engine = get_template_engine();
+        let collector = AnswerCollector::new(&engine, false, temp_dir);
+        let answers = json!({});
+        // If schema_file takes precedence, this should pass
+        assert!(collector
+            .test_validate_answer(&question, &answer, &engine, &answers)
+            .is_ok());
     }
 }

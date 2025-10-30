@@ -35,6 +35,7 @@ pub fn get_prompt_provider() -> impl PromptProvider {
 /// #     secret: None,
 /// #     ask_if: String::new(),
 /// #     schema: None,
+/// #     schema_file: None,
 /// #     validation: baker::config::types::get_default_validation(),
 /// # };
 /// # let default = json!("demo");
@@ -80,6 +81,7 @@ fn confirm_with_provider<P: PromptProvider>(
         secret: None,
         ask_if: String::new(),
         schema: None,
+        schema_file: None,
         validation: get_default_validation(),
     };
 
@@ -174,6 +176,7 @@ mod tests {
             secret: None,
             ask_if: String::new(),
             schema: None,
+            schema_file: None,
             validation: get_default_validation(),
         };
         let answer = super::ask_question_with_provider(
@@ -216,6 +219,7 @@ mod tests {
             secret: None,
             ask_if: String::new(),
             schema: None,
+            schema_file: None,
             validation: get_default_validation(),
         };
         let context = PromptContext::new(&question, &Value::Bool(false), "Help");

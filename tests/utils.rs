@@ -5,12 +5,12 @@ use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
 
-/// Prints a diff of files and their contents between two directories using debug logging.
+/// Prints a diff of files and their contents between two directories.
 /// Shows files only present in one directory and content differences for files present in both.
 ///
 /// # Arguments
-/// * `dir1` - The first directory to compare.
-/// * `dir2` - The second directory to compare.
+/// * `dir1` - The first directory to compare (actual output).
+/// * `dir2` - The second directory to compare (expected output).
 pub fn print_dir_diff(dir1: &Path, dir2: &Path) {
     let mut files1 = std::collections::HashSet::new();
     let mut files2 = std::collections::HashSet::new();
@@ -32,23 +32,59 @@ pub fn print_dir_diff(dir1: &Path, dir2: &Path) {
         files2.insert(rel);
     }
 
-    for file in files1.difference(&files2) {
-        debug!("Only in {dir1:?}: {file:?}");
+    println!("\n=== Directory Comparison ===");
+    println!("Actual output:   {:?}", dir1);
+    println!("Expected output: {:?}", dir2);
+    println!();
+
+    let only_in_actual: Vec<_> = files1.difference(&files2).collect();
+    let only_in_expected: Vec<_> = files2.difference(&files1).collect();
+
+    if !only_in_actual.is_empty() {
+        println!("Files only in ACTUAL output:");
+        for file in &only_in_actual {
+            println!("  + {:?}", file);
+        }
+        println!();
     }
-    for file in files2.difference(&files1) {
-        debug!("Only in {dir2:?}: {file:?}");
+
+    if !only_in_expected.is_empty() {
+        println!("Files only in EXPECTED output:");
+        for file in &only_in_expected {
+            println!("  - {:?}", file);
+        }
+        println!();
     }
+
+    let mut has_content_diff = false;
     for file in files1.intersection(&files2) {
         let path1 = dir1.join(file);
         let path2 = dir2.join(file);
         let content1 = fs::read(&path1).unwrap();
         let content2 = fs::read(&path2).unwrap();
         if content1 != content2 {
-            debug!("File differs: {file:?}");
-            debug!("Content in {:?}:\n{:?}", dir1, String::from_utf8(content1));
-            debug!("Content in {:?}:\n{:?}", dir2, String::from_utf8(content2));
+            if !has_content_diff {
+                println!("Files with different content:");
+                has_content_diff = true;
+            }
+            println!("\n  File: {:?}", file);
+            println!("  --- Actual content:");
+            match String::from_utf8(content1.clone()) {
+                Ok(s) => println!("{}", s),
+                Err(_) => println!("  (binary content, {} bytes)", content1.len()),
+            }
+            println!("  --- Expected content:");
+            match String::from_utf8(content2.clone()) {
+                Ok(s) => println!("{}", s),
+                Err(_) => println!("  (binary content, {} bytes)", content2.len()),
+            }
         }
     }
+
+    if !has_content_diff && only_in_actual.is_empty() && only_in_expected.is_empty() {
+        println!("No differences found (this shouldn't happen if test failed!)");
+    }
+    println!("=== End of Comparison ===\n");
 }
 
 /// Runs the baker CLI with the given template and answers, compares the output to the expected directory,

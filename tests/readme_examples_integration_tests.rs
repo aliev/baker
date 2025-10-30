@@ -201,3 +201,60 @@ fn test_nested_answer_context() {
     assert!(content.contains("Test Project"));
     assert!(content.contains("Test Author"));
 }
+
+#[test]
+fn test_jsonschema_file() {
+    run_and_assert(
+        "tests/templates/jsonschema_file",
+        "tests/expected/jsonschema_file",
+        Some(
+            r#"{"database_config": {"engine": "mysql", "host": "db.example.com", "port": 3306, "ssl": true}}"#,
+        ),
+    );
+}
+
+#[test]
+#[should_panic(expected = "JSON Schema validation error")]
+fn test_jsonschema_file_invalid_engine() {
+    run_and_assert(
+        "tests/templates/jsonschema_file",
+        "tests/expected/jsonschema_file",
+        Some(
+            r#"{"database_config": {"engine": "oracle", "host": "db.example.com", "port": 3306}}"#,
+        ),
+    );
+}
+
+#[test]
+#[should_panic(expected = "JSON Schema validation error")]
+fn test_jsonschema_file_missing_required_field() {
+    run_and_assert(
+        "tests/templates/jsonschema_file",
+        "tests/expected/jsonschema_file",
+        Some(r#"{"database_config": {"engine": "mysql", "host": "db.example.com"}}"#),
+    );
+}
+
+#[test]
+#[should_panic(expected = "JSON Schema validation error")]
+fn test_jsonschema_file_invalid_port_type() {
+    run_and_assert(
+        "tests/templates/jsonschema_file",
+        "tests/expected/jsonschema_file",
+        Some(
+            r#"{"database_config": {"engine": "mysql", "host": "db.example.com", "port": "3306"}}"#,
+        ),
+    );
+}
+
+#[test]
+#[should_panic(expected = "JSON Schema validation error")]
+fn test_jsonschema_file_invalid_port_range() {
+    run_and_assert(
+        "tests/templates/jsonschema_file",
+        "tests/expected/jsonschema_file",
+        Some(
+            r#"{"database_config": {"engine": "mysql", "host": "db.example.com", "port": 99999}}"#,
+        ),
+    );
+}

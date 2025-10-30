@@ -1,0 +1,6 @@
+# Database Configuration
+
+Engine: mysql
+Host: db.example.com
+Port: 3306
+SSL Enabled: true

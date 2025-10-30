@@ -47,6 +47,15 @@ mod tests {
         run_and_assert(
             "tests/templates/jsonschema",
             "tests/expected/jsonschema",
+            Some("{\"database_config\":{\"engine\":\"mongodb\",\"host\":\"localhost\",\"port\":27017}}")
+        );
+    }
+    #[test]
+    #[should_panic(expected = "JSON Schema validation error")]
+    fn test_jsonschema_wrong_database() {
+        run_and_assert(
+            "tests/templates/jsonschema",
+            "tests/expected/jsonschema",
             Some("{\"database_config\":{\"engine\":\"redis\",\"host\":\"localhost\",\"port\":6379}}")
         );
     }

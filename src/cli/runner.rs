@@ -39,7 +39,12 @@ impl Runner {
 
         let pre_hook_output = self.maybe_run_pre_hook(&hook_plan, &context, &engine)?;
 
-        let answers = self.gather_answers(context.config(), &engine, pre_hook_output)?;
+        let answers = self.gather_answers(
+            context.config(),
+            &engine,
+            pre_hook_output,
+            context.template_root(),
+        )?;
         context.set_answers(answers);
 
         self.process_templates(&context, &engine)?;
@@ -177,8 +182,10 @@ impl Runner {
         config: &crate::config::ConfigV1,
         engine: &dyn crate::renderer::TemplateRenderer,
         pre_hook_output: Option<String>,
+        template_root: &Path,
     ) -> Result<serde_json::Value> {
-        let collector = AnswerCollector::new(engine, self.args.non_interactive);
+        let collector =
+            AnswerCollector::new(engine, self.args.non_interactive, template_root);
         collector.collect_answers(config, pre_hook_output, self.args.answers.clone())
     }
 

@@ -333,6 +333,7 @@ mod tests {
             secret: None,
             ask_if: String::new(),
             schema: None,
+            schema_file: None,
             validation: create_test_validation(),
         }
     }
@@ -350,6 +351,7 @@ mod tests {
             }),
             ask_if: String::new(),
             schema: None,
+            schema_file: None,
             validation: create_test_validation(),
         }
     }
@@ -364,6 +366,7 @@ mod tests {
             secret: None,
             ask_if: String::new(),
             schema: None,
+            schema_file: None,
             validation: create_test_validation(),
         }
     }
@@ -383,6 +386,7 @@ mod tests {
             secret: None,
             ask_if: String::new(),
             schema: None,
+            schema_file: None,
             validation: create_test_validation(),
         }
     }
@@ -397,6 +401,7 @@ mod tests {
             secret: None,
             ask_if: String::new(),
             schema: None,
+            schema_file: None,
             validation: create_test_validation(),
         }
     }
@@ -411,6 +416,7 @@ mod tests {
             secret: None,
             ask_if: String::new(),
             schema: None,
+            schema_file: None,
             validation: create_test_validation(),
         }
     }
@@ -425,6 +431,7 @@ mod tests {
             secret: None,
             ask_if: String::new(),
             schema: None,
+            schema_file: None,
             validation: create_test_validation(),
         }
     }

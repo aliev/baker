@@ -20,6 +20,7 @@ mod config_tests {
             multiselect: false,
             choices: vec![],
             schema: None,
+            schema_file: None,
             validation: get_default_validation(),
         };
         let engine = get_template_engine();
@@ -53,6 +54,7 @@ mod config_tests {
                 "TypeScript".to_string(),
             ],
             schema: None,
+            schema_file: None,
             validation: get_default_validation(),
         };
         let engine = get_template_engine();
@@ -80,6 +82,7 @@ mod config_tests {
             multiselect: false,
             choices: vec![],
             schema: None,
+            schema_file: None,
             validation: get_default_validation(),
         };
         let engine = get_template_engine();
@@ -103,6 +106,7 @@ mod config_tests {
             multiselect: false,
             choices: vec![],
             schema: None,
+            schema_file: None,
             validation: get_default_validation(),
         };
         let engine = get_template_engine();
@@ -126,6 +130,7 @@ mod config_tests {
             multiselect: false,
             choices: vec![],
             schema: None,
+            schema_file: None,
             validation: get_default_validation(),
         };
         let engine = get_template_engine();
@@ -150,6 +155,7 @@ mod config_tests {
             multiselect: false,
             choices: vec![],
             schema: None,
+            schema_file: None,
             validation: get_default_validation(),
         };
         let engine = get_template_engine();

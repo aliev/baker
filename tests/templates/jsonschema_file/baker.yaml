@@ -1,0 +1,15 @@
+schemaVersion: v1
+
+questions:
+  database_config:
+    type: json
+    help: Configure your database settings
+    schema_file: database.schema.json
+    default: |
+      {
+        "engine": "mysql",
+        "host": "db.example.com",
+        "port": 3306,
+        "ssl": true
+      }
+
