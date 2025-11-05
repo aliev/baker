@@ -20,6 +20,8 @@ minijinja = { version = "2.12", features = [
     "builtins",
     "loop_controls",
     "loader",
+    "json",
+    "urlencode"
 ] }
 globset = "0.4"
 walkdir = "2.5"
