@@ -258,3 +258,12 @@ fn test_jsonschema_file_invalid_port_range() {
         ),
     );
 }
+
+#[test]
+fn test_import_root() {
+    run_and_assert(
+        "examples/import_root",
+        "tests/expected/import_root",
+        Some(r#"{"project_name": "my-project"}"#),
+    );
+}

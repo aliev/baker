@@ -23,6 +23,8 @@ pub struct ConfigV1 {
     #[serde(default = "get_default_template_globs")]
     pub template_globs: Vec<String>,
     #[serde(default)]
+    pub import_root: Option<String>,
+    #[serde(default)]
     pub questions: IndexMap<String, Question>,
     #[serde(default = "get_default_post_hook_filename")]
     pub post_hook_filename: String,
@@ -178,5 +180,34 @@ questions: {}"#;
         let config: Config = serde_yaml::from_str(raw).expect("valid config");
         let Config::V1(cfg) = config;
         assert!(cfg.follow_symlinks);
+    }
+
+    #[test]
+    fn import_root_defaults_to_none() {
+        let raw = r#"schemaVersion: v1
+questions: {}"#;
+        let config: Config = serde_yaml::from_str(raw).expect("valid config");
+        let Config::V1(cfg) = config;
+        assert!(cfg.import_root.is_none());
+    }
+
+    #[test]
+    fn import_root_parses_path() {
+        let raw = r#"schemaVersion: v1
+import_root: "templates/shared"
+questions: {}"#;
+        let config: Config = serde_yaml::from_str(raw).expect("valid config");
+        let Config::V1(cfg) = config;
+        assert_eq!(cfg.import_root, Some("templates/shared".to_string()));
+    }
+
+    #[test]
+    fn import_root_parses_absolute_path() {
+        let raw = r#"schemaVersion: v1
+import_root: "/usr/local/templates"
+questions: {}"#;
+        let config: Config = serde_yaml::from_str(raw).expect("valid config");
+        let Config::V1(cfg) = config;
+        assert_eq!(cfg.import_root, Some("/usr/local/templates".to_string()));
     }
 }

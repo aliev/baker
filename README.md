@@ -272,6 +272,57 @@ questions:
 
 This will include all files ending with .tpl and .jinja in the template engine, allowing you to use them in your templates.
 
+### Custom Import Root Directory
+
+By default, Baker searches for importable templates (specified by `template_globs`) in the template root directory. You can customize this behavior using the `import_root` configuration option to specify a different directory for template imports.
+
+#### Example:
+
+```yaml
+schemaVersion: v1
+import_root: "shared_templates"
+template_globs:
+  - "*.jinja"
+questions:
+  project_name:
+    type: str
+    help: Please enter the name of your project
+```
+
+With this configuration, Baker will look for `.jinja` files in the `shared_templates` directory (relative to the template root) instead of the template root itself.
+
+**Template structure:**
+```
+my-template/
+├── baker.yaml
+├── README.md.baker.j2
+└── shared_templates/
+    └── macros.jinja
+```
+
+**Usage in README.md.baker.j2:**
+```jinja
+{% import "macros.jinja" as macros -%}
+# {{ project_name }}
+
+{{ macros.greeting(project_name) }}
+```
+
+The `import_root` can be either:
+- **Relative path**: Resolved relative to the template root directory (e.g., `"shared_templates"` or `"../common"`)
+- **Absolute path**: Used as-is (e.g., `"/usr/local/templates"` for sharing templates across multiple Baker projects)
+
+This feature is particularly useful for:
+- **Organizing templates**: Keep reusable macros and includes separate from main template files
+- **Sharing templates**: Use an absolute path to share common templates across multiple Baker projects
+- **Template libraries**: Create a centralized library of reusable template components
+
+**Note:** The `import_root` feature is especially helpful when you want to use template imports without including 
+the folder path in your import statements. For example, instead of `{% import "shared_templates/macros.jinja" %}`, 
+you can use `{% import "macros.jinja" %}` when `import_root` is set to `"shared_templates"`. This is because 
+forward slashes (`/`) are not valid in filenames and would cause issues if you tried to use folder paths in templated 
+filenames like `{% for item in items %}{{ item.folder }}/{{ item.name }}.md{% endfor %}`.
+
 
 ## Loop Templates and Delimiters
 

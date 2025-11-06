@@ -278,13 +278,16 @@ impl Runner {
     /// Adds template files from a directory into a MiniJinja renderer, using multiple glob patterns.
     ///
     /// This function scans the `template_root` directory recursively and adds all files matching
-    /// any of the glob patterns specified in `config.template_imports_patterns` to the provided
+    /// any of the glob patterns specified in `config.template_globs` to the provided
     /// template engine. This allows for flexible inclusion of templates with different extensions
     /// or naming conventions.
     ///
+    /// If `config.import_root` is specified, it will be used as the base directory for scanning
+    /// template files. Otherwise, `template_root` is used.
+    ///
     /// # Arguments
     /// * `template_root` - The root directory containing template files.
-    /// * `config` - The configuration object specifying glob patterns for template imports.
+    /// * `config` - The configuration object specifying glob patterns and optional import root.
     /// * `engine` - The template renderer to which the templates will be added.
     ///
     /// Only files matching at least one of the provided patterns will be processed and added.
@@ -294,19 +297,33 @@ impl Runner {
         config: &ConfigV1,
         engine: &mut dyn TemplateRenderer,
     ) {
+        // Determine the import root directory
+        let import_root = if let Some(ref import_root_str) = config.import_root {
+            let import_path = Path::new(import_root_str);
+            if import_path.is_absolute() {
+                import_path.to_path_buf()
+            } else {
+                template_root.join(import_path)
+            }
+        } else {
+            template_root.to_path_buf()
+        };
+
+        debug!("Using import root: {}", import_root.display());
+
         let templates_import_globset =
-            self.build_templates_import_globset(template_root, &config.template_globs);
+            self.build_templates_import_globset(&import_root, &config.template_globs);
 
         if let Some(globset) = templates_import_globset {
             debug!("Adding templates from glob patterns: {:?}", &config.template_globs);
-            WalkDir::new(template_root)
+            WalkDir::new(&import_root)
                 .into_iter()
                 .filter_map(|e| e.ok())
                 .filter(|entry| entry.path().is_file())
                 .filter(|entry| globset.is_match(entry.path()))
                 .filter_map(|entry| {
                     let path = entry.path();
-                    let rel_path = path.strip_prefix(template_root).ok()?;
+                    let rel_path = path.strip_prefix(&import_root).ok()?;
                     let rel_path_str = rel_path.to_str()?;
                     fs::read_to_string(path)
                         .ok()
@@ -319,7 +336,7 @@ impl Runner {
                     }
                 });
         } else {
-            debug!("template_imports_patters is empty. No patterns provided for adding templates in the template engine for import and include.");
+            debug!("template_globs is empty. No patterns provided for adding templates in the template engine for import and include.");
         }
     }
 

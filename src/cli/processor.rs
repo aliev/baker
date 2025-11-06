@@ -251,6 +251,7 @@ mod tests {
                 loop_separator: "".into(),
                 loop_content_separator: "".into(),
                 template_globs: Vec::new(),
+                import_root: None,
                 questions: IndexMap::new(),
                 post_hook_filename: "post".into(),
                 pre_hook_filename: "pre".into(),

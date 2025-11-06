@@ -1,0 +1,10 @@
+schemaVersion: v1
+import_root: "shared_templates"
+template_globs:
+  - "*.jinja"
+questions:
+  project_name:
+    type: str
+    help: Please enter the project name
+    default: "my-project"
+
