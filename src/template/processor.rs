@@ -219,7 +219,7 @@ impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
                 let template_name =
                     template_entry.file_name().and_then(|name| name.to_str());
                 if self.is_template_with_loop(&template_entry) {
-                    debug!("found loop template file: {}", template_entry.display());
+                    debug!("Processing loop template file: {}", template_entry.display());
                     return self
                         .render_loop_template_file(&template_entry, template_name);
                 }
@@ -270,15 +270,21 @@ impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
             })?;
         let rendered_parent_dir =
             self.render_template_entry(template_parent_dir.as_path())?;
+        debug!(
+            "Rendered parent directory for loop template: {}",
+            rendered_parent_dir.display()
+        );
         let raw_template_content = fs::read_to_string(template_entry)?;
+        debug!("Raw loop template content: {raw_template_content}");
         let template_with_injected_content =
             self.inject_loop_content(template_entry, &raw_template_content)?;
+        debug!("Loop template after content injection: {template_with_injected_content}");
         let rendered_content = self.engine.render(
             &template_with_injected_content,
             self.answers,
             template_name,
         )?;
-        debug!("rendered content: {rendered_content}");
+        debug!("Rendered loop template content: {rendered_content}");
         let write_operations = self.collect_loop_write_ops(
             &rendered_content,
             rendered_parent_dir.as_path(),
