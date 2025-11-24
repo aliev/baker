@@ -230,7 +230,7 @@ impl<'a> AnswerCollector<'a> {
 
         let errors: Vec<String> = validator
             .iter_errors(value)
-            .map(|error| format!("Error: {} (at {})", error, error.instance_path))
+            .map(|error| format!("Error: {} (at {})", error, error.instance_path()))
             .collect();
 
         if !errors.is_empty() {
