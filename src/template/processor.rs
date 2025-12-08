@@ -81,6 +81,10 @@ impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
     /// - Template path: `template_root/{% if create_tests %}tests{% endif %}/`
     /// - Rendered path (when create_tests=false): `template_root//` (contains empty part)
     ///
+    /// Invalid case (placeholder at start of filename):
+    /// - Template path: `template_root/{{file_name}}.txt`
+    /// - Rendered path (when file_name is undefined): `template_root/.txt`
+    ///
     fn rendered_path_has_valid_parts<S: AsRef<str>>(
         &self,
         template_path: S,
@@ -88,15 +92,25 @@ impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
     ) -> bool {
         let template_path = template_path.as_ref();
         let rendered_path = rendered_path.as_ref();
-        let template_path: Vec<&str> =
+        let template_path_parts: Vec<&str> =
             template_path.split(std::path::MAIN_SEPARATOR).collect();
-        let rendered_path: Vec<&str> =
+        let rendered_path_parts: Vec<&str> =
             rendered_path.split(std::path::MAIN_SEPARATOR).collect();
 
         for (template_part, rendered_part) in
-            template_path.iter().zip(rendered_path.iter())
+            template_path_parts.iter().zip(rendered_path_parts.iter())
         {
+            // Check if a non-empty template part became empty
             if !template_part.is_empty() && rendered_part.is_empty() {
+                return false;
+            }
+
+            // Check if a template placeholder at the start of a filename rendered to empty
+            // This catches cases like "{{file_name}}.txt" -> ".txt" or "{{file_name}}.baker.j2" -> ".baker.j2"
+            if template_part.starts_with("{{")
+                && !template_part.starts_with("{{.")
+                && rendered_part.starts_with('.')
+            {
                 return false;
             }
         }
@@ -742,23 +756,6 @@ mod tests {
     /// {}
     ///
     #[test]
-    #[ignore = r#"because:
-
-        The template structure
-            template_root/
-                {{file_name}}.baker.j2
-        Expected output
-            output_root/
-        Answers are:
-            {}
-        Actual result is:
-            Write {
-                content: " ",
-                target: "/output_root/",
-                target_exists: false,
-            }
-        Expected result: `Error::ProcessError`
-    "#]
     fn renders_invalid_filename_returns_error() {
         let answers = json!({});
         let (template_root, _output_root, processor) = new_test_processor(answers);
@@ -809,23 +806,6 @@ mod tests {
     /// {}
     ///
     #[test]
-    #[ignore = r#"because:
-
-        The template structure
-            template_root/
-                {{file_name}}.txt
-        Expected output
-            output_root/
-        Answers are:
-            {}
-        Actual result is:
-            Copy {
-                source: "/template_root/{{file_name}}.txt",
-                target: "/output_root/.txt",
-                target_exists: false,
-            }
-        Expected result: `Error::ProcessError`
-    "#]
     fn renders_plain_file_placeholder_returns_error() {
         let answers = json!({});
         let (template_root, _output_root, processor) = new_test_processor(answers);

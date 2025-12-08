@@ -59,15 +59,14 @@ jobs:
       - name: Run clippy
         run: cargo clippy -- -D warnings
 
-      - name: Run tests (with integration tests on Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: cargo tarpaulin --out xml --verbose -- --include-ignored
+      - name: Run tests
+        run: cargo tarpaulin --out xml --verbose
         env:
           RUST_LOG: trace
 
-      - name: Run tests (without integration tests)
-        if: matrix.os != 'ubuntu-latest'
-        run: cargo tarpaulin --out xml --verbose
+      - name: Run Gitea integration tests (Linux only)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo test --test gitea_integration_tests -- --ignored
         env:
           RUST_LOG: trace
 
