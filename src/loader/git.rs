@@ -67,7 +67,7 @@ impl<S: AsRef<str>> GitLoader<S> {
     pub fn is_git_url(s: &str) -> bool {
         // Try to parse as standard URL first
         if let Ok(url) = Url::parse(s) {
-            return matches!(url.scheme(), "https" | "git" | "ssh");
+            return matches!(url.scheme(), "http" | "https" | "git" | "ssh");
         }
 
         // Check for SSH format: git@host:path or user@host:path
@@ -161,6 +161,14 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_is_git_url_http() {
+        assert!(GitLoader::<&str>::is_git_url("http://localhost:3000/user/repo"));
+        assert!(GitLoader::<&str>::is_git_url("http://localhost:3000/user/repo.git"));
+        assert!(GitLoader::<&str>::is_git_url("http://192.168.1.1/user/repo"));
+        assert!(GitLoader::<&str>::is_git_url("http://gitea.local/user/repo.git"));
+    }
 
     #[test]
     fn test_is_git_url_https() {
