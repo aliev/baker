@@ -986,20 +986,16 @@ mod tests {
         let answers = json!({});
         let (template_root, _output_root, processor) = new_test_processor(answers);
 
-        // Create a nested directory structure
         let nested_dir = template_root.path().join("deep").join("nested");
         std::fs::create_dir_all(&nested_dir).unwrap();
 
-        // Create a template file with invalid syntax (unclosed block) to trigger an error
         let file_path = nested_dir.join("template.baker.j2");
         let mut temp_file = File::create(&file_path).unwrap();
         temp_file.write_all(b"{% if true %}content without endif").unwrap();
 
-        // Process should fail because of invalid template syntax
         let result = processor.process(file_path);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
-        // Error message should contain the relative path from template root
         assert!(
             err_msg.contains("deep/nested/template.baker.j2")
                 || err_msg.contains("deep\\nested\\template.baker.j2"),
@@ -1012,7 +1008,6 @@ mod tests {
         let answers = json!({});
         let (template_root, _output_root, processor) = new_test_processor(answers);
 
-        // Create a nested directory structure
         let nested_dir = template_root.path().join("src").join("templates");
         std::fs::create_dir_all(&nested_dir).unwrap();
 
