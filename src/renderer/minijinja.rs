@@ -104,10 +104,13 @@ impl TemplateRenderer for MiniJinjaRenderer {
         &self,
         template_path: &Path,
         context: &serde_json::Value,
+        template_name: Option<&str>,
     ) -> Result<String> {
         let path_str = template_path.to_str_checked()?;
-        let template_name = template_path.file_name().and_then(|name| name.to_str());
-        self.render_internal(path_str, context, template_name, Some(AutoEscape::None))
+        // Use provided template_name, or fall back to filename for error messages
+        let name = template_name
+            .or_else(|| template_path.file_name().and_then(|name| name.to_str()));
+        self.render_internal(path_str, context, name, Some(AutoEscape::None))
     }
 
     fn execute_expression(
@@ -199,8 +202,58 @@ mod tests {
             .render_path(
                 Path::new("charts/{{ service }}/values/affinity.yaml"),
                 &json!({ "service": "demo" }),
+                Some("charts/{{ service }}/values/affinity.yaml"),
             )
             .unwrap();
         assert_eq!(rendered, "charts/demo/values/affinity.yaml");
+    }
+
+    #[test]
+    fn render_path_uses_provided_template_name_in_errors() {
+        let renderer = MiniJinjaRenderer::new();
+        // Use invalid syntax (unclosed block) to trigger an error
+        let result = renderer.render_path(
+            Path::new("subdir/nested/{% if true %}file.txt"),
+            &json!({}),
+            Some("subdir/nested/template.txt"),
+        );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_msg = err.to_string();
+        // The error message should contain the template name we provided
+        assert!(
+            err_msg.contains("subdir/nested/template.txt"),
+            "Error message should contain the relative path: {err_msg}"
+        );
+    }
+
+    #[test]
+    fn render_path_falls_back_to_filename_when_template_name_is_none() {
+        let renderer = MiniJinjaRenderer::new();
+        let rendered = renderer
+            .render_path(
+                Path::new("some/path/{{ name }}.txt"),
+                &json!({ "name": "test" }),
+                None,
+            )
+            .unwrap();
+        assert_eq!(rendered, "some/path/test.txt");
+    }
+
+    #[test]
+    fn render_path_error_contains_relative_path_not_just_filename() {
+        let renderer = MiniJinjaRenderer::new();
+        // Use invalid syntax (unclosed block) to trigger an error
+        let result = renderer.render_path(
+            Path::new("deep/nested/dir/{% for x in y %}file.txt"),
+            &json!({}),
+            Some("deep/nested/dir/template.txt"),
+        );
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("deep/nested/dir"),
+            "Error should contain full relative path, got: {err_msg}"
+        );
     }
 }
