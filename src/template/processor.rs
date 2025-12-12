@@ -146,12 +146,7 @@ impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
     /// * `Result<PathBuf>` - The rendered path or an error
     ///
     fn render_template_entry(&self, template_entry: &Path) -> Result<PathBuf> {
-        let template_name = self.get_template_name(template_entry);
-        let rendered_entry = self.engine.render_path(
-            template_entry,
-            self.answers,
-            template_name.as_deref(),
-        )?;
+        let rendered_entry = self.engine.render_path(template_entry, self.answers)?;
 
         if !self.rendered_path_has_valid_parts(
             template_entry.to_str_checked()?,
@@ -236,19 +231,22 @@ impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
             // Template file
             (true, true) => {
                 let template_content = fs::read_to_string(&template_entry)?;
-                let template_name = self.get_template_name(&template_entry);
+                let template_name =
+                    template_entry.file_name().and_then(|name| name.to_str());
+                let relative_path = self.get_template_name(&template_entry);
                 if self.is_template_with_loop(&template_entry) {
                     debug!("Processing loop template file: {}", template_entry.display());
-                    return self.render_loop_template_file(
-                        &template_entry,
-                        template_name.as_deref(),
-                    );
+                    return self
+                        .render_loop_template_file(&template_entry, template_name);
                 }
-                let content = self.engine.render(
-                    &template_content,
-                    self.answers,
-                    template_name.as_deref(),
-                )?;
+                let content = self
+                    .engine
+                    .render(&template_content, self.answers, template_name)
+                    .map_err(|e| Error::ProcessError {
+                        source_path: relative_path
+                            .unwrap_or_else(|| template_entry.display().to_string()),
+                        e: e.to_string(),
+                    })?;
 
                 Ok(TemplateOperation::Write {
                     target: self.remove_template_suffix(&target_path)?,
@@ -284,6 +282,7 @@ impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
         template_entry: &Path,
         template_name: Option<&str>,
     ) -> Result<TemplateOperation> {
+        let relative_path = self.get_template_name(template_entry);
         let template_parent_dir =
             template_entry.parent().map(PathBuf::from).ok_or_else(|| {
                 Error::ProcessError {
@@ -303,11 +302,14 @@ impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
         let template_with_injected_content =
             self.inject_loop_content(template_entry, &raw_template_content)?;
         debug!("Loop template after content injection: {template_with_injected_content}");
-        let rendered_content = self.engine.render(
-            &template_with_injected_content,
-            self.answers,
-            template_name,
-        )?;
+        let rendered_content = self
+            .engine
+            .render(&template_with_injected_content, self.answers, template_name)
+            .map_err(|e| Error::ProcessError {
+                source_path: relative_path
+                    .unwrap_or_else(|| template_entry.display().to_string()),
+                e: e.to_string(),
+            })?;
         debug!("Rendered loop template content: {rendered_content}");
         let write_operations = self.collect_loop_write_ops(
             &rendered_content,

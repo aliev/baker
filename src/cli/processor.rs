@@ -346,7 +346,9 @@ mod tests {
         let nested_path =
             template_root.path().join("subdir").join("nested").join("file.txt");
         let result = processor.get_template_name(&nested_path);
-        assert_eq!(result, "subdir/nested/file.txt");
+        let expected =
+            ["subdir", "nested", "file.txt"].join(std::path::MAIN_SEPARATOR_STR);
+        assert_eq!(result, expected);
     }
 
     #[test]

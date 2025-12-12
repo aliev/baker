@@ -46,7 +46,6 @@ pub trait TemplateRenderer {
         &self,
         template_path: &Path,
         context: &serde_json::Value,
-        template_name: Option<&str>,
     ) -> Result<String>;
 
     /// Executes a template expression and returns whether it evaluates to true.
