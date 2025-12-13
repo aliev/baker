@@ -108,6 +108,10 @@ impl TemplateRenderer for MiniJinjaRenderer {
         let path_str = template_path.to_str_checked()?;
         let template_name = template_path.file_name().and_then(|name| name.to_str());
         self.render_internal(path_str, context, template_name, Some(AutoEscape::None))
+            .map_err(|e| crate::error::Error::ProcessError {
+                source_path: path_str.to_string(),
+                e: e.to_string(),
+            })
     }
 
     fn execute_expression(
@@ -202,5 +206,34 @@ mod tests {
             )
             .unwrap();
         assert_eq!(rendered, "charts/demo/values/affinity.yaml");
+    }
+
+    #[test]
+    fn render_path_falls_back_to_filename_when_template_name_is_none() {
+        let renderer = MiniJinjaRenderer::new();
+        let rendered = renderer
+            .render_path(
+                Path::new("some/path/{{ name }}.txt"),
+                &json!({ "name": "test" }),
+            )
+            .unwrap();
+        assert_eq!(rendered, "some/path/test.txt");
+    }
+
+    #[test]
+    fn render_path_error_contains_relative_path_not_just_filename() {
+        let renderer = MiniJinjaRenderer::new();
+        // Use invalid syntax (unclosed block) to trigger an error
+        let path_parts = ["deep", "nested", "dir", "{% for x in y %}file.txt"];
+        let template_path = path_parts.join(std::path::MAIN_SEPARATOR_STR);
+        let result = renderer.render_path(Path::new(&template_path), &json!({}));
+        assert!(result.is_err());
+        let err_msg = format!("{:#}", result.unwrap_err());
+        let expected_path_part =
+            ["deep", "nested", "dir"].join(std::path::MAIN_SEPARATOR_STR);
+        assert!(
+            err_msg.contains(&expected_path_part),
+            "Error should contain full relative path, got: {err_msg}"
+        );
     }
 }

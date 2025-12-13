@@ -136,6 +136,21 @@ impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
         })
     }
 
+    /// Returns the relative path from template root for use in error messages.
+    ///
+    /// # Arguments
+    /// * `path` - The full path to compute relative path for
+    ///
+    /// # Returns
+    /// * `Option<String>` - The relative path as a string, or None if it cannot be computed
+    ///
+    fn get_template_name(&self, path: &Path) -> Option<String> {
+        path.strip_prefix(self.template_root.as_ref())
+            .ok()
+            .and_then(|p| p.to_str())
+            .map(|s| s.replace('\\', "/"))
+    }
+
     /// Renders a template entry path with template variables.
     ///
     /// # Arguments
@@ -232,13 +247,20 @@ impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
                 let template_content = fs::read_to_string(&template_entry)?;
                 let template_name =
                     template_entry.file_name().and_then(|name| name.to_str());
+                let relative_path = self.get_template_name(&template_entry);
                 if self.is_template_with_loop(&template_entry) {
                     debug!("Processing loop template file: {}", template_entry.display());
                     return self
                         .render_loop_template_file(&template_entry, template_name);
                 }
-                let content =
-                    self.engine.render(&template_content, self.answers, template_name)?;
+                let content = self
+                    .engine
+                    .render(&template_content, self.answers, template_name)
+                    .map_err(|e| Error::ProcessError {
+                        source_path: relative_path
+                            .unwrap_or_else(|| template_entry.display().to_string()),
+                        e: e.to_string(),
+                    })?;
 
                 Ok(TemplateOperation::Write {
                     target: self.remove_template_suffix(&target_path)?,
@@ -274,6 +296,7 @@ impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
         template_entry: &Path,
         template_name: Option<&str>,
     ) -> Result<TemplateOperation> {
+        let relative_path = self.get_template_name(template_entry);
         let template_parent_dir =
             template_entry.parent().map(PathBuf::from).ok_or_else(|| {
                 Error::ProcessError {
@@ -293,11 +316,14 @@ impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
         let template_with_injected_content =
             self.inject_loop_content(template_entry, &raw_template_content)?;
         debug!("Loop template after content injection: {template_with_injected_content}");
-        let rendered_content = self.engine.render(
-            &template_with_injected_content,
-            self.answers,
-            template_name,
-        )?;
+        let rendered_content = self
+            .engine
+            .render(&template_with_injected_content, self.answers, template_name)
+            .map_err(|e| Error::ProcessError {
+                source_path: relative_path
+                    .unwrap_or_else(|| template_entry.display().to_string()),
+                e: e.to_string(),
+            })?;
         debug!("Rendered loop template content: {rendered_content}");
         let write_operations = self.collect_loop_write_ops(
             &rendered_content,
@@ -910,5 +936,78 @@ mod tests {
         let (_template_root, _output_root, processor) = new_test_processor(json!({}));
         let path = PathBuf::from("{% if msg==hello %}{%for item in items in selectattr(\"name\")%}{{item.name}}.rs.baker.j2{% endfor %}{% endif %}");
         assert!(processor.is_template_with_loop(path));
+    }
+
+    #[test]
+    fn test_get_template_name_returns_relative_path() {
+        let (template_root, _output_root, processor) = new_test_processor(json!({}));
+        let nested_path =
+            template_root.path().join("subdir").join("nested").join("file.txt");
+        let result = processor.get_template_name(&nested_path);
+        assert_eq!(result, Some("subdir/nested/file.txt".to_string()));
+    }
+
+    #[test]
+    fn test_get_template_name_returns_filename_at_root() {
+        let (template_root, _output_root, processor) = new_test_processor(json!({}));
+        let file_path = template_root.path().join("file.txt");
+        let result = processor.get_template_name(&file_path);
+        assert_eq!(result, Some("file.txt".to_string()));
+    }
+
+    #[test]
+    fn test_get_template_name_returns_none_for_unrelated_path() {
+        let (_template_root, _output_root, processor) = new_test_processor(json!({}));
+        let unrelated_path = PathBuf::from("/some/other/path/file.txt");
+        let result = processor.get_template_name(&unrelated_path);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_template_error_contains_relative_path() {
+        let answers = json!({});
+        let (template_root, _output_root, processor) = new_test_processor(answers);
+
+        let nested_dir = template_root.path().join("deep").join("nested");
+        std::fs::create_dir_all(&nested_dir).unwrap();
+
+        let file_path = nested_dir.join("template.baker.j2");
+        let mut temp_file = File::create(&file_path).unwrap();
+        temp_file.write_all(b"{% if true %}content without endif").unwrap();
+
+        let result = processor.process(file_path);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("deep/nested/template.baker.j2")
+                || err_msg.contains("deep\\nested\\template.baker.j2"),
+            "Error should contain relative path 'deep/nested/template.baker.j2', got: {err_msg}"
+        );
+    }
+
+    #[test]
+    fn test_template_content_error_contains_relative_path() {
+        let answers = json!({});
+        let (template_root, _output_root, processor) = new_test_processor(answers);
+
+        let nested_dir = template_root.path().join("src").join("templates");
+        std::fs::create_dir_all(&nested_dir).unwrap();
+
+        // Create a template file with valid name but invalid syntax (unclosed for loop)
+        let file_path = nested_dir.join("mytemplate.baker.j2");
+        let mut temp_file = File::create(&file_path).unwrap();
+        // Use invalid template syntax (unclosed for loop)
+        temp_file.write_all(b"{% for item in items %}{{ item }}").unwrap();
+
+        // Process should fail because of invalid template syntax
+        let result = processor.process(file_path);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        // Error message should reference the template by its relative path
+        assert!(
+            err_msg.contains("src/templates/mytemplate.baker.j2")
+                || err_msg.contains("src\\templates\\mytemplate.baker.j2"),
+            "Error should reference the template file, got: {err_msg}"
+        );
     }
 }

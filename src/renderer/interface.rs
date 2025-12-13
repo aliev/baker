@@ -38,6 +38,7 @@ pub trait TemplateRenderer {
     /// # Arguments
     /// * `template_path` - Path to render
     /// * `context` - Context variables for rendering
+    /// * `template_name` - Optional name for the template (used in error messages, typically relative path from template root)
     ///
     /// # Returns
     /// * `Result<String>` - Rendered path as string

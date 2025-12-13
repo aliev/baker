@@ -28,6 +28,7 @@ impl<'a> FileProcessor<'a> {
     pub fn process_all_files(&self) -> Result<()> {
         for dir_entry in WalkDir::new(self.context.template_root()) {
             let template_entry = dir_entry?.path().to_path_buf();
+            let template_name = self.get_template_name(&template_entry);
             match self.processor.process(template_entry) {
                 Ok(file_operation) => {
                     let user_confirmed_overwrite = match &file_operation {
@@ -35,7 +36,11 @@ impl<'a> FileProcessor<'a> {
                         _ => match self.handle_file_operation(&file_operation) {
                             Ok(confirmed) => confirmed,
                             Err(e) => {
-                                log::error!("Failed to handle file operation: {e}");
+                                log::error!(
+                                    "Failed to handle file operation for template '{}' ({}): {e}",
+                                    template_name,
+                                    file_operation.error_context()
+                                );
                                 continue;
                             }
                         },
@@ -51,6 +56,15 @@ impl<'a> FileProcessor<'a> {
             }
         }
         Ok(())
+    }
+
+    /// Returns the relative path from template root for use in error messages.
+    fn get_template_name(&self, path: &Path) -> String {
+        path.strip_prefix(self.context.template_root())
+            .ok()
+            .and_then(|p| p.to_str())
+            .map(|s| s.replace('\\', "/"))
+            .unwrap_or_else(|| path.display().to_string().replace('\\', "/"))
     }
 
     /// Handles a single file operation (write, copy, create directory, or ignore)
@@ -323,6 +337,34 @@ mod tests {
         let dest_link = output_root.path().join("link.txt");
         processor.copy_file(&src_link, &dest_link).unwrap();
         assert!(dest_link.is_symlink());
+    }
+
+    #[test]
+    fn get_template_name_returns_relative_path() {
+        let (template_root, _output_root, processor) =
+            build_file_processor(Vec::new(), false);
+        let nested_path =
+            template_root.path().join("subdir").join("nested").join("file.txt");
+        let result = processor.get_template_name(&nested_path);
+        assert_eq!(result, "subdir/nested/file.txt");
+    }
+
+    #[test]
+    fn get_template_name_returns_filename_at_root() {
+        let (template_root, _output_root, processor) =
+            build_file_processor(Vec::new(), false);
+        let file_path = template_root.path().join("file.txt");
+        let result = processor.get_template_name(&file_path);
+        assert_eq!(result, "file.txt");
+    }
+
+    #[test]
+    fn get_template_name_returns_full_path_for_unrelated() {
+        let (_template_root, _output_root, processor) =
+            build_file_processor(Vec::new(), false);
+        let unrelated_path = PathBuf::from("/some/other/path/file.txt");
+        let result = processor.get_template_name(&unrelated_path);
+        assert_eq!(result, "/some/other/path/file.txt");
     }
 
     #[test]
