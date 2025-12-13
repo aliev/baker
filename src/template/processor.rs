@@ -134,7 +134,7 @@ impl<'a, P: AsRef<Path>> TemplateProcessor<'a, P> {
         path.strip_prefix(self.template_root.as_ref())
             .ok()
             .and_then(|p| p.to_str())
-            .map(|s| s.to_string())
+            .map(|s| s.replace('\\', "/"))
     }
 
     /// Renders a template entry path with template variables.

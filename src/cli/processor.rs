@@ -63,8 +63,8 @@ impl<'a> FileProcessor<'a> {
         path.strip_prefix(self.context.template_root())
             .ok()
             .and_then(|p| p.to_str())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| path.display().to_string())
+            .map(|s| s.replace('\\', "/"))
+            .unwrap_or_else(|| path.display().to_string().replace('\\', "/"))
     }
 
     /// Handles a single file operation (write, copy, create directory, or ignore)
