@@ -142,13 +142,28 @@ mod tests {
     /// and their contents are copied to the rendered directory name.
     /// This reproduces the issue where `{% if 'helm' in features %}helm{% endif %}` symlink
     /// pointing to a directory should have its contents copied to `helm/` in the output.
+    /// Also tests that for-loop templates inside symlinked directories work correctly.
     #[test]
     #[cfg(not(target_os = "windows"))]
     fn test_symlinks_follow_directory() {
         run_and_assert(
             "tests/templates/symlinks_follow_dir",
             "tests/expected/symlinks_follow_dir",
-            Some("{\"include_helm\": true}"),
+            Some("{\"include_helm\": true, \"services\": [{\"name\": \"api\"}, {\"name\": \"web\"}]}"),
+        );
+    }
+
+    /// Tests that circular symlinks (symlink loops) are handled gracefully without
+    /// causing "Too many levels of symbolic links (os error 62)" errors.
+    /// This reproduces the issue where a directory like `.github/` contains a symlink
+    /// pointing back to itself, causing infinite recursion when follow_symlinks is enabled.
+    #[test]
+    #[cfg(not(target_os = "windows"))]
+    fn test_symlinks_follow_directory_loop() {
+        run_and_assert(
+            "tests/templates/symlinks_follow_dir_loop",
+            "tests/expected/symlinks_follow_dir_loop",
+            Some("{\"include_github\": true}"),
         );
     }
 

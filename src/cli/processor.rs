@@ -26,8 +26,25 @@ impl<'a> FileProcessor<'a> {
 
     /// Processes all files in the template directory
     pub fn process_all_files(&self) -> Result<()> {
-        for dir_entry in WalkDir::new(self.context.template_root()) {
-            let template_entry = dir_entry?.path().to_path_buf();
+        let walker = WalkDir::new(self.context.template_root())
+            .follow_links(self.context.config().follow_symlinks);
+        for dir_entry in walker {
+            let entry = match dir_entry {
+                Ok(e) => e,
+                Err(e) => {
+                    // Handle symlink loop errors gracefully - just skip and continue
+                    if e.loop_ancestor().is_some() {
+                        log::warn!(
+                            "Skipping symlink loop detected at '{}' (points back to ancestor '{}')",
+                            e.path().map(|p| p.display().to_string()).unwrap_or_default(),
+                            e.loop_ancestor().map(|p| p.display().to_string()).unwrap_or_default()
+                        );
+                        continue;
+                    }
+                    return Err(e.into());
+                }
+            };
+            let template_entry = entry.path().to_path_buf();
             let template_name = self.get_template_name(&template_entry);
             match self.processor.process(template_entry) {
                 Ok(file_operation) => {

@@ -1,0 +1,6 @@
+schemaVersion: v1
+follow_symlinks: true
+questions:
+  include_github:
+    type: bool
+    default: true

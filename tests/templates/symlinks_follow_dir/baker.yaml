@@ -4,3 +4,8 @@ questions:
   include_helm:
     type: bool
     default: true
+  services:
+    type: json
+    default:
+      - name: api
+      - name: web
