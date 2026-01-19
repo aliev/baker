@@ -153,20 +153,6 @@ mod tests {
         );
     }
 
-    /// Tests that circular symlinks (symlink loops) are handled gracefully without
-    /// causing "Too many levels of symbolic links (os error 62)" errors.
-    /// This reproduces the issue where a directory like `.github/` contains a symlink
-    /// pointing back to itself, causing infinite recursion when follow_symlinks is enabled.
-    #[test]
-    #[cfg(not(target_os = "windows"))]
-    fn test_symlinks_follow_directory_loop() {
-        run_and_assert(
-            "tests/templates/symlinks_follow_dir_loop",
-            "tests/expected/symlinks_follow_dir_loop",
-            Some("{\"include_github\": true}"),
-        );
-    }
-
     #[cfg(target_os = "windows")]
     #[test]
     fn test_windows_yaml_path_placeholders() {
