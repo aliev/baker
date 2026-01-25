@@ -1,0 +1,14 @@
+schemaVersion: v1
+
+questions:
+  database_config:
+    type: json
+    help: Configure your database settings
+    schema_file: schemas/database.schema.json
+    default: |
+      {
+        "engine": "postgres",
+        "host": "localhost",
+        "port": 5432,
+        "ssl": false
+      }

@@ -705,3 +705,202 @@ fn test_jsonschema_file_template_from_gitea() {
 
     eprintln!("Successfully generated project from jsonschema_file template via Gitea!");
 }
+
+/// Creates a schema repository that will be used as a submodule
+fn create_schema_submodule_repo(
+    env: &SharedGiteaEnv,
+    repo_name: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let repo_url = env.create_repo(repo_name)?;
+    let schema_dir = TempDir::new()?;
+
+    let schema_content = r#"{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["engine", "host", "port"],
+  "properties": {
+    "engine": {
+      "type": "string",
+      "enum": ["postgres", "mysql", "sqlite"]
+    },
+    "host": {
+      "type": "string"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "ssl": {
+      "type": "boolean"
+    }
+  }
+}"#;
+
+    fs::write(schema_dir.path().join("database.schema.json"), schema_content)?;
+
+    init_and_push_repo(schema_dir.path(), &repo_url, TEST_USER, TEST_PASSWORD)?;
+
+    Ok(repo_url)
+}
+
+/// Creates a main template repo with a submodule reference
+fn create_template_with_submodule(
+    env: &SharedGiteaEnv,
+    main_repo_name: &str,
+    submodule_url: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let repo_url = env.create_repo(main_repo_name)?;
+
+    let template_dir = TempDir::new()?;
+    let baker_yaml = r#"schemaVersion: v1
+
+questions:
+  database_config:
+    type: json
+    help: Configure your database settings
+    schema_file: schemas/database.schema.json
+    default: |
+      {
+        "engine": "postgres",
+        "host": "localhost",
+        "port": 5432,
+        "ssl": false
+      }
+"#;
+    fs::write(template_dir.path().join("baker.yaml"), baker_yaml)?;
+
+    let template_content = r#"[database]
+engine = "{{ database_config.engine }}"
+host = "{{ database_config.host }}"
+port = {{ database_config.port }}
+ssl = {{ database_config.ssl | lower }}
+"#;
+    fs::write(template_dir.path().join("config.toml.baker.j2"), template_content)?;
+    fs::write(template_dir.path().join(".bakerignore"), "schemas/\n")?;
+
+    init_and_push_repo(template_dir.path(), &repo_url, TEST_USER, TEST_PASSWORD)?;
+
+    // Now add the submodule
+    let repo = Repository::open(template_dir.path())?;
+    let workdir = repo.workdir().ok_or("No workdir")?;
+
+    // Clone the submodule repo into schemas directory
+    let schemas_path = workdir.join("schemas");
+    let submodule_url_with_auth =
+        submodule_url.replace("://", &format!("://{}:{}@", TEST_USER, TEST_PASSWORD));
+    let submodule_repo =
+        git2::Repository::clone(&submodule_url_with_auth, &schemas_path)?;
+
+    // Get the commit ID of the submodule HEAD
+    let submodule_head = submodule_repo.head()?.peel_to_commit()?.id();
+
+    // Remove the cloned .git directory - we'll treat this as a submodule
+    fs::remove_dir_all(schemas_path.join(".git"))?;
+
+    // Create .gitmodules file manually
+    let gitmodules_content =
+        format!("[submodule \"schemas\"]\n\tpath = schemas\n\turl = {}\n", submodule_url);
+    fs::write(workdir.join(".gitmodules"), &gitmodules_content)?;
+
+    // Stage all changes
+    let mut index = repo.index()?;
+    index.add_path(Path::new(".gitmodules"))?;
+
+    // Add the submodule directory as a gitlink (mode 160000)
+    let entry = git2::IndexEntry {
+        ctime: git2::IndexTime::new(0, 0),
+        mtime: git2::IndexTime::new(0, 0),
+        dev: 0,
+        ino: 0,
+        mode: 0o160000, // gitlink mode for submodules
+        uid: 0,
+        gid: 0,
+        file_size: 0,
+        id: submodule_head,
+        flags: 0,
+        flags_extended: 0,
+        path: "schemas".as_bytes().to_vec(),
+    };
+    index.add(&entry)?;
+    index.write()?;
+
+    let tree_id = index.write_tree()?;
+    let tree = repo.find_tree(tree_id)?;
+    let parent = repo.head()?.peel_to_commit()?;
+    let signature = Signature::now(TEST_USER, TEST_EMAIL)?;
+
+    repo.commit(
+        Some("HEAD"),
+        &signature,
+        &signature,
+        "Add schemas submodule",
+        &tree,
+        &[&parent],
+    )?;
+
+    push_current_branch(&repo, TEST_USER, TEST_PASSWORD)?;
+
+    Ok(repo_url)
+}
+
+#[test]
+#[ignore]
+fn test_template_with_submodule_schema_file() {
+    let env = get_shared_gitea();
+
+    let schema_repo_name = "shared-schemas";
+    let schema_repo_url = create_schema_submodule_repo(env, schema_repo_name)
+        .expect("Failed to create schema repository");
+    eprintln!("Schema repository created at: {}", schema_repo_url);
+
+    let main_repo_name = "template-with-submodule";
+    let main_repo_url =
+        create_template_with_submodule(env, main_repo_name, &schema_repo_url)
+            .expect("Failed to create main template repository");
+    eprintln!("Main template repository created at: {}", main_repo_url);
+
+    let work_dir = TempDir::new().expect("Failed to create work dir");
+    let output_dir = work_dir.path().join("output");
+    fs::create_dir_all(&output_dir).expect("Failed to create output dir");
+
+    let clone_url = env.clone_url_with_auth(main_repo_name);
+
+    let args = Args {
+        template: clone_url,
+        output_dir: output_dir.clone(),
+        force: true,
+        verbose: 2,
+        answers: None,
+        answers_file: None,
+        skip_confirms: vec![All],
+        non_interactive: true,
+        dry_run: false,
+    };
+
+    run(args).expect("Baker run failed - submodule schema_file should be accessible");
+
+    let output_config = output_dir.join("config.toml");
+    assert!(output_config.exists(), "config.toml should be generated");
+
+    let output_content =
+        fs::read_to_string(&output_config).expect("Failed to read output config.toml");
+
+    assert!(
+        output_content.contains("engine = \"postgres\""),
+        "Should contain postgres engine"
+    );
+    assert!(
+        output_content.contains("host = \"localhost\""),
+        "Should contain localhost host"
+    );
+    assert!(output_content.contains("port = 5432"), "Should contain port 5432");
+
+    // Note: The schemas directory may or may not exist in output depending on
+    // whether baker initializes submodules and whether .bakerignore is applied.
+    // The key assertion is that the schema_file validation worked (above assertions).
+
+    eprintln!(
+        "Successfully generated project from template with submodule schema_file via Gitea!"
+    );
+}
