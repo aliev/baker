@@ -905,21 +905,22 @@ fn test_template_with_submodule_schema_file() {
     );
 }
 
-/// Test that verifies proper error handling when a schema_file is in an uninitialized submodule.
+/// Test that verifies Baker correctly initializes git submodules when cloning a template.
 ///
-/// This test reproduces the issue where a template's baker.yaml references a schema_file
-/// located in a git submodule that wasn't initialized during clone.
+/// This test verifies that when a template's baker.yaml references a schema_file
+/// located in a git submodule, Baker properly initializes the submodule so the schema
+/// file is available for validation.
 ///
 /// This simulates the real-world scenario:
 /// 1. A template repository has a submodule (e.g., "templates" pointing to another repo)
 /// 2. The baker.yaml references a schema_file inside that submodule path
-/// 3. When Baker clones the repo without initializing submodules, the schema file is missing
-/// 4. Baker should fail with a clear error about the missing schema file
+/// 3. Baker clones the repo AND initializes submodules
+/// 4. The schema file is available and validation succeeds
 ///
-/// Run with: `cargo test test_missing_schema_file_in_submodule -- --ignored --nocapture`
+/// Run with: `cargo test test_submodule_schema_file_initialization -- --ignored --nocapture`
 #[test]
 #[ignore]
-fn test_missing_schema_file_in_submodule() {
+fn test_submodule_schema_file_initialization() {
     let env = get_shared_gitea();
 
     // Step 1: Create a schema repository containing the schema file
@@ -972,7 +973,7 @@ questions:
         .expect("Failed to write baker.yaml");
 
     let template_content = r#"# {{ project_name }}
-Entities: {{ entities | json_encode }}
+Entities count: {{ entities | length }}
 "#;
     fs::write(template_dir.path().join("README.md.baker.j2"), template_content)
         .expect("Failed to write template file");
@@ -1012,8 +1013,13 @@ Entities: {{ entities | json_encode }}
     fs::write(workdir.join(".gitmodules"), &gitmodules_content)
         .expect("Failed to write .gitmodules");
 
-    // Stage the .gitmodules and submodule entry
+    // Read the current HEAD tree into the index to preserve existing files
+    let head_commit =
+        repo.head().expect("No HEAD").peel_to_commit().expect("Failed to peel");
     let mut index = repo.index().expect("Failed to get index");
+    index.read_tree(&head_commit.tree().expect("No tree")).expect("Failed to read tree");
+
+    // Add the new .gitmodules file
     index.add_path(Path::new(".gitmodules")).expect("Failed to add .gitmodules");
 
     // Add the submodule directory as a gitlink (mode 160000)
@@ -1079,37 +1085,36 @@ Entities: {{ entities | json_encode }}
         dry_run: false,
     };
 
-    // Run baker - this should fail because submodules aren't initialized
+    // Run baker - this should succeed because submodules are now initialized
     let result = run(args);
 
-    // The test verifies that Baker fails with an appropriate error about the missing schema file
+    // The test verifies that Baker succeeds when submodules are properly initialized
     assert!(
-        result.is_err(),
-        "Expected error due to missing schema file in uninitialized submodule"
+        result.is_ok(),
+        "Baker should succeed with submodule initialization. Error: {:?}",
+        result.err()
     );
 
-    let error = result.unwrap_err();
-    let error_message = error.to_string();
+    // Verify the output was generated correctly
+    let output_readme = output_dir.join("README.md");
+    assert!(output_readme.exists(), "README.md should be generated");
 
-    eprintln!("Got expected error: {}", error_message);
+    let output_content =
+        fs::read_to_string(&output_readme).expect("Failed to read output README.md");
 
-    // Verify the error message mentions the missing schema file
     assert!(
-        error_message.contains("templates/strapi.schema.json")
-            || error_message.contains("strapi.schema.json"),
-        "Error message should mention the missing schema file. Got: {}",
-        error_message
+        output_content.contains("test_app"),
+        "Output should contain project name. Got: {}",
+        output_content
     );
 
-    // Verify the error message indicates it's a file not found error
     assert!(
-        error_message.contains("Failed to read schema file")
-            || error_message.contains("No such file"),
-        "Error message should indicate the file couldn't be read. Got: {}",
-        error_message
+        output_content.contains("Entities count: 1"),
+        "Output should contain entities data. Got: {}",
+        output_content
     );
 
     eprintln!(
-        "Successfully verified that missing submodule schema file produces clear error message!"
+        "Successfully verified that Baker initializes submodules and schema validation works!"
     );
 }

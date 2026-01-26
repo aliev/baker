@@ -100,7 +100,46 @@ impl<S: AsRef<str>> GitLoader<S> {
 
         false
     }
+
+    /// Recursively initializes and updates all submodules in a repository.
+    fn init_submodules(&self, repo: &git2::Repository, home: &str) -> Result<()> {
+        for mut submodule in repo.submodules()? {
+            let submodule_name = submodule.name().unwrap_or("unknown").to_string();
+            log::debug!("Initializing submodule: {}", submodule_name);
+
+            // Initialize the submodule
+            submodule.init(false)?;
+
+            // Set up authentication callbacks for submodule fetch
+            let home_owned = home.to_string();
+            let mut callbacks = git2::RemoteCallbacks::new();
+            callbacks.credentials(move |_url, username_from_url, _allowed_types| {
+                git2::Cred::ssh_key(
+                    username_from_url.unwrap_or("git"),
+                    None,
+                    std::path::Path::new(&format!("{}/.ssh/id_rsa", home_owned)),
+                    None,
+                )
+            });
+
+            let mut fetch_opts = git2::FetchOptions::new();
+            fetch_opts.remote_callbacks(callbacks);
+
+            let mut submodule_update_opts = git2::SubmoduleUpdateOptions::new();
+            submodule_update_opts.fetch(fetch_opts);
+
+            // Update (clone) the submodule
+            submodule.update(true, Some(&mut submodule_update_opts))?;
+
+            // Recursively initialize nested submodules
+            if let Ok(sub_repo) = submodule.open() {
+                self.init_submodules(&sub_repo, home)?;
+            }
+        }
+        Ok(())
+    }
 }
+
 impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
     /// Loads a template by cloning a git repository.
     ///
@@ -152,7 +191,11 @@ impl<S: AsRef<str>> TemplateLoader for GitLoader<S> {
         builder.fetch_options(fetch_opts);
 
         match builder.clone(repo_url, &clone_path) {
-            Ok(_) => Ok(clone_path),
+            Ok(repo) => {
+                // Initialize and update submodules recursively
+                self.init_submodules(&repo, &home)?;
+                Ok(clone_path)
+            }
             Err(e) => Err(Error::Git2Error(e)),
         }
     }
