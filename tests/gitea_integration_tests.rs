@@ -904,3 +904,212 @@ fn test_template_with_submodule_schema_file() {
         "Successfully generated project from template with submodule schema_file via Gitea!"
     );
 }
+
+/// Test that verifies proper error handling when a schema_file is in an uninitialized submodule.
+///
+/// This test reproduces the issue where a template's baker.yaml references a schema_file
+/// located in a git submodule that wasn't initialized during clone.
+///
+/// This simulates the real-world scenario:
+/// 1. A template repository has a submodule (e.g., "templates" pointing to another repo)
+/// 2. The baker.yaml references a schema_file inside that submodule path
+/// 3. When Baker clones the repo without initializing submodules, the schema file is missing
+/// 4. Baker should fail with a clear error about the missing schema file
+///
+/// Run with: `cargo test test_missing_schema_file_in_submodule -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn test_missing_schema_file_in_submodule() {
+    let env = get_shared_gitea();
+
+    // Step 1: Create a schema repository containing the schema file
+    let schema_repo_name = "common-templates-schema";
+    let schema_repo_url =
+        env.create_repo(schema_repo_name).expect("Failed to create schema repository");
+    eprintln!("Schema repository created at: {}", schema_repo_url);
+
+    // Create and push schema content to the schema repo
+    let schema_dir = TempDir::new().expect("Failed to create schema temp dir");
+    let schema_content = r#"{
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "attributes": { "type": "object" }
+  }
+}"#;
+    fs::write(schema_dir.path().join("strapi.schema.json"), schema_content)
+        .expect("Failed to write schema file");
+
+    init_and_push_repo(schema_dir.path(), &schema_repo_url, TEST_USER, TEST_PASSWORD)
+        .expect("Failed to push schema repo");
+
+    // Step 2: Create the main template repository with a submodule reference
+    let main_repo_name = "template-with-schema-submodule";
+    let main_repo_url = env
+        .create_repo(main_repo_name)
+        .expect("Failed to create main template repository");
+    eprintln!("Main template repository created at: {}", main_repo_url);
+
+    let template_dir = TempDir::new().expect("Failed to create template temp dir");
+
+    // baker.yaml references a schema file inside the "templates" submodule
+    let baker_yaml = r#"schemaVersion: v1
+
+questions:
+  project_name:
+    type: str
+    help: Enter project name
+    default: "my_app"
+
+  entities:
+    type: json
+    help: Configure your entities
+    schema_file: "templates/strapi.schema.json"
+    default: |
+      {}
+"#;
+    fs::write(template_dir.path().join("baker.yaml"), baker_yaml)
+        .expect("Failed to write baker.yaml");
+
+    let template_content = r#"# {{ project_name }}
+Entities: {{ entities | json_encode }}
+"#;
+    fs::write(template_dir.path().join("README.md.baker.j2"), template_content)
+        .expect("Failed to write template file");
+
+    // Initialize and push the main repo first
+    init_and_push_repo(template_dir.path(), &main_repo_url, TEST_USER, TEST_PASSWORD)
+        .expect("Failed to push main repo");
+
+    // Step 3: Add the submodule to the main repo
+    let repo = Repository::open(template_dir.path()).expect("Failed to open repo");
+    let workdir = repo.workdir().expect("No workdir");
+
+    // Clone the schema repo into "templates" directory
+    let templates_path = workdir.join("templates");
+    let submodule_url_with_auth =
+        schema_repo_url.replace("://", &format!("://{}:{}@", TEST_USER, TEST_PASSWORD));
+    let submodule_repo =
+        git2::Repository::clone(&submodule_url_with_auth, &templates_path)
+            .expect("Failed to clone submodule");
+
+    // Get the commit ID of the submodule HEAD
+    let submodule_head = submodule_repo
+        .head()
+        .expect("No HEAD")
+        .peel_to_commit()
+        .expect("Failed to peel")
+        .id();
+
+    // Remove the cloned .git directory - treat as submodule
+    fs::remove_dir_all(templates_path.join(".git")).expect("Failed to remove .git");
+
+    // Create .gitmodules file
+    let gitmodules_content = format!(
+        "[submodule \"templates\"]\n\tpath = templates\n\turl = {}\n",
+        schema_repo_url
+    );
+    fs::write(workdir.join(".gitmodules"), &gitmodules_content)
+        .expect("Failed to write .gitmodules");
+
+    // Stage the .gitmodules and submodule entry
+    let mut index = repo.index().expect("Failed to get index");
+    index.add_path(Path::new(".gitmodules")).expect("Failed to add .gitmodules");
+
+    // Add the submodule directory as a gitlink (mode 160000)
+    let entry = git2::IndexEntry {
+        ctime: git2::IndexTime::new(0, 0),
+        mtime: git2::IndexTime::new(0, 0),
+        dev: 0,
+        ino: 0,
+        mode: 0o160000, // gitlink mode for submodules
+        uid: 0,
+        gid: 0,
+        file_size: 0,
+        id: submodule_head,
+        flags: 0,
+        flags_extended: 0,
+        path: "templates".as_bytes().to_vec(),
+    };
+    index.add(&entry).expect("Failed to add submodule entry");
+    index.write().expect("Failed to write index");
+
+    let tree_id = index.write_tree().expect("Failed to write tree");
+    let tree = repo.find_tree(tree_id).expect("Failed to find tree");
+    let parent = repo.head().expect("No HEAD").peel_to_commit().expect("Failed to peel");
+    let signature =
+        Signature::now(TEST_USER, TEST_EMAIL).expect("Failed to create signature");
+
+    repo.commit(
+        Some("HEAD"),
+        &signature,
+        &signature,
+        "Add templates submodule with schema file",
+        &tree,
+        &[&parent],
+    )
+    .expect("Failed to commit");
+
+    push_current_branch(&repo, TEST_USER, TEST_PASSWORD).expect("Failed to push");
+
+    eprintln!("Main template with submodule pushed successfully");
+
+    // Step 4: Now test Baker - clone the repo and try to use it
+    let work_dir = TempDir::new().expect("Failed to create work dir");
+    let output_dir = work_dir.path().join("output");
+    fs::create_dir_all(&output_dir).expect("Failed to create output dir");
+
+    let clone_url = env.clone_url_with_auth(main_repo_name);
+
+    // Create an answers file with entities data that needs schema validation
+    let answers_file = work_dir.path().join("answers.json");
+    let answers_content =
+        r#"{"project_name": "test_app", "entities": {"User": {"name": "User"}}}"#;
+    fs::write(&answers_file, answers_content).expect("Failed to write answers file");
+
+    let args = Args {
+        template: clone_url,
+        output_dir: output_dir.clone(),
+        force: true,
+        verbose: 2,
+        answers: None,
+        answers_file: Some(answers_file),
+        skip_confirms: vec![All],
+        non_interactive: true,
+        dry_run: false,
+    };
+
+    // Run baker - this should fail because submodules aren't initialized
+    let result = run(args);
+
+    // The test verifies that Baker fails with an appropriate error about the missing schema file
+    assert!(
+        result.is_err(),
+        "Expected error due to missing schema file in uninitialized submodule"
+    );
+
+    let error = result.unwrap_err();
+    let error_message = error.to_string();
+
+    eprintln!("Got expected error: {}", error_message);
+
+    // Verify the error message mentions the missing schema file
+    assert!(
+        error_message.contains("templates/strapi.schema.json")
+            || error_message.contains("strapi.schema.json"),
+        "Error message should mention the missing schema file. Got: {}",
+        error_message
+    );
+
+    // Verify the error message indicates it's a file not found error
+    assert!(
+        error_message.contains("Failed to read schema file")
+            || error_message.contains("No such file"),
+        "Error message should indicate the file couldn't be read. Got: {}",
+        error_message
+    );
+
+    eprintln!(
+        "Successfully verified that missing submodule schema file produces clear error message!"
+    );
+}
