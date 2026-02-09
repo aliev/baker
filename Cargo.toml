@@ -30,7 +30,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0"
 serde_yaml = "0.9"
 url = "2.5"
-jsonschema = "0.40"
+jsonschema = "0.41"
 dialoguer = { version = "0.12", features = ["fuzzy-select"] }
 anyhow = { version = "1.0" }
 openssl = { version = "0.10", features = ["vendored"] }
