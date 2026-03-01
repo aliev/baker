@@ -8,7 +8,7 @@
 //! Run these tests with: `cargo test --test gitea_integration_tests -- --ignored`
 
 use baker::cli::SkipConfirm::All;
-use baker::cli::{run, Args};
+use baker::cli::{run, Args, PromptThemeArg};
 use git2::{Cred, PushOptions, RemoteCallbacks, Repository, Signature};
 use reqwest::blocking::Client;
 use serde_json::json;
@@ -676,6 +676,7 @@ fn test_jsonschema_file_template_from_gitea() {
         skip_confirms: vec![All],
         non_interactive: true,
         dry_run: false,
+        theme: PromptThemeArg::Fancy,
     };
 
     run(args).expect("Baker run failed");
@@ -876,6 +877,7 @@ fn test_template_with_submodule_schema_file() {
         skip_confirms: vec![All],
         non_interactive: true,
         dry_run: false,
+        theme: PromptThemeArg::Fancy,
     };
 
     run(args).expect("Baker run failed - submodule schema_file should be accessible");
@@ -1083,6 +1085,7 @@ Entities count: {{ entities | length }}
         skip_confirms: vec![All],
         non_interactive: true,
         dry_run: false,
+        theme: PromptThemeArg::Fancy,
     };
 
     // Run baker - this should succeed because submodules are now initialized

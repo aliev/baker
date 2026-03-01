@@ -3,11 +3,17 @@ use crate::{
     error::Result,
 };
 use serde_json::Value;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 use super::{
     context::PromptContext, dialoguer::DialoguerPrompter, handler::PromptHandler,
-    interface::PromptProvider,
+    interface::PromptProvider, theme::PromptTheme,
 };
+
+const PROMPT_THEME_CLASSIC: u8 = 0;
+const PROMPT_THEME_FANCY: u8 = 1;
+
+static ACTIVE_PROMPT_THEME: AtomicU8 = AtomicU8::new(PROMPT_THEME_FANCY);
 
 /// Trait implemented by prompt backends that can render a question via a [`PromptContext`].
 pub trait Prompter<'a> {
@@ -16,7 +22,30 @@ pub trait Prompter<'a> {
 
 /// Convenience function to construct the default terminal prompt provider.
 pub fn get_prompt_provider() -> impl PromptProvider {
-    DialoguerPrompter::new()
+    DialoguerPrompter::with_theme(get_prompt_theme())
+}
+
+/// Sets the active prompt theme for all interactive dialogs in the current process.
+pub fn set_prompt_theme(theme: PromptTheme) {
+    ACTIVE_PROMPT_THEME.store(theme_to_u8(theme), Ordering::Relaxed);
+}
+
+fn get_prompt_theme() -> PromptTheme {
+    theme_from_u8(ACTIVE_PROMPT_THEME.load(Ordering::Relaxed))
+}
+
+const fn theme_to_u8(theme: PromptTheme) -> u8 {
+    match theme {
+        PromptTheme::Classic => PROMPT_THEME_CLASSIC,
+        PromptTheme::Fancy => PROMPT_THEME_FANCY,
+    }
+}
+
+const fn theme_from_u8(raw: u8) -> PromptTheme {
+    match raw {
+        PROMPT_THEME_CLASSIC => PromptTheme::Classic,
+        _ => PromptTheme::Fancy,
+    }
 }
 
 /// High-level helper that collects an answer for a single configuration question.

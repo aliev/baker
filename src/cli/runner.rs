@@ -7,7 +7,7 @@ use crate::{
     error::{Error, Result},
     ignore::parse_bakerignore_file,
     loader::get_template,
-    prompt::confirm,
+    prompt::{confirm, set_prompt_theme},
     renderer::TemplateRenderer,
     template::{get_template_engine, processor::TemplateProcessor},
 };
@@ -480,6 +480,7 @@ fn log_dry_run_action<A: AsRef<Path>>(action: &str, target: A) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::PromptThemeArg;
     use serde_json::json;
     use tempfile::TempDir;
 
@@ -494,6 +495,7 @@ mod tests {
             skip_confirms: Vec::new(),
             non_interactive: false,
             dry_run: false,
+            theme: PromptThemeArg::Fancy,
         }
     }
 
@@ -607,6 +609,7 @@ fn completion_message(dry_run: bool, output_root: &Path) -> String {
 
 /// Main entry point for CLI execution
 pub fn run(args: Args) -> Result<()> {
+    set_prompt_theme(args.theme.into());
     let runner = Runner::new(args);
     runner.run()
 }

@@ -1,5 +1,5 @@
 use baker::cli::SkipConfirm::All;
-use baker::cli::{run, Args};
+use baker::cli::{run, Args, PromptThemeArg};
 use log::debug;
 use std::fs;
 use std::path::Path;
@@ -106,6 +106,7 @@ pub fn run_and_assert(template: &str, expected_dir: &str, answers: Option<&str>)
         skip_confirms: vec![All],
         non_interactive: true,
         dry_run: false,
+        theme: PromptThemeArg::Fancy,
     };
     run(args).unwrap();
     let result = dir_diff::is_different(tmp_dir.path(), expected_dir);

@@ -7,16 +7,51 @@ use super::interface::{
     ConfirmationConfig, MultipleChoiceConfig, SecretConfig, SingleChoiceConfig,
     StructuredDataConfig, TextPromptConfig,
 };
+use super::theme::PromptTheme;
 use crate::{error::Result, prompt::parser::DataParser};
-use dialoguer::{Confirm, Editor, Input, MultiSelect, Password, Select};
+use dialoguer::console::{style, Style};
+use dialoguer::{
+    theme::ColorfulTheme, Confirm, Editor, Input, MultiSelect, Password, Select,
+};
 use serde_json::Value;
 
 /// Default terminal-backed prompt provider implemented with `dialoguer`.
-pub struct DialoguerPrompter;
+pub struct DialoguerPrompter {
+    theme: ColorfulTheme,
+}
 
 impl DialoguerPrompter {
     pub fn new() -> Self {
-        Self
+        Self::with_theme(PromptTheme::default())
+    }
+
+    pub fn with_theme(theme: PromptTheme) -> Self {
+        let theme = match theme {
+            PromptTheme::Classic => ColorfulTheme::default(),
+            PromptTheme::Fancy => Self::baker_theme(),
+        };
+        Self { theme }
+    }
+
+    fn baker_theme() -> ColorfulTheme {
+        ColorfulTheme {
+            defaults_style: Style::new().for_stderr().cyan(),
+            prompt_style: Style::new().for_stderr().bold().cyan(),
+            prompt_prefix: style("baker".to_string()).for_stderr().cyan(),
+            prompt_suffix: style(">".to_string()).for_stderr().black().bright(),
+            success_prefix: style("ok".to_string()).for_stderr().green(),
+            success_suffix: style(":".to_string()).for_stderr().black().bright(),
+            error_prefix: style("err".to_string()).for_stderr().red(),
+            values_style: Style::new().for_stderr().green(),
+            active_item_style: Style::new().for_stderr().bold().green(),
+            active_item_prefix: style(">".to_string()).for_stderr().green(),
+            inactive_item_prefix: style(" ".to_string()).for_stderr(),
+            checked_item_prefix: style("[x]".to_string()).for_stderr().green(),
+            unchecked_item_prefix: style("[ ]".to_string()).for_stderr().yellow(),
+            picked_item_prefix: style(">".to_string()).for_stderr().green(),
+            unpicked_item_prefix: style(" ".to_string()).for_stderr(),
+            ..ColorfulTheme::default()
+        }
     }
 }
 
@@ -41,7 +76,9 @@ impl super::interface::TextPrompter for DialoguerPrompter {
 
 impl super::interface::SingleChoicePrompter for DialoguerPrompter {
     fn prompt_single_choice(&self, config: &SingleChoiceConfig) -> Result<usize> {
-        let mut select = Select::new().with_prompt(&config.prompt).items(&config.choices);
+        let mut select = Select::with_theme(&self.theme)
+            .with_prompt(&config.prompt)
+            .items(&config.choices);
 
         if let Some(default_index) = config.default_index {
             select = select.default(default_index);
@@ -56,7 +93,7 @@ impl super::interface::MultipleChoicePrompter for DialoguerPrompter {
         &self,
         config: &MultipleChoiceConfig,
     ) -> Result<Vec<usize>> {
-        let indices = MultiSelect::new()
+        let indices = MultiSelect::with_theme(&self.theme)
             .with_prompt(&config.prompt)
             .items(&config.choices)
             .defaults(&config.defaults)
@@ -68,7 +105,7 @@ impl super::interface::MultipleChoicePrompter for DialoguerPrompter {
 
 impl super::interface::ConfirmationPrompter for DialoguerPrompter {
     fn prompt_confirmation(&self, config: &ConfirmationConfig) -> Result<bool> {
-        let result = Confirm::new()
+        let result = Confirm::with_theme(&self.theme)
             .with_prompt(&config.prompt)
             .default(config.default)
             .interact()?;
@@ -84,7 +121,7 @@ impl super::interface::StructuredDataPrompter for DialoguerPrompter {
 
         let options = vec!["Enter in terminal", "Open editor"];
 
-        let selection = Select::new()
+        let selection = Select::with_theme(&self.theme)
             .with_prompt(&config.prompt)
             .items(&options)
             .default(0)
@@ -109,7 +146,7 @@ impl DialoguerPrompter {
         prompt: &str,
         secret_config: &SecretConfig,
     ) -> Result<String> {
-        let mut password = Password::new().with_prompt(prompt);
+        let mut password = Password::with_theme(&self.theme).with_prompt(prompt);
 
         if secret_config.confirm {
             let error_message = if secret_config.mismatch_error.is_empty() {
@@ -127,7 +164,7 @@ impl DialoguerPrompter {
 
     /// Handle regular text input
     fn prompt_regular_text(&self, prompt: &str, default: &str) -> Result<String> {
-        Ok(Input::new()
+        Ok(Input::with_theme(&self.theme)
             .with_prompt(prompt)
             .default(default.to_string())
             .interact_text()?)
@@ -139,7 +176,7 @@ impl DialoguerPrompter {
         default_content: &str,
         is_yaml: bool,
     ) -> Result<Value> {
-        let content: String = Input::new()
+        let content: String = Input::with_theme(&self.theme)
             .with_prompt("Enter content")
             .default(default_content.to_string())
             .interact_text()?;
