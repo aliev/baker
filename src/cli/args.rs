@@ -1,4 +1,5 @@
 use crate::constants::{exit_codes, verbosity};
+use crate::prompt::PromptTheme;
 use clap::{error::ErrorKind, CommandFactory, Parser, ValueEnum};
 use log::LevelFilter;
 use std::fmt::Display;
@@ -31,6 +32,36 @@ impl Display for SkipConfirm {
             SkipConfirm::Hooks => "hooks",
         };
         write!(f, "{s}")
+    }
+}
+
+/// Available terminal prompt themes.
+#[derive(Debug, Clone, ValueEnum, Copy, PartialEq, Eq, Default)]
+#[value(rename_all = "lowercase")]
+pub enum PromptThemeArg {
+    /// dialoguer-like default colorful theme.
+    Classic,
+    /// Baker-branded prompt theme.
+    #[default]
+    Fancy,
+}
+
+impl Display for PromptThemeArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            PromptThemeArg::Classic => "classic",
+            PromptThemeArg::Fancy => "fancy",
+        };
+        write!(f, "{s}")
+    }
+}
+
+impl From<PromptThemeArg> for PromptTheme {
+    fn from(value: PromptThemeArg) -> Self {
+        match value {
+            PromptThemeArg::Classic => PromptTheme::Classic,
+            PromptThemeArg::Fancy => PromptTheme::Fancy,
+        }
     }
 }
 
@@ -74,6 +105,10 @@ pub struct Args {
     /// Preview actions without touching the filesystem.
     #[arg(long = "dry-run")]
     pub dry_run: bool,
+
+    /// Prompt theme (`classic` or `fancy`).
+    #[arg(long = "theme", value_enum, default_value_t = PromptThemeArg::Fancy)]
+    pub theme: PromptThemeArg,
 }
 
 /// Parse command line arguments with custom handling for missing required inputs.
@@ -134,6 +169,12 @@ mod tests {
     }
 
     #[test]
+    fn display_prompt_theme_variants() {
+        assert_eq!(PromptThemeArg::Classic.to_string(), "classic");
+        assert_eq!(PromptThemeArg::Fancy.to_string(), "fancy");
+    }
+
+    #[test]
     fn parses_full_feature_flags() {
         use clap::Parser;
         let args = Args::parse_from([
@@ -148,6 +189,8 @@ mod tests {
             "all,overwrite",
             "--non-interactive",
             "--dry-run",
+            "--theme",
+            "classic",
         ]);
         assert_eq!(args.template, "template_dir");
         assert_eq!(args.output_dir, PathBuf::from("output_dir"));
@@ -158,6 +201,7 @@ mod tests {
         assert!(args.skip_confirms.contains(&SkipConfirm::Overwrite));
         assert!(args.non_interactive);
         assert!(args.dry_run);
+        assert_eq!(args.theme, PromptThemeArg::Classic);
     }
 
     #[test]
@@ -173,5 +217,12 @@ mod tests {
         assert_eq!(args.template, "template_dir");
         assert_eq!(args.output_dir, PathBuf::from("output_dir"));
         assert_eq!(args.answers_file, Some(PathBuf::from("/path/to/answers.json")));
+    }
+
+    #[test]
+    fn parses_minimal_args_with_default_theme() {
+        use clap::Parser;
+        let args = Args::parse_from(["baker", "template_dir", "output_dir"]);
+        assert_eq!(args.theme, PromptThemeArg::Fancy);
     }
 }

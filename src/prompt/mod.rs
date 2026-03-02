@@ -6,6 +6,7 @@
 //! - [`handler`]: orchestration that chooses which prompt to display.
 //! - [`context`]: immutable data passed to prompt providers.
 //! - [`provider`]: convenience helpers exposed to the rest of the crate.
+//! - [`theme`]: prompt appearance presets.
 
 pub mod context;
 pub mod dialoguer;
@@ -13,7 +14,11 @@ pub mod handler;
 pub mod interface;
 pub mod parser;
 pub mod provider;
+pub mod theme;
 
 pub use context::PromptContext;
 pub use interface::*;
-pub use provider::{ask_question, confirm, get_prompt_provider, Prompter};
+pub use provider::{
+    ask_question, confirm, get_prompt_provider, set_prompt_theme, Prompter,
+};
+pub use theme::PromptTheme;
