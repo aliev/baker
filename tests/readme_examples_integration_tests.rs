@@ -1,4 +1,4 @@
-use baker::cli::{run, Args, SkipConfirm::All};
+use baker::cli::{run, Args, PromptThemeArg, SkipConfirm::All};
 use test_log::test;
 mod utils;
 use utils::run_and_assert;
@@ -160,6 +160,7 @@ fn test_non_interactive_mode_with_defaults() {
         skip_confirms: vec![All],
         non_interactive: true,
         dry_run: false,
+        theme: PromptThemeArg::Fancy,
     };
     run(args).unwrap();
 
@@ -193,6 +194,7 @@ fn test_nested_answer_context() {
         skip_confirms: vec![All],
         non_interactive: true,
         dry_run: false,
+        theme: PromptThemeArg::Fancy,
     };
     run(args).unwrap();
 
@@ -296,6 +298,7 @@ fn test_answers_file() {
         skip_confirms: vec![All],
         non_interactive: true,
         dry_run: false,
+        theme: PromptThemeArg::Fancy,
     };
     run(args).unwrap();
 
@@ -338,6 +341,7 @@ fn test_answers_file_with_cli_override() {
         skip_confirms: vec![All],
         non_interactive: true,
         dry_run: false,
+        theme: PromptThemeArg::Fancy,
     };
     run(args).unwrap();
 
