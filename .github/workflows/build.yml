@@ -71,7 +71,7 @@ jobs:
           RUST_LOG: trace
 
       - name: Upload reports to codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           name: code-coverage-report
           file: cobertura.xml
