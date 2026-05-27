@@ -140,17 +140,9 @@ impl<S: AsRef<str>> GitLoader<S> {
         let home_dir = Self::home_dir();
 
         let mut callbacks = git2::RemoteCallbacks::new();
-        callbacks.credentials(move |url, username_from_url, allowed_types| {
+        callbacks.credentials(move |_url, username_from_url, allowed_types| {
             if allowed_types.contains(git2::CredentialType::USERNAME) {
                 return git2::Cred::username(username_from_url.unwrap_or("git"));
-            }
-
-            if let Ok(config) = git2::Config::open_default() {
-                if let Ok(cred) =
-                    git2::Cred::credential_helper(&config, url, username_from_url)
-                {
-                    return Ok(cred);
-                }
             }
 
             let username = username_from_url.unwrap_or("git");
@@ -296,7 +288,7 @@ fn read_git_source_info(url: &str, path: &std::path::Path) -> Result<TemplateSou
 /// Annotated tags are peeled to their underlying commit before comparison.
 fn find_tag_at_head(repo: &git2::Repository, head_commit: &str) -> Option<String> {
     let tags = repo.tag_names(None).ok()?;
-    for tag_name in tags.iter().flatten() {
+    for tag_name in tags.iter().flatten().flatten() {
         if let Ok(obj) = repo.revparse_single(&format!("refs/tags/{tag_name}")) {
             let commit_id = if obj.kind() == Some(git2::ObjectType::Tag) {
                 obj.peel(git2::ObjectType::Commit).ok().map(|c| c.id().to_string())
