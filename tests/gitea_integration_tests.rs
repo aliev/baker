@@ -324,7 +324,7 @@ fn push_current_branch(
     push_options.remote_callbacks(callbacks);
 
     let head = repo.head()?;
-    let refname = head.name().ok_or("No ref name")?;
+    let refname = head.name()?;
 
     remote.push(&[&format!("{}:{}", refname, refname)], Some(&mut push_options))?;
 
