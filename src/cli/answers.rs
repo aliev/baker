@@ -80,7 +80,7 @@ impl<'a> AnswerCollector<'a> {
             } else {
                 answers_arg
             };
-            let cli_answers = self.parse_string_to_json(answers_str)?;
+            let cli_answers = self.parse_to_map(&answers_str)?;
             answers.extend(cli_answers);
         }
 
@@ -160,7 +160,7 @@ impl<'a> AnswerCollector<'a> {
         Ok(())
     }
 
-    /// Load answers from a JSON file.
+    /// Load answers from a JSON or YAML file.
     fn load_answers_from_file(
         &self,
         file_path: &Path,
@@ -172,20 +172,18 @@ impl<'a> AnswerCollector<'a> {
                 e
             ))
         })?;
-        self.parse_string_to_json(content)
+        self.parse_to_map(&content)
     }
 
-    /// Parse a string into a JSON object.
-    fn parse_string_to_json(
+    fn parse_to_map(
         &self,
-        buf: String,
+        buf: &str,
     ) -> Result<serde_json::Map<String, serde_json::Value>> {
-        let value = serde_json::from_str(&buf)?;
-
-        match value {
-            serde_json::Value::Object(map) => Ok(map),
-            _ => Ok(serde_json::Map::new()),
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(buf) {
+            return Ok(value.as_object().cloned().unwrap_or_default());
         }
+        let value: serde_json::Value = serde_yaml::from_str(buf)?;
+        Ok(value.as_object().cloned().unwrap_or_default())
     }
 
     fn validate_answer(
@@ -563,5 +561,37 @@ mod tests {
         assert!(collector
             .test_validate_answer(&question, &answer, &engine, &answers)
             .is_ok());
+    }
+
+    #[test]
+    fn test_collect_answers_yaml_cli_string() {
+        let engine = get_template_engine();
+        let temp_dir = std::env::temp_dir();
+        let collector = AnswerCollector::new(&engine, true, &temp_dir);
+        let config: ConfigV1 = serde_json::from_str("{}").unwrap();
+
+        let yaml = "name: alice\nage: 30\n".to_string();
+        let result = collector.collect_answers(&config, None, Some(yaml), None).unwrap();
+
+        assert_eq!(result["name"], json!("alice"));
+        assert_eq!(result["age"], json!(30));
+    }
+
+    #[test]
+    fn test_collect_answers_yaml_file() {
+        let temp_file = tempfile::Builder::new().suffix(".yaml").tempfile().unwrap();
+        std::fs::write(temp_file.path(), "project: baker\nversion: 2\n").unwrap();
+
+        let engine = get_template_engine();
+        let temp_dir = std::env::temp_dir();
+        let collector = AnswerCollector::new(&engine, true, &temp_dir);
+        let config: ConfigV1 = serde_json::from_str("{}").unwrap();
+
+        let result = collector
+            .collect_answers(&config, None, None, Some(temp_file.path().to_path_buf()))
+            .unwrap();
+
+        assert_eq!(result["project"], json!("baker"));
+        assert_eq!(result["version"], json!(2));
     }
 }
