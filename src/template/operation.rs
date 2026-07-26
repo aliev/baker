@@ -171,8 +171,8 @@ mod tests {
         let user_confirmed_overwrite = true;
         let expected = format!(
             "Copying '{}' to '{}' (overwriting existing file)",
-            &source.display(),
-            &target.display()
+            source.display(),
+            target.display()
         );
 
         let copy = TemplateOperation::Copy { source, target, target_exists: true };
@@ -187,8 +187,8 @@ mod tests {
         let user_confirmed_overwrite = false;
         let expected = format!(
             "Skipping copy of '{}' to '{}' (target already exists)",
-            &source.display(),
-            &target.display()
+            source.display(),
+            target.display()
         );
 
         let copy = TemplateOperation::Copy { source, target, target_exists: true };
@@ -202,7 +202,7 @@ mod tests {
         let target = PathBuf::from("/tmp/test/file.txt");
         let user_confirmed_overwrite = false;
         let expected =
-            format!("Copying '{}' to '{}'", &source.display(), &target.display());
+            format!("Copying '{}' to '{}'", source.display(), target.display());
 
         let copy = TemplateOperation::Copy { source, target, target_exists: false };
         let actual = copy.get_message(user_confirmed_overwrite, false);
@@ -214,7 +214,7 @@ mod tests {
         let user_confirmed_overwrite = false;
         let expected = format!(
             "Skipping directory creation '{}' (already exists)",
-            &target.display()
+            target.display()
         );
 
         let copy = TemplateOperation::CreateDirectory { target, target_exists: true };
@@ -225,7 +225,7 @@ mod tests {
     fn create_directory_message_when_missing() {
         let target = PathBuf::from("/tmp/test/file.txt");
         let user_confirmed_overwrite = false;
-        let expected = format!("Creating directory '{}'", &target.display());
+        let expected = format!("Creating directory '{}'", target.display());
 
         let copy = TemplateOperation::CreateDirectory { target, target_exists: false };
         let actual = copy.get_message(user_confirmed_overwrite, false);
@@ -236,7 +236,7 @@ mod tests {
         let target = PathBuf::from("/tmp/test/file.txt");
         let user_confirmed_overwrite = true;
         let expected =
-            format!("Writing to '{}' (overwriting existing file)", &target.display());
+            format!("Writing to '{}' (overwriting existing file)", target.display());
 
         let copy = TemplateOperation::Write {
             target,
@@ -251,7 +251,7 @@ mod tests {
         let target = PathBuf::from("/tmp/test/file.txt");
         let user_confirmed_overwrite = false;
         let expected =
-            format!("Skipping write to '{}' (target already exists)", &target.display());
+            format!("Skipping write to '{}' (target already exists)", target.display());
 
         let copy = TemplateOperation::Write {
             target,
@@ -265,7 +265,7 @@ mod tests {
     fn write_operation_basic_message() {
         let target = PathBuf::from("/tmp/test/file.txt");
         let user_confirmed_overwrite = false;
-        let expected = format!("Writing to '{}'", &target.display());
+        let expected = format!("Writing to '{}'", target.display());
 
         let copy = TemplateOperation::Write {
             target,
@@ -280,7 +280,7 @@ mod tests {
         let source = PathBuf::from("/tmp/test/file.txt");
         let user_confirmed_overwrite = false;
         let expected =
-            format!("Ignoring '{}' (matches ignore pattern)", &source.display());
+            format!("Ignoring '{}' (matches ignore pattern)", source.display());
 
         let copy = TemplateOperation::Ignore { source };
         let actual = copy.get_message(user_confirmed_overwrite, false);
