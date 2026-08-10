@@ -45,7 +45,7 @@ tempfile = "3.27"
 [dev-dependencies]
 dir-diff = "0.3"
 test-log = { version = "0.2", features = ["trace", "color"] }
-testcontainers = { version = "0.27", features = ["blocking"] }
+testcontainers = { version = "0.28", features = ["blocking"] }
 reqwest = { version = "0.13", features = ["blocking", "json"] }
 
 # The profile that 'dist' will build with
