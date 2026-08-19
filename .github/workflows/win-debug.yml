@@ -16,8 +16,11 @@ jobs:
         run: |
           Write-Host "--- where bash ---"
           where.exe bash
-          Write-Host "--- System32\bash.exe present? ---"
+          Write-Host "--- where sh ---"
+          where.exe sh
+          Write-Host "--- System32 stubs present? ---"
           Test-Path 'C:\Windows\System32\bash.exe'
+          Test-Path 'C:\Windows\System32\sh.exe'
           Write-Host "--- core.autocrlf ---"
           git config --get core.autocrlf
           git config --system --get core.autocrlf
@@ -60,24 +63,36 @@ jobs:
                   Err(e) => println!("spawn error: {e}"),
               }
 
-              try_run(
-                  "backslash relative",
-                  "bash",
-                  "tests/templates/hook_runner_windows_bash\\hooks\\pre.sh",
-              );
-              try_run(
-                  "forward slash relative",
-                  "bash",
-                  "tests/templates/hook_runner_windows_bash/hooks/pre.sh",
-              );
-
               let cwd = std::env::current_dir().unwrap();
               let abs_back = cwd
                   .join("tests\\templates\\hook_runner_windows_bash\\hooks\\pre.sh")
                   .display()
                   .to_string();
-              try_run("backslash absolute", "bash", &abs_back);
-              try_run("forward slash absolute", "bash", &abs_back.replace('\\', "/"));
+              let rel_back = "tests/templates/hook_runner_windows_bash\\hooks\\pre.sh";
+
+              // Isolate the MSYS escape-mangling from the System32 WSL stub by
+              // naming Git's bash explicitly.
+              let git_bash = r"C:\Program Files\Git\bin\bash.exe";
+              try_run("git bash + backslash relative", git_bash, rel_back);
+              try_run(
+                  "git bash + forward slash relative",
+                  git_bash,
+                  "tests/templates/hook_runner_windows_bash/hooks/pre.sh",
+              );
+              try_run("git bash + backslash absolute", git_bash, &abs_back);
+              try_run(
+                  "git bash + forward slash absolute",
+                  git_bash,
+                  &abs_back.replace('\\', "/"),
+              );
+
+              // Does a bare "sh" dodge the System32 stub?
+              try_run("sh + backslash relative", "sh", rel_back);
+              try_run(
+                  "sh + forward slash relative",
+                  "sh",
+                  "tests/templates/hook_runner_windows_bash/hooks/pre.sh",
+              );
           }
           '@ | Set-Content -Path diag.rs -Encoding utf8
           rustc -o diag.exe diag.rs
