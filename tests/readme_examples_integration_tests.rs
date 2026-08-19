@@ -148,6 +148,16 @@ fn test_hook_runner_windows() {
 }
 
 #[test]
+#[cfg(target_os = "windows")]
+fn test_hook_runner_windows_bash() {
+    run_and_assert(
+        "tests/templates/hook_runner_windows_bash",
+        "tests/expected/hook_runner_windows_bash",
+        None,
+    );
+}
+
+#[test]
 fn test_non_interactive_mode_with_defaults() {
     let tmp_dir = tempfile::tempdir().unwrap();
     let args = GenerateArgs {
