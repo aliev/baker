@@ -81,4 +81,4 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Build Release
-        run: cargo build --verbose --release
+        run: cargo build
