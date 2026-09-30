@@ -415,7 +415,7 @@ impl Runner {
             self.build_templates_import_globset(&import_root, &config.template_globs);
 
         if let Some(globset) = templates_import_globset {
-            debug!("Adding templates from glob patterns: {:?}", &config.template_globs);
+            debug!("Adding templates from glob patterns: {:?}", config.template_globs);
             WalkDir::new(&import_root)
                 .into_iter()
                 .filter_map(|e| e.ok())
