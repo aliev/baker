@@ -1,6 +1,6 @@
 use super::filters::*;
 use crate::{error::Result, ext::PathExt, renderer::interface::TemplateRenderer};
-use minijinja::{AutoEscape, Environment};
+use minijinja::{value::Serde, AutoEscape, Environment};
 use serde_json::json;
 use std::path::Path;
 
@@ -50,7 +50,7 @@ impl MiniJinjaRenderer {
     ) -> Result<String> {
         let mut env = self.env.clone();
         if let Some(auto_escape) = auto_escape_override {
-            env.set_auto_escape_callback(move |_| auto_escape);
+            env.set_auto_escape_callback(move |_| auto_escape.clone());
         }
         let name = template_name.unwrap_or("temp");
         env.add_template(name, template)?;
@@ -70,7 +70,7 @@ impl MiniJinjaRenderer {
         };
 
         let tmpl = env.get_template(name)?;
-        Ok(tmpl.render(merged_context)?)
+        Ok(tmpl.render(Serde(merged_context))?)
     }
 }
 
@@ -124,7 +124,7 @@ impl TemplateRenderer for MiniJinjaRenderer {
             return Ok(true);
         }
         let expr = self.env.compile_expression(expr_str)?;
-        Ok(expr.eval(context)?.is_true())
+        Ok(expr.eval(Serde(context))?.is_true())
     }
 }
 
@@ -163,20 +163,20 @@ mod tests {
 
     #[test]
     fn test_regex_filter() {
-        test_template("{{ 'hello world' | regex('^hello') }}", "true");
-        test_template("{{ 'hello world' | regex('^hello.*') }}", "true");
-        test_template("{{ 'goodbye world' | regex('^hello.*') }}", "false");
+        test_template("{{ 'hello world' | regex('^hello') }}", "True");
+        test_template("{{ 'hello world' | regex('^hello.*') }}", "True");
+        test_template("{{ 'goodbye world' | regex('^hello.*') }}", "False");
 
-        test_template("{{ 'Hello World' | regex('hello') }}", "false");
-        test_template("{{ 'Hello World' | regex('(?i)hello') }}", "true");
+        test_template("{{ 'Hello World' | regex('hello') }}", "False");
+        test_template("{{ 'Hello World' | regex('(?i)hello') }}", "True");
 
-        test_template(r"{{ 'a+b=c' | regex('\\+') }}", "true");
-        test_template(r"{{ 'a+b=c' | regex('\\=') }}", "true");
-        test_template("{{ 'a+b=c' | regex('d') }}", "false");
+        test_template(r"{{ 'a+b=c' | regex('\\+') }}", "True");
+        test_template(r"{{ 'a+b=c' | regex('\\=') }}", "True");
+        test_template("{{ 'a+b=c' | regex('d') }}", "False");
 
-        test_template("{{ '' | regex('.*') }}", "true");
-        test_template("{{ '' | regex('.+') }}", "false");
-        test_template("{{ 'hello' | regex('[') }}", "false");
+        test_template("{{ '' | regex('.*') }}", "True");
+        test_template("{{ '' | regex('.+') }}", "False");
+        test_template("{{ 'hello' | regex('[') }}", "False");
     }
 
     #[test]

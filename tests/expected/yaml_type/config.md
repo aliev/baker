@@ -3,10 +3,10 @@
 
 ## Development
 - URL: http://localhost:8000
-- Debug: true
+- Debug: True
 
 
 ## Production
 - URL: https://staging.example.com
-- Debug: false
+- Debug: False
 
