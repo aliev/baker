@@ -1,0 +1,5 @@
+schemaVersion: v1
+
+pre_hook_filename: pre.sh
+pre_hook_runner:
+  - bash

@@ -1,0 +1,99 @@
+name: Windows hook debug (temporary)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["issue-152-windows-bash-hooks"]
+
+jobs:
+  debug:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Environment facts
+        shell: pwsh
+        run: |
+          Write-Host "--- where bash ---"
+          where.exe bash
+          Write-Host "--- where sh ---"
+          where.exe sh
+          Write-Host "--- System32 stubs present? ---"
+          Test-Path 'C:\Windows\System32\bash.exe'
+          Test-Path 'C:\Windows\System32\sh.exe'
+          Write-Host "--- core.autocrlf ---"
+          git config --get core.autocrlf
+          git config --system --get core.autocrlf
+          Write-Host "--- pre.sh bytes ---"
+          Format-Hex -Path tests/templates/hook_runner_windows_bash/hooks/pre.sh
+
+      - name: Spawn bash the way baker does
+        shell: pwsh
+        run: |
+          @'
+          use std::process::{Command, Stdio};
+
+          fn try_run(label: &str, program: &str, arg: &str) {
+              println!("=== {label}: {program} {arg}");
+              let out = Command::new(program).arg(arg).stdin(Stdio::null()).output();
+              match out {
+                  Ok(o) => println!(
+                      "status={:?}\nstdout={:?}\nstderr={:?}",
+                      o.status,
+                      String::from_utf8_lossy(&o.stdout),
+                      String::from_utf8_lossy(&o.stderr)
+                  ),
+                  Err(e) => println!("spawn error: {e}"),
+              }
+          }
+
+          fn main() {
+              println!("=== which bash does Command::new resolve? ===");
+              let out = Command::new("bash")
+                  .args(["-c", "command -v bash; echo MSYSTEM=$MSYSTEM; uname -a"])
+                  .stdin(Stdio::null())
+                  .output();
+              match out {
+                  Ok(o) => println!(
+                      "status={:?}\nstdout={:?}\nstderr={:?}",
+                      o.status,
+                      String::from_utf8_lossy(&o.stdout),
+                      String::from_utf8_lossy(&o.stderr)
+                  ),
+                  Err(e) => println!("spawn error: {e}"),
+              }
+
+              let cwd = std::env::current_dir().unwrap();
+              let abs_back = cwd
+                  .join("tests\\templates\\hook_runner_windows_bash\\hooks\\pre.sh")
+                  .display()
+                  .to_string();
+              let rel_back = "tests/templates/hook_runner_windows_bash\\hooks\\pre.sh";
+
+              // Isolate the MSYS escape-mangling from the System32 WSL stub by
+              // naming Git's bash explicitly.
+              let git_bash = r"C:\Program Files\Git\bin\bash.exe";
+              try_run("git bash + backslash relative", git_bash, rel_back);
+              try_run(
+                  "git bash + forward slash relative",
+                  git_bash,
+                  "tests/templates/hook_runner_windows_bash/hooks/pre.sh",
+              );
+              try_run("git bash + backslash absolute", git_bash, &abs_back);
+              try_run(
+                  "git bash + forward slash absolute",
+                  git_bash,
+                  &abs_back.replace('\\', "/"),
+              );
+
+              // Does a bare "sh" dodge the System32 stub?
+              try_run("sh + backslash relative", "sh", rel_back);
+              try_run(
+                  "sh + forward slash relative",
+                  "sh",
+                  "tests/templates/hook_runner_windows_bash/hooks/pre.sh",
+              );
+          }
+          '@ | Set-Content -Path diag.rs -Encoding utf8
+          rustc -o diag.exe diag.rs
+          ./diag.exe
